@@ -21,13 +21,13 @@ Date: 2026-10-29 Asia/Shanghai
 
 ## Next order
 
-1. Verify Cordonix's tools in a fresh Codex session and keep actual usage receipts separate from test receipts.
+1. Continue first-party use from the fresh Codex session that verified the installed C11 runtime and open/read/search/close lifecycle. Keep actual usage receipts separate from test receipts.
 2. Continue one roadmap item at a time. Linux, crash recovery, benchmarks and signed releases are not implied by this Windows MVP.
 3. Preserve the explicit commit boundary; external tools read disk and session EOF discards dirty memory.
 
 ## Validation
 
-Local core gates: process 15, document 36, JSON 46, encoding/integration edges 25, plus real native MCP stdio tests. The independent official SDK acceptance completed 14 workflow checks. Run the final `eng\test.cmd` to obtain the current complete result; refer to GitHub Actions for remote CI state.
+Local core gates: process 15, document 36, JSON 46, encoding/integration edges 25 and real native MCP stdio 17: 139 checks passed. The independent official SDK acceptance completed 14 workflow checks. Fresh Codex-session acceptance confirmed version 0.1.0-dev/C11, one document load, zero commits, memory search and unchanged disk SHA. Windows GitHub Actions passed the implementation commit. Run the final `eng\test.cmd` for changed code and inspect GitHub Actions for the current remote result.
 
 ## Authorization and cleanup
 

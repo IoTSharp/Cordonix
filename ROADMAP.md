@@ -14,14 +14,14 @@ An item is complete only when the real product entry point exercises it and the 
 | CDX-02 | C11 Windows process core | complete for Windows MVP | CDX-01 | Typed argv, Job ownership, timeout/cancel, bounded raw output | 15 real native-process checks; broader workloads/soak remain separate |
 | CDX-03 | Encoding-safe document core | complete for Windows MVP | CDX-01 | UTF-8/BOM, UTF-16 BOM, explicit CP936, SHA, exact edits and commits | 36 core checks; explicit lossless memory transcoding included |
 | CDX-04 | C CLI and deterministic JSON contract | complete for Windows MVP | CDX-02, CDX-03 | Native binary, UTF-8 JSON, original request IDs, no shell parsing | `cdx --request`, `--version`; 46 JSON behavior checks |
-| CDX-05 | C MCP stdio adapter | implemented; client rollout in progress | CDX-04 | Real stdio, asynchronous cancellation, official SDK and Codex | Native stdio tests and 14 official-SDK workflow checks passed; client reload is distinct |
+| CDX-05 | C MCP stdio adapter | complete for Windows MVP | CDX-04 | Real stdio, asynchronous cancellation, official SDK and Codex | Native stdio tests, 14 official-SDK workflow checks, and a fresh Codex session's open/read/search/close passed |
 | CDX-06 | Windows memory workspace | complete for bounded single-file MVP | CDX-03 | Reuse open documents, memory editing/search, explicit commit/conflict | 25 encoding/integration edge checks; external programs still read disk |
 | CDX-07 | Linux POSIX backend | planned | CDX-02, CDX-04 | POSIX process ownership and encoding/file parity | No Linux implementation or acceptance claim |
 | CDX-08 | Packaging and repeatable releases | partial | CDX-05 | Source license, Windows CI artifact, install guide; later signed release/SBOM | Apache-2.0 and build instructions present; no signed release claimed |
 
 ## Next item
 
-Finish CDX-05's actual Codex-session rollout, then use the Windows MVP on bounded daily tasks before expanding the platform or tool surface. Track observed failures with reproducible fixtures. CDX-07 and signing/packaging are independent future deliveries.
+Use the Windows MVP on bounded daily tasks before expanding the platform or tool surface. A fresh Codex session has verified the installed C11 runtime and read-only document lifecycle. Track new observed failures with reproducible fixtures. CDX-07 and signing/packaging are independent future deliveries.
 
 ## Capability gaps
 

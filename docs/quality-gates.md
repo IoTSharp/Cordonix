@@ -9,7 +9,7 @@
 | document conflict | stale hash, ambiguous match and external writer produce zero write | real file checks PASS; no filesystem CAS claim |
 | memory workspace | repeated reads use memory and commits are explicit | same-path cache, locked-disk read and commit readback PASS |
 | JSON contract | malformed UTF-8/JSON, Unicode escapes, IDs and bounded parse behavior | 46 native checks PASS |
-| MCP | initialize, tools/list, tools/call, cancellation and EOF | real native stdio suite + 14 official SDK workflow checks PASS |
+| MCP | initialize, tools/list, tools/call, cancellation and EOF | 17 real stdio checks + 14 official SDK workflow checks PASS; fresh Codex session also verified the installed runtime and memory read lifecycle |
 | Linux | POSIX backend matches the public result contract | planned |
 | packaging | install, version, provenance, SBOM and license are reproducible | Apache-2.0/source builds present; signed release/SBOM planned |
 
