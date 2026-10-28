@@ -1,0 +1,11 @@
+# Build cdx.exe first; replace the path with your actual absolute executable path.
+[mcp_servers.cordonix]
+command = 'D:\GitHub\Cordonix\build\bin\cdx.exe'
+args = [ '--mcp' ]
+startup_timeout_sec = 15
+tool_timeout_sec = 300
+enabled_tools = [
+  'tool_info', 'execute_program',
+  'workspace_open', 'workspace_read', 'workspace_search', 'workspace_status',
+  'workspace_edit', 'workspace_convert_encoding', 'workspace_commit', 'workspace_close'
+]

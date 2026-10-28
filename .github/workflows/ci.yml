@@ -1,0 +1,20 @@
+name: Native Windows checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile C11 and exercise native processes, encodings and MCP
+        shell: cmd
+        run: eng\test.cmd
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cordonix-windows-x64
+          path: build/bin/cdx.exe
+          if-no-files-found: error
