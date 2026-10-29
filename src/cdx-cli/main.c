@@ -140,10 +140,11 @@ static int run_mcp(void) {
             cdx_json_output_init(&output); response_start(&output, &json, id); cdx_json_raw(&output, ",\"result\":{}}"); send_output(&output); cdx_json_output_free(&output);
         } else if (!initialized) rpc_error(&json, id, -32002, "Initialize the MCP session first");
         else if (string_node(&json, method, "tools/list")) {
-            cdx_json_output_init(&output); response_start(&output, &json, id); cdx_json_raw(&output, ",\"result\":"); cdx_json_raw(&output, cdx_tool_list()); cdx_json_raw(&output, "}"); send_output(&output); cdx_json_output_free(&output);
+            cdx_json_output_init(&output); response_start(&output, &json, id); cdx_json_raw(&output, ",\"result\":"); cdx_tool_list(&output); cdx_json_raw(&output, "}"); send_output(&output); cdx_json_output_free(&output);
         } else if (string_node(&json, method, "tools/call")) {
-            if (active.thread) rpc_error(&json, id, -32001, "A program is running; wait or cancel that request");
-            else if (string_node(&json, cdx_json_get(&json, params, "name"), "execute_program")) {
+            if (active.thread) rpc_error(&json, id, -32001, "An operation is running; wait or cancel that request");
+            else if (string_node(&json, cdx_json_get(&json, params, "name"), "execute_program") ||
+                     string_node(&json, cdx_json_get(&json, params, "name"), "verify_encoding")) {
                 active.json = json; active.id = id; active.params = params; active.cancel = CreateEventW(NULL, TRUE, FALSE, NULL);
                 active.thread = active.cancel ? CreateThread(NULL, 0, execution_worker, &active, 0, NULL) : NULL;
                 if (active.thread) continue;
@@ -155,7 +156,11 @@ static int run_mcp(void) {
     }
     SetEvent(reader.stop); CancelSynchronousIo(input_thread); SetEvent(reader.consumed);
     (void)WaitForSingleObject(input_thread, 2000); CloseHandle(input_thread);
-    (void)finish_active(&active, 1); cdx_workspace_clear();
+    if (!finish_active(&active, 1)) {
+        (void)fputs("Cordonix: operation cleanup did not finish before the shutdown deadline\n", stderr);
+        ExitProcess(1);
+    }
+    cdx_workspace_clear();
     CloseHandle(reader.available); CloseHandle(reader.consumed); CloseHandle(reader.stop);
     return reader.oversized ? 2 : 0;
 }

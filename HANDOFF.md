@@ -4,31 +4,52 @@ Date: 2026-10-29 Asia/Shanghai
 
 ## Current state
 
-- Project name: Cordonix
-- Short form: cdx
+- Project: Cordonix / cdx, Apache-2.0, version 0.1.0-dev.
 - Repository: https://github.com/maikebing/Cordonix
-- Canonical location: `D:\GitHub\Cordonix`
-- Branch: `main`; inspect `git log -1` and `git status` for live state.
-- License: Apache-2.0
-- Version: 0.1.0-dev (Windows MVP, not a stable release)
+- Canonical checkout: `D:\GitHub\Cordonix`.
+- Branch: `main`; implementation baseline `bc988f8`. Read the current revision and working-tree state with `git log -1` and `git status`.
+- The user authorized the local Cordonix code commit on 2026-10-29. Push and publication remain separate actions; no push or publication was performed.
+- The checkout was clean at intake. The process, document and packaging agents used disjoint source ownership; the supervising agent integrated shared protocol, gates and documentation.
 
-## Completed
+## Completed in this session
 
-- Pure C11 Windows process core, strict encoding/document core, CLI and ten-tool MCP adapter.
-- Memory open/read/search/edit/encoding conversion and explicit single-file commit; same-path cache reuse and conflict detection.
-- Eight project agent rules, English/Chinese README, contributor/security guidance and Apache-2.0.
-- Native CI workflow uses the same `eng\test.cmd` gate as the local build.
-
-## Next order
-
-1. Continue first-party use from the fresh Codex session that verified the installed C11 runtime and open/read/search/close lifecycle. Keep actual usage receipts separate from test receipts.
-2. Continue one roadmap item at a time. Linux, crash recovery, benchmarks and signed releases are not implied by this Windows MVP.
-3. Preserve the explicit commit boundary; external tools read disk and session EOF discards dirty memory.
+- CDX-07A: Linux literal-argv execution, process groups, bounded streams, timeout/cancellation, closed-stdin handling and cleanup observation; 16 real process checks.
+- CDX-07B: shared document editing algorithm, Linux strict encoding/SHA implementation and explicit single-file commits; 42 real file checks, including sanitizer validation.
+- CDX-07C: Linux CLI/MCP, shared JSON/stdio tests, platform build scripts, output backpressure/SIGTERM/EOF cleanup, and restoration of stdout flags.
+- CDX-08A: Windows portable package and verification scripts; final package gate PASS.
+- CDX-09C: `read_file` one-shot disk line ranges and `workspace_read` line mode. The actual TableStore.cs 951–1195 slice matches all 245 PowerShell reference lines without changing the source SHA.
+- CDX-09D: native `tail_lines` and `raw` modes on both read tools. Actual Tail 55 on test_document_posix.c and Raw on process_posix.c match PowerShell and preserve source SHAs; complete-result output limits and mode conflicts are explicit.
+- First N uses the existing native line range (`start_line=1`, `line_count=N`). This follow-up added a First 100 example and checked document_common.c Raw plus encoding_posix.c First 100 against PowerShell, with unchanged source SHAs; no C runtime behavior changed.
+- CDX-09E: native `list_directory` and `resolve_path`, with literal absolute paths, explicit hidden/system handling, bounded nonrecursive listings and lexical path normalization. The requested LaneApp scratch directory was absent and both operations returned `not_found`; an existing Cordonix directory matched PowerShell's six immediate items and normalized path.
+- CDX-09F: native `verify_encoding` with explicit encoding, expected count and lexical allowed-root preflight; no source contents are read until the complete path batch is valid. Seven distinct CP936 fixture files matched the posted .NET verification logic without writes. BOM mismatches, timeout, active cancellation and EOF are covered; real LaneApp verification was not requested for this turn.
+- MCP tool definitions now include readable Chinese titles. The client decides how to display them; current Codex UI rendering is not established by a tools/list test.
+- Roadmap now distinguishes completed local tasks, partial parent deliveries and unrun adoption/release gates with emoji.
 
 ## Validation
 
-Local core gates: process 15, document 36, JSON 46, encoding/integration edges 25 and real native MCP stdio 17: 139 checks passed. The independent official SDK acceptance completed 14 workflow checks. Fresh Codex-session acceptance confirmed version 0.1.0-dev/C11, one document load, zero commits, memory search and unchanged disk SHA. Windows GitHub Actions passed the implementation commit. Run the final `eng\test.cmd` for changed code and inspect GitHub Actions for the current remote result.
+- Final `eng\test.cmd`: PASS, exit 0, Windows 197/197 (15 process + 36 document + 46 JSON + 25 encoding/integration + 75 stdio).
+- Final `sh eng/test-linux.sh`: PASS, exit 0, Linux 183/183 (16 process + 42 document + 46 JSON + 79 stdio), WSL Ubuntu 24.04 / GCC 13.3.0.
+- Earlier Linux document ASan/UBSan/leak-detection run: 42/42 PASS. The current Linux production binary additionally passed all 79 real MCP checks under ASan/UBSan with leak detection.
+- The independent review found and repaired real output-blocking and test-cleanup defects; the new fixtures are included in the final Linux gate.
+- Current native receipts: `build/encoding-verify/windows.json` and `linux.json`; independent seven-file .NET comparison: `comparison.json`. Linux ASan/UBSan/leak-detection production-MCP receipt: `sanitized.json` (79/79). Pure normalization/scope fixtures: Windows 19 and POSIX 17 checks PASS, receipt `build/encoding-scope/results.json`. Earlier evidence remains in its existing task directories.
+- Filesystem component checks: Windows 18 real NTFS checks PASS; Linux 19 isolated ASan/UBSan checks PASS. Invalid UTF-8 directory-entry testing is NOT_RUN because DrvFS converted the test name to replacement-character bytes; the original 18 PASS / 1 FAIL fixture evidence and explanation are retained in `build/filesystem-posix/verification.md`. A request-path encoding check does not substitute for that OS-entry gate.
+- Current `eng/test-package.ps1`: PASS. ZIP `build/packaging/cordonix-0.1.0-dev-win-x64.zip`, 294,405 bytes, SHA-256 `09add3071e28beffd8c5eb79e53a8d554a6fce654044412dd9607579a5788c63`. Two-run reproducibility, manifest/SPDX/hash relationships and Unicode-path CLI checks passed; seven operation examples include batch encoding verification. Current receipts: `build/encoding-verify/package.json` and `cleanup.json`; prior package receipts remain in the earlier task directories.
+- Packaging first exposed multiple Git application paths being joined into one executable path. The script now selects the first resolved application and emits UTF-8 diagnostics; the successful rerun and original failure are both retained.
+- Earlier baseline SDK/Codex receipts remain historical: 14 official-SDK workflows and a fresh Windows Codex open/read/search/close lifecycle. They do not validate the changed executable or UI titles.
+- Remote CI, official SPDX schema validation, signing, release publication, fresh Linux Codex acceptance and ext4/ACL/xattr behavior are NOT_RUN.
 
-## Authorization and cleanup
+## Next order
 
-The user authorized this project, its public repository, local checkout, Codex integration and collaborative implementation. Do not infer authority for unrelated repositories, production hosts or future external releases. Test fixtures are created under `build/`, cleaned by their owners, and excluded from Git. Runtime installation/configuration stays outside the public repository; no private transcripts, credentials or personal backups belong here.
+1. Verify the new runtime in a fresh Codex session, including whether tool titles are displayed.
+2. Keep CDX-07D metadata/platform adoption, CDX-08B signed releases and CDX-09B remaining tool-adapter gaps separate.
+3. Declare file encoding before editing. Known GBK uses explicit CP936; AUTO is BOM/strict UTF-8 interpretation, not GBK detection. Commit memory edits before external builds.
+
+## Local integration changes and boundaries
+
+Outside this public repository, the authorized skill migration retired `powershell7-safe-exec`, narrowed `codex-local-workflow` to collaboration/handoff, and made `cordonix` the preferred execution/read/edit path. The local skill inventory was regenerated and validated while preserving unrelated dirty files. No skill commit/push, runtime replacement, MCP configuration change or shared MCP-process termination occurred.
+
+The inspected LaneApp CP936 editing script was read only. Its general hash-checked editing can migrate to cdx, but the 16-document session bound and explicit per-file commits remain; no multi-file atomicity or new-file creation is implied.
+
+## Cleanup and ownership
+
+All final Cordonix execution receipts report cleanup_complete=true. Tests remove their own disposable files and process fixtures. The final Windows/Linux audit found no active build executables (`build/encoding-verify/cleanup.json`); the sanitizer output directory contains only its test executable and no diagnostic reports (`sanitizer-log-check.json`). Build products, prior reproduction requests, receipts and the portable ZIP remain ignored under `build/`; disposable build/comparison/sanitizer scripts were removed. No real LaneApp source or posted task script was changed. Existing installed runtimes and unrelated services remain owned by their original sessions.

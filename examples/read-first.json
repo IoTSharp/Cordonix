@@ -1,0 +1,9 @@
+{
+  "operation": "read_file",
+  "arguments": {
+    "path": "D:\\GitHub\\Cordonix\\src\\cdx-workspace\\encoding_posix.c",
+    "encoding": "utf-8",
+    "start_line": 1,
+    "line_count": 100
+  }
+}

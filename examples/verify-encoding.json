@@ -1,0 +1,12 @@
+{
+  "operation": "verify_encoding",
+  "arguments": {
+    "paths": [
+      "D:\\GitHub\\Cordonix\\src\\cdx-protocol\\tools.c"
+    ],
+    "encoding": "utf-8",
+    "expected_count": 1,
+    "allowed_root": "D:\\GitHub\\Cordonix\\src",
+    "timeout_ms": 10000
+  }
+}

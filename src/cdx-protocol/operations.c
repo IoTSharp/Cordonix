@@ -1,13 +1,25 @@
 #include "cdx/operations.h"
 #include "cdx/process.h"
 #include "cdx/document.h"
+#include "cdx/filesystem.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
+#include <time.h>
+#endif
 
 #define CDX_WORKSPACE_SLOTS 16
 #define CDX_TEXT_PAGE 32768u
+#define CDX_LINE_PAGE_MAX 262144u
+#define CDX_LINE_COUNT_MAX 1000u
+#define CDX_VERIFY_MAX_FILES 32u
+
+typedef struct text_read_options {
+    size_t start_line, line_count, max_bytes, tail_lines;
+    int raw;
+} text_read_options;
 
 typedef struct workspace_slot { int active; unsigned long long id; cdx_document document; } workspace_slot;
 static workspace_slot documents[CDX_WORKSPACE_SLOTS];
@@ -43,7 +55,8 @@ static int boolean_arg(const cdx_json *json, int arguments, const char *key, int
     if (json->nodes[node].type != CDX_JSON_BOOL) { *valid = 0; return fallback; }
     return json->nodes[node].boolean;
 }
-static wchar_t *wide(const char *text) {
+static cdx_path_char *native_text(const char *text) {
+#ifdef _WIN32
     int count;
     wchar_t *value;
     if (!text) return NULL;
@@ -52,6 +65,15 @@ static wchar_t *wide(const char *text) {
     value = (wchar_t *)malloc((size_t)count * sizeof(*value));
     if (value && !MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, value, count)) { free(value); value = NULL; }
     return value;
+#else
+    size_t size;
+    char *value;
+    if (!text) return NULL;
+    size = strlen(text) + 1u;
+    value = (char *)malloc(size);
+    if (value) memcpy(value, text, size);
+    return value;
+#endif
 }
 static cdx_encoding encoding_arg(const char *name, int *valid) {
     if (!strcmp(name, "auto")) return CDX_ENCODING_AUTO;
@@ -82,10 +104,15 @@ static void open_document(const cdx_json *json, int arguments, cdx_json_output *
     const char *path = string_arg(json, arguments, "path", NULL, &valid);
     const char *name = string_arg(json, arguments, "encoding", "auto", &valid);
     cdx_encoding encoding = encoding_arg(name, &valid);
-    wchar_t *wpath;
+    cdx_path_char *wpath;
     cdx_document_status status;
-    if (!valid || !(wpath = wide(path))) { error_result(output, "validation_error", "path and encoding must be valid UTF-8 strings"); return; }
-    for (i = 0; i < CDX_WORKSPACE_SLOTS; ++i) if (documents[i].active && !_wcsicmp(documents[i].document.path, wpath)) {
+    if (!valid || !(wpath = native_text(path))) { error_result(output, "validation_error", "path and encoding must be valid UTF-8 strings"); return; }
+    for (i = 0; i < CDX_WORKSPACE_SLOTS; ++i) if (documents[i].active &&
+#ifdef _WIN32
+        !_wcsicmp(documents[i].document.path, wpath)) {
+#else
+        !strcmp(documents[i].document.path, wpath)) {
+#endif
         if (encoding != CDX_ENCODING_AUTO && encoding != documents[i].document.encoding &&
             !(encoding == CDX_ENCODING_UTF8 && documents[i].document.encoding == CDX_ENCODING_UTF8_BOM)) {
             free(wpath); error_result(output, "validation_error", "This path is already open with a different encoding; close it explicitly first"); return;
@@ -100,8 +127,155 @@ static void open_document(const cdx_json *json, int arguments, cdx_json_output *
     documents[i].active = 1; documents[i].id = next_document_id++;
     document_result(output, documents[i].id, &documents[i].document);
 }
-static void read_document(workspace_slot *slot, const cdx_json *json, int arguments, cdx_json_output *output) {
+static int parse_read_options(const cdx_json *json, int arguments, text_read_options *options) {
     int valid = 1;
+    int has_tail = cdx_json_get(json, arguments, "tail_lines") >= 0;
+    options->start_line = (size_t)integer_arg(json, arguments, "start_line", 1, CDX_DOCUMENT_MAX_UTF8_BYTES + 1u, &valid);
+    options->line_count = (size_t)integer_arg(json, arguments, "line_count", 200, CDX_LINE_COUNT_MAX, &valid);
+    options->max_bytes = (size_t)integer_arg(json, arguments, "max_bytes", CDX_TEXT_PAGE, CDX_LINE_PAGE_MAX, &valid);
+    options->tail_lines = (size_t)integer_arg(json, arguments, "tail_lines", 0, CDX_LINE_COUNT_MAX, &valid);
+    options->raw = boolean_arg(json, arguments, "raw", 0, &valid);
+    if ((options->raw && has_tail) || (has_tail && !options->tail_lines) ||
+        ((options->raw || has_tail) && (cdx_json_get(json, arguments, "start_line") >= 0 ||
+                                      cdx_json_get(json, arguments, "line_count") >= 0))) return 0;
+    return valid && options->start_line && options->line_count && options->max_bytes &&
+        cdx_json_get(json, arguments, "offset") < 0 && cdx_json_get(json, arguments, "limit") < 0;
+}
+
+static uint64_t read_clock_ms(void) {
+#ifdef _WIN32
+    return GetTickCount64();
+#else
+    struct timespec now;
+    if (clock_gettime(CLOCK_MONOTONIC, &now)) return UINT64_MAX;
+    return (uint64_t)now.tv_sec * 1000u + (uint64_t)now.tv_nsec / 1000000u;
+#endif
+}
+
+static const char *line_scan_stopped(cdx_cancel_handle cancellation, uint64_t deadline) {
+#ifdef _WIN32
+    if (cancellation && WaitForSingleObject(cancellation, 0) == WAIT_OBJECT_0) return "cancelled";
+#else
+    if (cancellation && atomic_load(cancellation)) return "cancelled";
+#endif
+    return read_clock_ms() >= deadline ? "timed_out" : NULL;
+}
+
+static void read_output_limit(cdx_json_output *output, size_t required, size_t maximum) {
+    cdx_json_raw(output, "{\"status\":\"output_limit\",\"bytes_required\":"); cdx_json_uint(output, required);
+    cdx_json_raw(output, ",\"max_bytes\":"); cdx_json_uint(output, maximum);
+    cdx_json_raw(output, ",\"message\":\"The complete requested text exceeds max_bytes; raise it up to 262144 or use line/byte paging\"}");
+}
+
+static void read_text_range(const cdx_document *doc, const text_read_options *options, const char *source,
+                       cdx_cancel_handle cancellation, cdx_json_output *output) {
+    size_t position = 0, line = 1, begin, end, count = 0, first = options->start_line;
+    const char *mode = options->raw ? "raw" : options->tail_lines ? "tail" : "lines";
+    const char *stopped;
+    uint64_t deadline = read_clock_ms() + 2000u;
+    if (options->raw || options->tail_lines) {
+        size_t starts[CDX_LINE_COUNT_MAX], total = 0;
+        if (options->raw && doc->text_length > options->max_bytes) {
+            read_output_limit(output, doc->text_length, options->max_bytes); return;
+        }
+        while (position < doc->text_length) {
+            if (options->tail_lines) starts[total % options->tail_lines] = position;
+            ++total;
+            while (position < doc->text_length) {
+                char c = doc->text_utf8[position++];
+                if (c == '\r' && position < doc->text_length && doc->text_utf8[position] == '\n') ++position;
+                if ((position & 4095u) < 2u && (stopped = line_scan_stopped(cancellation, deadline)) != NULL) {
+                    error_result(output, stopped, "Text scan stopped without changing the document"); return;
+                }
+                if (c == '\r' || c == '\n') break;
+            }
+        }
+        count = options->tail_lines && total > options->tail_lines ? options->tail_lines : total;
+        first = total - count + 1u;
+        begin = options->tail_lines && total > options->tail_lines ? starts[total % options->tail_lines] : 0;
+        end = doc->text_length;
+        if (end - begin > options->max_bytes) { read_output_limit(output, end - begin, options->max_bytes); return; }
+        goto page_complete;
+    }
+    while (position < doc->text_length && line < options->start_line) {
+        char c = doc->text_utf8[position++];
+        if (c == '\r') {
+            if (position < doc->text_length && doc->text_utf8[position] == '\n') ++position;
+            ++line;
+        } else if (c == '\n') ++line;
+        if ((position & 4095u) < 2u && (stopped = line_scan_stopped(cancellation, deadline)) != NULL) {
+            error_result(output, stopped, "Line scan stopped without changing the document"); return;
+        }
+    }
+    begin = end = position;
+    while (position < doc->text_length && count < options->line_count) {
+        while (position < doc->text_length && doc->text_utf8[position] != '\r' && doc->text_utf8[position] != '\n') {
+            ++position;
+            if (position - begin > options->max_bytes) goto page_complete;
+            if ((position & 4095u) == 0 && (stopped = line_scan_stopped(cancellation, deadline)) != NULL) {
+                error_result(output, stopped, "Line scan stopped without changing the document"); return;
+            }
+        }
+        if (position < doc->text_length) {
+            char c = doc->text_utf8[position++];
+            if (c == '\r' && position < doc->text_length && doc->text_utf8[position] == '\n') ++position;
+        }
+        if (position - begin > options->max_bytes) break;
+        end = position;
+        ++count;
+    }
+page_complete:
+    stopped = line_scan_stopped(cancellation, deadline);
+    if (stopped) { error_result(output, stopped, "Line scan stopped without changing the document"); return; }
+    if (!count && begin < doc->text_length) {
+        error_result(output, "line_too_long", "The next whole line exceeds max_bytes; raise it up to 262144 or use workspace_read byte paging"); return;
+    }
+    cdx_json_raw(output, "{\"status\":\"ok\",\"text\":"); cdx_json_quote(output, doc->text_utf8 + begin, end - begin);
+    cdx_json_raw(output, ",\"mode\":"); cdx_json_quote(output, mode, strlen(mode));
+    cdx_json_raw(output, ",\"start_line\":"); cdx_json_uint(output, first);
+    cdx_json_raw(output, ",\"lines_returned\":"); cdx_json_uint(output, count);
+    cdx_json_raw(output, ",\"next_line\":");
+    if (end < doc->text_length) cdx_json_uint(output, first + count); else cdx_json_raw(output, "null");
+    cdx_json_raw(output, ",\"eof\":"); cdx_json_raw(output, end == doc->text_length ? "true" : "false");
+    cdx_json_raw(output, ",\"truncated\":"); cdx_json_raw(output, end < doc->text_length && count < options->line_count ? "true" : "false");
+    cdx_json_raw(output, ",\"source\":"); cdx_json_quote(output, source, strlen(source));
+    cdx_json_raw(output, ",\"encoding\":"); cdx_json_quote(output, cdx_encoding_name(doc->encoding), strlen(cdx_encoding_name(doc->encoding)));
+    cdx_json_raw(output, ",\"eol\":"); cdx_json_quote(output, cdx_eol_name(doc->eol), strlen(cdx_eol_name(doc->eol)));
+    cdx_json_raw(output, ",\"memory_sha256\":"); cdx_json_quote(output, doc->current_sha256, 64);
+    cdx_json_raw(output, ",\"dirty_in_memory\":"); cdx_json_raw(output, doc->dirty_in_memory ? "true}" : "false}");
+}
+
+static void read_file(const cdx_json *json, int arguments, cdx_cancel_handle cancellation, cdx_json_output *output) {
+    int valid = 1;
+    const char *path = string_arg(json, arguments, "path", NULL, &valid);
+    const char *name = string_arg(json, arguments, "encoding", "auto", &valid);
+    cdx_encoding encoding = encoding_arg(name, &valid);
+    text_read_options options;
+    cdx_document document;
+    cdx_path_char *native_path;
+    cdx_document_status status;
+    if (!valid || !parse_read_options(json, arguments, &options) || !(native_path = native_text(path))) {
+        error_result(output, "validation_error", "Use path/encoding strings and one read mode: start_line/line_count, tail_lines (1..1000), or raw=true; max_bytes is 1..262144; omit byte offset/limit"); return;
+    }
+    status = cdx_document_open(&document, native_path, encoding);
+    free(native_path); ++disk_reads;
+    if (status == CDX_STATUS_OK) read_text_range(&document, &options, "disk", cancellation, output);
+    else error_result(output, cdx_document_status_name(status), "File was not read; choose an explicit encoding if needed");
+    cdx_document_free(&document);
+}
+
+static void read_document(workspace_slot *slot, const cdx_json *json, int arguments,
+                          cdx_cancel_handle cancellation, cdx_json_output *output) {
+    int valid = 1;
+    if (cdx_json_get(json, arguments, "start_line") >= 0 || cdx_json_get(json, arguments, "line_count") >= 0 ||
+        cdx_json_get(json, arguments, "max_bytes") >= 0 || cdx_json_get(json, arguments, "tail_lines") >= 0 ||
+        cdx_json_get(json, arguments, "raw") >= 0) {
+        text_read_options options;
+        if (!parse_read_options(json, arguments, &options)) {
+            error_result(output, "validation_error", "Choose start_line/line_count, tail_lines (1..1000), or raw=true; max_bytes is 1..262144; omit byte offset/limit"); return;
+        }
+        read_text_range(&slot->document, &options, "memory", cancellation, output); return;
+    }
     size_t offset = (size_t)integer_arg(json, arguments, "offset", 0, CDX_DOCUMENT_MAX_BYTES * 4u, &valid);
     size_t limit = (size_t)integer_arg(json, arguments, "limit", CDX_TEXT_PAGE, CDX_TEXT_PAGE, &valid);
     size_t end, length = slot->document.text_length;
@@ -184,6 +358,7 @@ static void search_document(workspace_slot *slot, const cdx_json *json, int argu
 }
 typedef struct decoded_output { char *text; size_t length; int valid; } decoded_output;
 static decoded_output decode_output(const cdx_byte_buffer *buffer, const char *encoding) {
+#ifdef _WIN32
     int wide_count, utf8_count;
     UINT codepage = !strcmp(encoding, "cp936") || !strcmp(encoding, "gbk") ? 936u : CP_UTF8;
     wchar_t *wtext;
@@ -200,6 +375,13 @@ static decoded_output decode_output(const cdx_byte_buffer *buffer, const char *e
     if (!decoded.text) { free(wtext); return decoded; }
     (void)WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wtext, wide_count, decoded.text, utf8_count, NULL, NULL);
     decoded.valid = 1; decoded.length = (size_t)utf8_count; free(wtext); return decoded;
+#else
+    extern int cdx_decode_to_utf8(const unsigned char *, size_t, cdx_encoding, char **, size_t *);
+    decoded_output decoded = {NULL, 0, 0};
+    cdx_encoding selected = !strcmp(encoding, "utf-8") ? CDX_ENCODING_UTF8 : CDX_ENCODING_CP936;
+    decoded.valid = cdx_decode_to_utf8(buffer->data, buffer->size, selected, &decoded.text, &decoded.length);
+    return decoded;
+#endif
 }
 static void base64_output(cdx_json_output *output, const cdx_byte_buffer *buffer) {
     static const char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -213,13 +395,13 @@ static void base64_output(cdx_json_output *output, const cdx_byte_buffer *buffer
     }
     cdx_json_raw(output, "\"");
 }
-static void execute_program(const cdx_json *json, int arguments, HANDLE cancellation, cdx_json_output *output) {
+static void execute_program(const cdx_json *json, int arguments, cdx_cancel_handle cancellation, cdx_json_output *output) {
     int valid = 1, array, node;
     const char *program = string_arg(json, arguments, "program", NULL, &valid);
     const char *cwd = string_arg(json, arguments, "cwd", NULL, &valid);
     const char *stdin_text = string_arg(json, arguments, "stdin", "", &valid);
     const char *encoding = string_arg(json, arguments, "output_encoding", "utf-8", &valid);
-    wchar_t *wprogram = NULL, *wcwd = NULL, *argv[CDX_MAX_ARGS] = {0};
+    cdx_path_char *wprogram = NULL, *wcwd = NULL, *argv[CDX_MAX_ARGS] = {0};
     int expected[32] = {0};
     size_t arg_count = 0, expected_count = 1, i;
     cdx_exec_request request;
@@ -231,7 +413,7 @@ static void execute_program(const cdx_json *json, int arguments, HANDLE cancella
     if (array < 0 || json->nodes[array].type != CDX_JSON_ARRAY) valid = 0;
     else for (node = json->nodes[array].first; node >= 0; node = json->nodes[node].next) {
         if (arg_count == CDX_MAX_ARGS || json->nodes[node].type != CDX_JSON_STRING) { valid = 0; break; }
-        argv[arg_count] = wide(json->nodes[node].string);
+        argv[arg_count] = native_text(json->nodes[node].string);
         if (!argv[arg_count]) { valid = 0; break; }
         ++arg_count;
     }
@@ -246,12 +428,12 @@ static void execute_program(const cdx_json *json, int arguments, HANDLE cancella
         }
     }
     if (strcmp(encoding, "utf-8") && strcmp(encoding, "cp936") && strcmp(encoding, "gbk")) valid = 0;
-    if (valid) { wprogram = wide(program); wcwd = wide(cwd); valid = wprogram && wcwd; }
+    if (valid) { wprogram = native_text(program); wcwd = native_text(cwd); valid = wprogram && wcwd; }
     if (!valid) { error_result(output, "validation_error", "Use program/cwd strings, args array, and bounded numeric limits"); }
     else {
         decoded_output stdout_text, stderr_text;
         const char *status;
-        request.program = wprogram; request.cwd = wcwd; request.args = (const wchar_t *const *)argv; request.arg_count = arg_count;
+        request.program = wprogram; request.cwd = wcwd; request.args = (const cdx_path_char *const *)argv; request.arg_count = arg_count;
         request.expected_exit_codes = expected; request.expected_exit_count = expected_count;
         request.stdin_utf8 = (const unsigned char *)stdin_text; request.stdin_size = strlen(stdin_text); request.cancel_event = cancellation;
         cdx_result_init(&result); (void)cdx_execute(&request, &result);
@@ -269,21 +451,222 @@ static void execute_program(const cdx_json *json, int arguments, HANDLE cancella
         cdx_json_raw(output, ",\"output_truncated\":"); cdx_json_raw(output, result.output_truncated ? "true" : "false");
         cdx_json_raw(output, ",\"elapsed_ms\":"); cdx_json_uint(output, result.elapsed_ms);
         cdx_json_raw(output, ",\"output_encoding\":"); cdx_json_quote(output, encoding, strlen(encoding));
-        cdx_json_raw(output, ",\"win32_error\":"); cdx_json_uint(output, result.win32_error); cdx_json_raw(output, "}");
+#ifdef _WIN32
+        cdx_json_raw(output, ",\"win32_error\":"); cdx_json_uint(output, result.win32_error);
+#else
+        cdx_json_raw(output, ",\"posix_error\":"); cdx_json_uint(output, (unsigned)result.posix_error);
+#endif
+        cdx_json_raw(output, "}");
         cdx_result_free(&result); free(stdout_text.text); free(stderr_text.text);
     }
     for (i = 0; i < arg_count; ++i) free(argv[i]);
     free(wprogram); free(wcwd);
 }
 
-void cdx_call(const char *operation, const cdx_json *request, int arguments, HANDLE cancellation, cdx_json_output *output) {
+typedef struct encoding_verification {
+    const char *status;
+    cdx_encoding actual_encoding;
+    size_t bytes;
+    char sha256[CDX_SHA256_HEX_LENGTH + 1];
+    int checked, has_metadata;
+} encoding_verification;
+
+static const char *prepare_verification_paths(const char *const *paths, size_t count, const char *root,
+                                              cdx_path_char **normalized, cdx_cancel_handle cancellation,
+                                              uint64_t deadline, const char **message) {
+    cdx_path_char *native = NULL, *normalized_root = NULL;
+    cdx_fs_status status;
+    unsigned long native_error = 0;
+    const char *error = NULL;
+    size_t i;
+    *message = "Expected normalized absolute file paths and an absolute allowed_root";
+    if (*root) {
+        native = native_text(root);
+        if (!native) { error = "io_error"; goto done; }
+        status = cdx_fs_normalize_path(native, cancellation, &normalized_root, &native_error);
+        free(native); native = NULL;
+        if (status != CDX_FS_OK) { error = cdx_fs_status_name(status); goto done; }
+    }
+    for (i = 0; i < count; ++i) {
+        error = line_scan_stopped(cancellation, deadline);
+        if (error) goto done;
+        native = native_text(paths[i]);
+        if (!native) { error = "io_error"; goto done; }
+        status = cdx_fs_normalize_path(native, cancellation, &normalized[i], &native_error);
+        free(native); native = NULL;
+        if (status != CDX_FS_OK) { error = cdx_fs_status_name(status); goto done; }
+        if (normalized_root && !cdx_fs_path_within(normalized[i], normalized_root)) {
+            *message = "A normalized path is outside allowed_root; no file contents were read";
+            error = "validation_error"; goto done;
+        }
+    }
+    error = line_scan_stopped(cancellation, deadline);
+done:
+    free(native); free(normalized_root);
+    return error;
+}
+
+static void encoding_verification_result(const char *const *paths, size_t count, cdx_encoding encoding,
+                                         const encoding_verification *results, size_t checked, size_t passed,
+                                         const char *stopped, cdx_json_output *output) {
+    size_t i, failed = checked - passed;
+    int complete = !stopped && passed == count;
+    const char *status = stopped ? stopped : complete ? "ok" : "failed";
+    const char *name = cdx_encoding_name(encoding);
+    cdx_json_raw(output, "{\"status\":"); cdx_json_quote(output, status, strlen(status));
+    cdx_json_raw(output, ",\"encoding\":"); cdx_json_quote(output, name, strlen(name));
+    cdx_json_raw(output, ",\"files\":"); cdx_json_uint(output, count);
+    cdx_json_raw(output, ",\"checked\":"); cdx_json_uint(output, checked);
+    cdx_json_raw(output, ",\"passed\":"); cdx_json_uint(output, passed);
+    cdx_json_raw(output, ",\"failed\":"); cdx_json_uint(output, failed);
+    cdx_json_raw(output, ",\"not_run\":"); cdx_json_uint(output, count - checked);
+    cdx_json_raw(output, complete ?
+        ",\"strict_decode\":\"PASS\",\"no_nul\":\"PASS\",\"roundtrip\":\"PASS\"" :
+        ",\"strict_decode\":\"UNKNOWN\",\"no_nul\":\"UNKNOWN\",\"roundtrip\":\"UNKNOWN\"");
+    cdx_json_raw(output, ",\"written_to_disk\":false,\"results\":[");
+    for (i = 0; i < count; ++i) {
+        const encoding_verification *item = &results[i];
+        const char *item_status = item->checked ? item->status : "not_run";
+        const char *verification = !item->checked ? "NOT_RUN" : !strcmp(item_status, "ok") ? "PASS" : "FAIL";
+        if (i) cdx_json_raw(output, ",");
+        cdx_json_raw(output, "{\"path\":"); cdx_json_quote(output, paths[i], strlen(paths[i]));
+        cdx_json_raw(output, ",\"status\":"); cdx_json_quote(output, item_status, strlen(item_status));
+        cdx_json_raw(output, ",\"verification\":"); cdx_json_quote(output, verification, strlen(verification));
+        if (item->has_metadata) {
+            name = cdx_encoding_name(item->actual_encoding);
+            cdx_json_raw(output, ",\"encoding\":"); cdx_json_quote(output, name, strlen(name));
+            cdx_json_raw(output, ",\"bytes\":"); cdx_json_uint(output, item->bytes);
+            cdx_json_raw(output, ",\"sha256\":"); cdx_json_quote(output, item->sha256, CDX_SHA256_HEX_LENGTH);
+        }
+        cdx_json_raw(output, "}");
+    }
+    cdx_json_raw(output, "]}");
+}
+
+static void verify_encoding(const cdx_json *json, int arguments, cdx_cancel_handle cancellation,
+                            cdx_json_output *output) {
+    int valid = 1, array = cdx_json_get(json, arguments, "paths"), node;
+    const char *paths[CDX_VERIFY_MAX_FILES] = {0};
+    cdx_path_char *normalized[CDX_VERIFY_MAX_FILES] = {0};
+    encoding_verification results[CDX_VERIFY_MAX_FILES] = {{0}};
+    const char *name = string_arg(json, arguments, "encoding", NULL, &valid);
+    const char *root = string_arg(json, arguments, "allowed_root", "", &valid);
+    const char *stopped = NULL, *message = NULL;
+    cdx_encoding encoding = name ? encoding_arg(name, &valid) : CDX_ENCODING_AUTO;
+    size_t count = 0, checked = 0, passed = 0, expected, i;
+    unsigned long long timeout = integer_arg(json, arguments, "timeout_ms", 10000, 60000, &valid);
+    uint64_t deadline = read_clock_ms() + timeout;
+    if (array < 0 || json->nodes[array].type != CDX_JSON_ARRAY) valid = 0;
+    else for (node = json->nodes[array].first; node >= 0; node = json->nodes[node].next) {
+        if (count == CDX_VERIFY_MAX_FILES || json->nodes[node].type != CDX_JSON_STRING) { valid = 0; break; }
+        paths[count++] = json->nodes[node].string;
+    }
+    expected = (size_t)integer_arg(json, arguments, "expected_count", count, CDX_VERIFY_MAX_FILES, &valid);
+    if (!valid || !count || expected != count || !timeout || encoding == CDX_ENCODING_AUTO ||
+        (cdx_json_get(json, arguments, "allowed_root") >= 0 && !*root)) {
+        error_result(output, "validation_error", "Supply 1..32 paths, an explicit encoding (not auto), an optional matching expected_count, nonempty allowed_root and timeout_ms 1..60000"); return;
+    }
+    stopped = prepare_verification_paths(paths, count, root, normalized, cancellation, deadline, &message);
+    if (stopped && strcmp(stopped, "timed_out") && strcmp(stopped, "cancelled")) {
+        error_result(output, stopped, message); goto done;
+    }
+    for (i = 0; !stopped && i < count; ++i) {
+        cdx_document document;
+        cdx_document_status status;
+        stopped = line_scan_stopped(cancellation, deadline);
+        if (stopped) break;
+        status = cdx_document_open(&document, normalized[i], encoding);
+        ++disk_reads; ++checked;
+        results[i].checked = 1;
+        results[i].status = cdx_document_status_name(status);
+        if (status == CDX_STATUS_OK) {
+            results[i].has_metadata = 1;
+            results[i].actual_encoding = document.encoding;
+            results[i].bytes = document.original_size;
+            memcpy(results[i].sha256, document.original_sha256, sizeof(results[i].sha256));
+            /* A BOM may select a different decoder during document_open. */
+            if (document.encoding != encoding && !(encoding == CDX_ENCODING_UTF8 && document.encoding == CDX_ENCODING_UTF8_BOM))
+                results[i].status = "encoding_mismatch";
+            else ++passed;
+        }
+        cdx_document_free(&document);
+        stopped = line_scan_stopped(cancellation, deadline);
+    }
+    encoding_verification_result(paths, count, encoding, results, checked, passed, stopped, output);
+done:
+    for (i = 0; i < count; ++i) free(normalized[i]);
+}
+
+static void query_filesystem(const cdx_json *json, int arguments, int list,
+                             cdx_cancel_handle cancellation, cdx_json_output *output) {
+    int valid = 1;
+    const char *path = string_arg(json, arguments, "path", NULL, &valid);
+    cdx_fs_request request;
+    cdx_fs_result result;
+    cdx_path_char *native_path;
+    const char *status, *kind;
+    size_t i;
+    memset(&request, 0, sizeof(request));
+    request.list_directory = list;
+    request.include_hidden = list ? boolean_arg(json, arguments, "include_hidden", 0, &valid) : 0;
+    request.max_entries = list ? (size_t)integer_arg(json, arguments, "max_entries", 200, CDX_FS_MAX_ENTRIES, &valid) : 200;
+    request.cancellation = cancellation;
+    if (!valid || !request.max_entries || !(native_path = native_text(path))) {
+        error_result(output, "validation_error", "Use an absolute path string; list_directory accepts boolean include_hidden and max_entries 1..1000"); return;
+    }
+    request.path = native_path;
+    (void)cdx_fs_query(&request, &result);
+    free(native_path);
+    status = cdx_fs_status_name(result.status);
+    cdx_json_raw(output, "{\"status\":"); cdx_json_quote(output, status, strlen(status));
+    if (result.path) { cdx_json_raw(output, ",\"path\":"); cdx_json_quote(output, result.path, strlen(result.path)); }
+    if (result.status == CDX_FS_OK) {
+        kind = cdx_fs_kind_name(result.kind);
+        cdx_json_raw(output, ",\"type\":"); cdx_json_quote(output, kind, strlen(kind));
+        if (list) {
+            cdx_json_raw(output, ",\"entries\":[");
+            for (i = 0; i < result.entry_count; ++i) {
+                const cdx_fs_entry *entry = &result.entries[i];
+                if (i) cdx_json_raw(output, ",");
+                cdx_json_raw(output, "{\"name\":"); cdx_json_quote(output, entry->name, strlen(entry->name));
+                kind = cdx_fs_kind_name(entry->kind);
+                cdx_json_raw(output, ",\"type\":"); cdx_json_quote(output, kind, strlen(kind));
+                cdx_json_raw(output, ",\"size_bytes\":");
+                if (entry->size_known) cdx_json_uint(output, entry->size_bytes); else cdx_json_raw(output, "null");
+                cdx_json_raw(output, ",\"hidden\":"); cdx_json_raw(output, entry->hidden ? "true" : "false");
+                cdx_json_raw(output, ",\"system\":"); cdx_json_raw(output, entry->system ? "true}" : "false}");
+            }
+            cdx_json_raw(output, "],\"returned\":"); cdx_json_uint(output, result.entry_count);
+            cdx_json_raw(output, ",\"truncated\":"); cdx_json_raw(output, result.truncated ? "true" : "false");
+            cdx_json_raw(output, ",\"include_hidden\":"); cdx_json_raw(output, request.include_hidden ? "true" : "false");
+        }
+    } else {
+        cdx_json_raw(output, ",\"message\":\"Filesystem query did not complete; no files were changed\""
+#ifdef _WIN32
+            ",\"win32_error\":");
+#else
+            ",\"posix_error\":");
+#endif
+        cdx_json_uint(output, result.native_error);
+    }
+    cdx_json_raw(output, "}");
+    cdx_fs_result_free(&result);
+}
+
+void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx_cancel_handle cancellation, cdx_json_output *output) {
     int valid = 1;
     unsigned long long id;
     workspace_slot *slot;
     ++call_count;
     if (arguments >= 0 && request->nodes[arguments].type != CDX_JSON_OBJECT) { error_result(output, "validation_error", "arguments must be an object"); return; }
     if (!strcmp(operation, "tool_info")) {
-        cdx_json_raw(output, "{\"status\":\"ok\",\"name\":\"Cordonix\",\"version\":\"0.1.0-dev\",\"platform\":\"windows\",\"runtime\":\"C11\",\"calls\":");
+        cdx_json_raw(output, "{\"status\":\"ok\",\"name\":\"Cordonix\",\"version\":\"0.1.0-dev\",\"platform\":\""
+#ifdef _WIN32
+            "windows"
+#else
+            "linux"
+#endif
+            "\",\"runtime\":\"C11\",\"calls\":");
         cdx_json_uint(output, call_count); cdx_json_raw(output, ",\"document_loads\":"); cdx_json_uint(output, disk_reads);
         cdx_json_raw(output, ",\"document_commits\":"); cdx_json_uint(output, disk_writes);
         cdx_json_raw(output, ",\"commit_checks\":"); cdx_json_uint(output, commit_checks);
@@ -292,10 +675,14 @@ void cdx_call(const char *operation, const cdx_json *request, int arguments, HAN
     if (arguments < 0) { error_result(output, "validation_error", "arguments must be an object"); return; }
     if (!strcmp(operation, "execute_program")) { execute_program(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "workspace_open")) { open_document(request, arguments, output); return; }
+    if (!strcmp(operation, "read_file")) { read_file(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "verify_encoding")) { verify_encoding(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "list_directory")) { query_filesystem(request, arguments, 1, cancellation, output); return; }
+    if (!strcmp(operation, "resolve_path")) { query_filesystem(request, arguments, 0, cancellation, output); return; }
     id = integer_arg(request, arguments, "document_id", 0, 9007199254740991ull, &valid);
     slot = valid ? find_document(id) : NULL;
     if (!slot) { error_result(output, "not_found", "No live document with this id; open it in this MCP session"); return; }
-    if (!strcmp(operation, "workspace_read")) read_document(slot, request, arguments, output);
+    if (!strcmp(operation, "workspace_read")) read_document(slot, request, arguments, cancellation, output);
     else if (!strcmp(operation, "workspace_edit")) edit_document(slot, request, arguments, output);
     else if (!strcmp(operation, "workspace_commit")) commit_document(slot, output);
     else if (!strcmp(operation, "workspace_convert_encoding")) convert_document(slot, request, arguments, output);

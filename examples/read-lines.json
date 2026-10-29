@@ -1,0 +1,10 @@
+{
+  "operation": "read_file",
+  "arguments": {
+    "path": "D:\\source\\SonnetDB\\src\\SonnetDB.Core\\Tables\\TableStore.cs",
+    "encoding": "utf-8",
+    "start_line": 951,
+    "line_count": 245,
+    "max_bytes": 32768
+  }
+}

@@ -1,5 +1,18 @@
 #include "cdx/json.h"
+#ifdef _WIN32
 #include <windows.h>
+#else
+#include <time.h>
+#include <unistd.h>
+typedef unsigned long long ULONGLONG;
+static ULONGLONG GetTickCount64(void) {
+    struct timespec now;
+    (void)clock_gettime(CLOCK_MONOTONIC, &now);
+    return (ULONGLONG)now.tv_sec * 1000u + (ULONGLONG)now.tv_nsec / 1000000u;
+}
+#define GetCurrentProcessId getpid
+#define ExitProcess _Exit
+#endif
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

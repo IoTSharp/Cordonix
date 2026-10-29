@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$root"
+out="$root/build/linux/bin"
+obj="$root/build/linux/obj"
+mkdir -p "$out" "$obj"
+
+cc=${CC:-gcc}
+cflags='-std=c11 -D_POSIX_C_SOURCE=200809L -Iinclude -Wall -Wextra -Werror -pedantic -O2'
+sources='src/cdx-core/result.c src/cdx-core/filesystem.c src/cdx-core/filesystem_posix.c src/cdx-core/process_posix.c src/cdx-workspace/document_common.c src/cdx-workspace/document_posix.c src/cdx-workspace/encoding_posix.c src/cdx-protocol/json.c src/cdx-protocol/operations.c src/cdx-protocol/tools.c src/cdx-cli/main_posix.c'
+
+for source in $sources; do
+    name=$(basename "$source" .c)
+    timeout --kill-after=2s 30s "$cc" $cflags -c "$root/$source" -o "$obj/$name.o"
+done
+
+timeout --kill-after=2s 30s "$cc" -std=c11 -O2 -o "$out/cdx" "$obj/result.o" "$obj/filesystem.o" "$obj/filesystem_posix.o" "$obj/process_posix.o" "$obj/document_common.o" "$obj/document_posix.o" "$obj/encoding_posix.o" "$obj/json.o" "$obj/operations.o" "$obj/tools.o" "$obj/main_posix.o" -pthread -lm
+"$out/cdx" --version

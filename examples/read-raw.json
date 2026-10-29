@@ -1,0 +1,8 @@
+{
+  "operation": "read_file",
+  "arguments": {
+    "path": "D:\\GitHub\\Cordonix\\src\\cdx-core\\process_posix.c",
+    "encoding": "utf-8",
+    "raw": true
+  }
+}

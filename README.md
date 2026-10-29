@@ -8,7 +8,7 @@
 
 Cordonix, abbreviated **cdx**, gives agents a direct path to local programs and source files. Program arguments remain data. Text keeps its declared encoding. Repeated reads and edits can stay in memory until an explicit commit.
 
-The current implementation is **pure C11 for Windows**. Its executable does not need Python or PowerShell at runtime. Windows development uses MSVC; Linux support is planned. Cordonix is an independent open-source project, not an OpenAI product.
+The implementation is **pure C11 for Windows and Linux**. Its executable does not need Python or PowerShell at runtime. Windows builds use MSVC; the Linux backend uses GCC, libc/iconv and pthreads. Cordonix is an independent open-source project, not an OpenAI product.
 
 ## Why it exists
 
@@ -16,7 +16,7 @@ AI coding workflows repeatedly encounter the same boundaries: shell quoting chan
 
 Cordonix makes those boundaries explicit through typed requests and observable outcomes:
 
-- Start an executable with `program`, `args[]`, `cwd` and a timeout. Windows Job Objects own the created process tree.
+- Start an executable with `program`, `args[]`, `cwd` and a timeout. Windows Job Objects or a Linux process group own the launched workload.
 - Load source once, inspect and edit its memory revision, and commit only when requested.
 - Preserve UTF-8, UTF-16, BOMs, line endings and explicitly selected CP936/GBK without silent lossy conversion.
 - Check the expected SHA-256 and occurrence count before an edit; check the disk revision again before commit.
@@ -26,15 +26,15 @@ Git, ripgrep, compilers and Codex's `apply_patch` remain useful companions. Cord
 
 ## Status
 
-Cordonix is a development MVP. We use it in our own Windows coding workflow before widening platform and packaging support.
+Cordonix is a development MVP. Windows has first-party Codex usage evidence; Linux has local native and MCP stdio validation in WSL Ubuntu 24.04.
 
 | Area | Current evidence | Remaining boundary |
 |---|---|---|
 | Windows process core | 15 checks passed locally | Broader application and long-running workload coverage continues |
 | Encoding and memory document core | 36 core checks plus 25 integration/encoding edge checks passed locally | External tools read disk; they do not see uncommitted memory revisions |
-| CLI and MCP | Ten native tools; real stdio and official SDK interoperability verified | These interfaces are not yet a stable release contract |
-| Linux | Planned | No Linux implementation or acceptance claim |
-| Public packages | Planned | No installer or release artifact is advertised here |
+| CLI and MCP | Fourteen native tools with readable titles; 75 Windows and 79 Linux real stdio checks | The earlier Windows SDK/Codex evidence is separate from this changed tree; new title rendering in Codex is unverified |
+| Linux | 16 process, 42 document, 46 JSON and 79 stdio checks passed in WSL Ubuntu | Independent Linux Codex use, ext4 semantics, ACL/xattr preservation and soak remain separate |
+| Windows portable package | Deterministic ZIP, checksums, checkout provenance, SPDX inventory and extraction test scripts | Unsigned local artifact; compiler reproducibility, official SPDX schema validation and public release are separate gates |
 
 These are local validation results, not performance benchmarks or a zero-error guarantee. See [quality gates](docs/quality-gates.md) for the separate acceptance boundaries.
 
@@ -59,14 +59,53 @@ The memory workspace belongs to one running session. MCP keeps that process aliv
 |---|---|
 | `tool_info` | Version, platform and document-load/commit counters |
 | `execute_program` | Literal argv execution with bounded output, timeout and owned-process cleanup |
+| `list_directory` | List immediate directory entries, with hidden-item and result-count controls |
+| `resolve_path` | Normalize an existing absolute filesystem path and report its type |
+| `verify_encoding` | Verify a bounded batch of disk files with a declared encoding, count and optional root constraint |
 | `workspace_open` | Load a file using an explicit encoding or strict BOM/UTF-8 detection |
-| `workspace_read` | Read a bounded UTF-8 page from the memory revision |
+| `workspace_read` | Read the memory revision by byte/line range, last N lines or complete decoded text |
+| `read_file` | Read a fresh disk snapshot by path and encoding, using a line range, tail or raw text |
 | `workspace_edit` | Preview or apply an exact memory-only replacement with SHA/count preconditions |
 | `workspace_convert_encoding` | Preview or perform lossless UTF-8/UTF-16/CP936 conversion in memory |
 | `workspace_commit` | Validate the current disk revision and commit one document |
 | `workspace_status` | Inspect memory revision and dirty state without reloading disk |
 | `workspace_search` | Find literal UTF-8 text in the memory revision |
 | `workspace_close` | Release a document, with explicit handling of dirty memory |
+
+MCP tool definitions include a human-readable `title`, such as `执行本地程序`, `编辑文本（仅内存）` and `提交文件到磁盘`. Tool identifiers stay unchanged. The client decides whether to display these titles; the server cannot assign a dynamic title to each invocation. Cordonix executes local programs and does not infer that an arbitrary script is a remote method or a file creation operation.
+
+## Read a line range
+
+`read_file` replaces a disk read followed by a skip/take pipeline. For example, skipping 950 lines and taking 245 means `start_line: 951`, `line_count: 245`. Run the saved [request example](examples/read-lines.json) with `build\bin\cdx.exe --request examples\read-lines.json`, adjusting the absolute path for your checkout. Set the known source encoding explicitly.
+
+For an already-open document, pass the same line fields to `workspace_read` with its `document_id`; this reads the current memory revision, including uncommitted edits. `read_file` instead reads current disk bytes and closes its temporary document.
+
+Line numbers are 1-based. LF, CRLF and CR delimiters are retained; an empty file has zero lines, and a final newline does not invent another line. Results include `lines_returned`, `next_line` (null at EOF), `eof`, encoding, EOL, SHA and `source`. `line_count` defaults to 200 (maximum 1000); `max_bytes` defaults to 32768 UTF-8 bytes (maximum 262144). The page stops at a whole-line boundary and reports `truncated=true` if the byte budget prevents returning the requested lines. A first line larger than the budget returns `line_too_long`; raise the bound or use existing workspace byte paging. Line fields cannot be mixed with `offset`/`limit`.
+
+Reading the first N lines uses the same native range: `start_line: 1, line_count: N`. The [First 100 example](examples/read-first.json) reads `encoding_posix.c` directly with no shell pipeline.
+
+| PowerShell read | Cordonix read fields |
+|---|---|
+| `Get-Content -First N` | `start_line: 1, line_count: N` |
+| `Select-Object -Skip M -First N` after a file read | `start_line: M + 1, line_count: N` |
+| `Get-Content -Tail N` | `tail_lines: N` |
+| `Get-Content -Raw` | `raw: true` |
+
+## Read the tail or complete text
+
+Use `tail_lines: 55` to read the final 55 lines, or `raw: true` to read the entire decoded text. Both `read_file` and `workspace_read` support these modes. Saved CLI examples are [read-tail.json](examples/read-tail.json) and [read-raw.json](examples/read-raw.json); run each with `cdx --request` after adjusting its absolute path.
+
+Tail accepts 1–1000 lines and returns the entire file if it has fewer lines. Raw has no line-count cap. Both preserve the original line delimiters and final newline; encoding BOMs are represented by metadata, rather than included in decoded text. Success reports `mode`, actual `start_line`, `lines_returned`, `eof=true`, `next_line=null` and `truncated=false`.
+
+The UTF-8 output budget remains `max_bytes` (default 32768, maximum 262144). Tail/raw require their complete result to fit. Otherwise they return `output_limit` with `bytes_required` and `max_bytes`, without a partial `text` value. Increase the bound or use range paging. Do not combine tail/raw with `start_line`, `line_count`, or byte `offset`/`limit`; `raw=false` keeps line-range semantics.
+
+## List a directory or resolve a path
+
+`list_directory` accepts an absolute literal `path`, `include_hidden` (default false), and `max_entries` (default 200, range 1–1000). Setting `include_hidden: true` includes Windows HIDDEN/SYSTEM entries or POSIX dotfiles, corresponding to the filesystem use of `Get-ChildItem -Force`. It returns immediate entries with `name`, `type`, ordinary-file `size_bytes` (otherwise null), `hidden` and `system`. Enumeration is nonrecursive and order is unspecified. Extra visible entries set `truncated=true`; an empty directory succeeds with an empty array.
+
+`resolve_path` normalizes separators and dot segments in an absolute path, verifies that the directory entry exists, and returns `path` and `type`. Link names are preserved. Root links to directories can be listed; child links are not traversed. Windows reparse entries and POSIX symbolic links are labeled `link`. These tools operate on filesystem paths, without wildcard expansion or PowerShell providers.
+
+Missing paths return `not_found`, distinct from empty directories; permission, encoding, I/O, timeout and cancellation remain separate statuses. Enumeration has at most 100,000 steps and a 5-second deadline checked between synchronous OS calls. The examples [list-directory.json](examples/list-directory.json) and [resolve-path.json](examples/resolve-path.json) work through `cdx --request` as well as MCP.
 
 ## Encoding is an explicit choice
 
@@ -84,6 +123,16 @@ The memory workspace belongs to one running session. MCP keeps that process aliv
 
 An unsupported or unrepresentable edit produces an encoding error. Cordonix does not drop bytes or replace characters to make a write succeed. `workspace_edit` preserves the current encoding. `workspace_convert_encoding` explicitly changes the memory encoding using a fresh SHA and `dry_run=false`; `workspace_commit` is still required to write disk. CP936 cannot represent Emoji: that conversion is rejected without changing memory or disk. AUTO is an interpretation policy, not proof of the historical encoding of ASCII-only data.
 
+## Verify an encoding batch
+
+`verify_encoding` checks fresh disk bytes using the existing document core: strict decode, no text NUL, and byte-exact decode/encode round-trip. Supply `paths` (1–32 absolute path entries) and an explicit `encoding`; `auto` is rejected. Optional `expected_count` must equal the number of supplied entries, including duplicates. Optional `allowed_root` constrains normalized paths at or below that lexical root; it does not constrain symlink targets. All path/count/scope preconditions are checked before file contents are read.
+
+For a seven-file CP936 workflow, set `encoding: "cp936"`, `expected_count: 7`, the workflow directory as `allowed_root`, and pass the caller's seven paths. The [runnable request example](examples/verify-encoding.json) uses one UTF-8 repository file and can be adapted to the required batch.
+
+An incompatible BOM reports `encoding_mismatch`; declared UTF-8 also accepts UTF-8 BOM. Passing proves compatibility with the declared encoding, not the file's historical encoding. Each attempted entry reports status and PASS/FAIL, with bytes, SHA and actual encoding when document loading succeeded. The summary reports `files`, `checked`, `passed`, `failed`, `not_run`, and `written_to_disk: false`. Decode/NUL/round-trip summaries are PASS only for a fully successful batch; otherwise they remain UNKNOWN rather than inventing a sub-check failure.
+
+The default deadline is 10000 ms (allowed 1–60000), checked between file operations. MCP cancellation and EOF use the existing active worker; remaining entries retain NOT_RUN. A stalled OS file operation is not forcibly preempted. Verification prints no source text, performs no edits/commits, and consumes no persistent document slots.
+
 ## Build and run
 
 Clone [maikebing/Cordonix](https://github.com/maikebing/Cordonix) and use the repository's existing MSVC build entry points:
@@ -96,6 +145,16 @@ build\bin\cdx.exe --request examples\request.json
 ```
 
 Use an x64 MSVC developer prompt (Visual Studio 2022 or newer, with the C++ desktop workload), or let the script use the known Community/Enterprise installation locations. `/TC /std:c11 /W4 /WX /O2 /MT` builds a native Windows executable; the runtime has no Python/PowerShell dependency.
+
+On Linux with GCC, libc development headers and GNU `timeout`:
+
+```sh
+sh eng/build-linux.sh
+sh eng/test-linux.sh
+build/linux/bin/cdx --version
+```
+
+Both platforms use the same JSON requests and fourteen MCP tools. Linux paths are absolute UTF-8 paths, and execution errors report `posix_error`; Windows keeps `win32_error`. The Linux executable is dynamically linked to system libraries. Build a local Windows ZIP with PowerShell 7 using `./eng/test-package.ps1` after `eng\test.cmd`; see [packaging](docs/packaging.md).
 
 The CLI exposes these forms:
 
@@ -114,6 +173,8 @@ cdx --mcp
 - A commit applies to one file. It is not a multi-file transaction.
 - `workspace_status` reports the session's known state; commit performs the fresh external-change check.
 - Process ownership is a lifecycle guarantee, not a security sandbox. An authorized executable retains its normal OS permissions.
+- Linux cleanup covers the created process group and checks `/proc` within explicit bounds. Programs that deliberately leave that group are outside this guarantee; incomplete observation reports `cleanup_complete=false`.
+- Linux document commits support regular files with one hard link and reject symlinks. They preserve owner/group/mode, while write time changes. ACLs and extended attributes are not preserved by this MVP; do not use it to edit files that require those metadata guarantees.
 - A timeout after an external side effect does not establish whether that side effect completed. Inspect the target state before repeating it.
 - No speedup, disk-I/O reduction percentage or token-saving percentage is claimed without a measured baseline.
 

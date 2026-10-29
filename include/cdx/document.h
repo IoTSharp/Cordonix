@@ -1,8 +1,9 @@
 #ifndef CDX_DOCUMENT_H
 #define CDX_DOCUMENT_H
 
-#include <windows.h>
+#include "cdx/platform.h"
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,15 +46,26 @@ typedef enum cdx_document_status {
 } cdx_document_status;
 
 typedef struct cdx_file_version {
+#ifdef _WIN32
     DWORD volume_serial;
     DWORD file_index_high;
     DWORD file_index_low;
     LARGE_INTEGER size;
     FILETIME last_write_time;
+#else
+    uint64_t device;
+    uint64_t inode;
+    uint64_t size;
+    int64_t modified_seconds;
+    long modified_nanoseconds;
+    uint32_t mode;
+    uint32_t uid;
+    uint32_t gid;
+#endif
 } cdx_file_version;
 
 typedef struct cdx_document {
-    wchar_t *path;
+    cdx_path_char *path;
     unsigned char *original_bytes;
     size_t original_size;
     unsigned char *current_bytes;
@@ -90,7 +102,7 @@ const char *cdx_document_status_name(cdx_document_status status);
 const char *cdx_encoding_name(cdx_encoding encoding);
 const char *cdx_eol_name(cdx_eol eol);
 
-cdx_document_status cdx_document_open(cdx_document *document, const wchar_t *path, cdx_encoding requested_encoding);
+cdx_document_status cdx_document_open(cdx_document *document, const cdx_path_char *path, cdx_encoding requested_encoding);
 cdx_document_status cdx_document_edit_utf8(cdx_document *document, const char *expected_sha256,
                                   const char *old_text, const char *new_text,
                                   size_t expected_count, int dry_run, cdx_edit_result *result);

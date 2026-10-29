@@ -1,0 +1,8 @@
+{
+  "operation": "list_directory",
+  "arguments": {
+    "path": "D:\\GitHub\\Cordonix\\src\\cdx-core",
+    "include_hidden": true,
+    "max_entries": 200
+  }
+}

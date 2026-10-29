@@ -3,7 +3,19 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <windows.h>
+#include "cdx/platform.h"
+
+#ifdef _WIN32
+#define CDX_NATIVE_ERROR_FIELD DWORD win32_error
+#define CDX_PROCESS_CODE_TYPE DWORD
+#define CDX_PROCESS_ID_TYPE DWORD
+#define CDX_PROCESS_COUNT_TYPE DWORD
+#else
+#define CDX_NATIVE_ERROR_FIELD int posix_error
+#define CDX_PROCESS_CODE_TYPE uint32_t
+#define CDX_PROCESS_ID_TYPE uint32_t
+#define CDX_PROCESS_COUNT_TYPE uint32_t
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,9 +37,9 @@ typedef enum cdx_status {
 } cdx_status;
 
 typedef struct cdx_exec_request {
-    const wchar_t *program;
-    const wchar_t *cwd;
-    const wchar_t *const *args;
+    const cdx_path_char *program;
+    const cdx_path_char *cwd;
+    const cdx_path_char *const *args;
     size_t arg_count;
     uint32_t timeout_ms;
     const int *expected_exit_codes;
@@ -35,7 +47,7 @@ typedef struct cdx_exec_request {
     const unsigned char *stdin_utf8;
     size_t stdin_size;
     size_t output_limit_bytes;
-    HANDLE cancel_event;
+    cdx_cancel_handle cancel_event;
 } cdx_exec_request;
 
 typedef struct cdx_byte_buffer {
@@ -46,17 +58,17 @@ typedef struct cdx_byte_buffer {
 
 typedef struct cdx_exec_result {
     cdx_status status;
-    DWORD exit_code;
+    CDX_PROCESS_CODE_TYPE exit_code;
     int exit_code_known;
-    DWORD pid;
-    DWORD parent_pid;
+    CDX_PROCESS_ID_TYPE pid;
+    CDX_PROCESS_ID_TYPE parent_pid;
     uint64_t creation_filetime;
     uint64_t elapsed_ms;
-    DWORD job_processes_total;
-    DWORD job_active_before_cleanup;
-    DWORD job_active_after_cleanup;
+    CDX_PROCESS_COUNT_TYPE job_processes_total;
+    CDX_PROCESS_COUNT_TYPE job_active_before_cleanup;
+    CDX_PROCESS_COUNT_TYPE job_active_after_cleanup;
     int cleanup_complete;
-    DWORD win32_error;
+    CDX_NATIVE_ERROR_FIELD;
     int output_truncated;
     cdx_byte_buffer stdout_bytes;
     cdx_byte_buffer stderr_bytes;
@@ -70,5 +82,10 @@ cdx_status cdx_execute(const cdx_exec_request *request, cdx_exec_result *result)
 #ifdef __cplusplus
 }
 #endif
+
+#undef CDX_NATIVE_ERROR_FIELD
+#undef CDX_PROCESS_CODE_TYPE
+#undef CDX_PROCESS_ID_TYPE
+#undef CDX_PROCESS_COUNT_TYPE
 
 #endif

@@ -1,4 +1,4 @@
-name: Native Windows checks
+name: Native C11 checks
 on:
   push:
   pull_request:
@@ -13,8 +13,18 @@ jobs:
       - name: Compile C11 and exercise native processes, encodings and MCP
         shell: cmd
         run: eng\test.cmd
+      - name: Verify the portable package and its provenance
+        shell: pwsh
+        run: ./eng/test-package.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: cordonix-windows-x64
-          path: build/bin/cdx.exe
+          path: build/packaging/cordonix-0.1.0-dev-win-x64.*
           if-no-files-found: error
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile C11 and exercise POSIX processes, encodings and MCP
+        run: timeout --kill-after=5s 300s sh eng/test-linux.sh

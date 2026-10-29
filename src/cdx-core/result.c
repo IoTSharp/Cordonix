@@ -1,10 +1,11 @@
 #include "cdx/process.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 void cdx_result_init(cdx_exec_result *result) {
     if (!result) return;
-    ZeroMemory(result, sizeof(*result));
+    memset(result, 0, sizeof(*result));
     result->status = CDX_VALIDATION_ERROR;
     result->cleanup_complete = 1;
 }
