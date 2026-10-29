@@ -1225,7 +1225,30 @@ static void verify_encoding_cases(wire_client *client, const char *program) {
         entry = verification_entry(&data, i);
         all = all && string_is(&data, entry, "verification", "FAIL") && cdx_json_get(&data, entry, "sha256") < 0 && cdx_json_get(&data, entry, "bytes") < 0;
     }
-    if (!all) (void)fprintf(stderr, "verify_encoding mixed result: %s\n", data.source ? data.source : "<null>");
+    if (!all) {
+        int summary_status = cdx_json_get(&data, 0, "status");
+        int files_node = cdx_json_get(&data, 0, "files");
+        int checked_node = cdx_json_get(&data, 0, "checked");
+        int passed_node = cdx_json_get(&data, 0, "passed");
+        int failed_node = cdx_json_get(&data, 0, "failed");
+        int not_run_node = cdx_json_get(&data, 0, "not_run");
+        (void)fprintf(stderr, "verify_encoding mixed summary: status=%s files=%.0f checked=%.0f passed=%.0f failed=%.0f not_run=%.0f\n",
+            summary_status >= 0 ? data.nodes[summary_status].string : "<missing>",
+            files_node >= 0 ? data.nodes[files_node].number : -1.0,
+            checked_node >= 0 ? data.nodes[checked_node].number : -1.0,
+            passed_node >= 0 ? data.nodes[passed_node].number : -1.0,
+            failed_node >= 0 ? data.nodes[failed_node].number : -1.0,
+            not_run_node >= 0 ? data.nodes[not_run_node].number : -1.0);
+        for (i = 0; i < 4; ++i) {
+            int status_node, verification_node;
+            entry = verification_entry(&data, i);
+            status_node = entry >= 0 ? cdx_json_get(&data, entry, "status") : -1;
+            verification_node = entry >= 0 ? cdx_json_get(&data, entry, "verification") : -1;
+            (void)fprintf(stderr, "verify_encoding mixed entry%u: status=%s verification=%s\n", i,
+                status_node >= 0 ? data.nodes[status_node].string : "<missing>",
+                verification_node >= 0 ? data.nodes[verification_node].string : "<missing>");
+        }
+    }
     record("verify_encoding mixed failures keep aggregate UNKNOWN", all && i == 4 && fixture_bytes_equal(&fixtures[8], invalid_cp936, sizeof(invalid_cp936)) && fixture_bytes_equal(&fixtures[9], nul_text, sizeof(nul_text))); cdx_json_free(&data);
     batch[0] = fixtures[11].utf8_path;
     valid = call_verify(client, batch, 1, "cp936", NULL, "", id++, &data);
