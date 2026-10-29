@@ -14,6 +14,9 @@
 - Linux C11 build and native process/document/JSON/stdio gates, including output backpressure and SIGTERM cases.
 - Human-readable Chinese MCP tool titles that distinguish memory edits from disk commits, while retaining tool identifiers.
 - Deterministic Windows portable ZIP, SHA-256 manifest and sidecar, packaging-checkout provenance, SPDX 2.3 file inventory, and extraction/CLI validation.
+- Versioned builds through the `CDX_VERSION` compile contract, with tagged `vMAJOR.MINOR.PATCH` Windows/Linux release packaging and checksum assets.
+- GitHub `IoTSharp/Cordonix` release workflow with optional Gitee source mirroring and dual-platform asset publication through a protected `GITEE_TOKEN` secret.
+- Installation and update guidance with a copyable AI prompt, exact asset selection, SHA-256 verification, bounded GitHub-to-Gitee fallback and rollback-aware Codex configuration switching.
 - Apache-2.0 license, contributor/security guidance and bilingual README.
 
 - One-shot `read_file` with explicit encoding and 1-based line ranges, also available through CLI `--request`.
@@ -33,6 +36,8 @@
 - Portable public path and cancellation types preserve the Windows C types; Linux execution results use `posix_error`.
 - Shared native JSON and MCP behavior tests run on both platforms.
 - GitHub Actions now defines Windows portable-package and Linux native gates.
+- Tagged release CI now builds and verifies Windows x64 ZIP and Linux x64 tar.gz assets, publishes the GitHub release, mirrors the tag to Gitee and uploads the same assets when the Gitee repository and secret are configured.
+- Canonical repository links use `IoTSharp/Cordonix`; the former `maikebing/Cordonix` URL remains only as a redirect target.
 - MCP encoding verification reuses the active worker for notification/EOF cancellation; busy messages describe an active operation.
 - Roadmap progress uses emoji markers with separate PASS/FAIL/UNKNOWN/NOT_RUN evidence.
 

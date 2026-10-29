@@ -12,11 +12,12 @@ Validated locally on 2026-10-29 (Asia/Shanghai). Each row proves only its stated
 | Linux process ownership / argv | Literal args, pipes, root cwd, closed stdin, timeout/cancel and process-group cleanup | 16/16 PASS, WSL Ubuntu 24.04 / GCC 13.3.0 |
 | Linux encoding / documents | Strict encodings, four SHA-256 vectors, edits, conversion, conflict and commit readback | 42/42 PASS, including ASan + UBSan + leak detection |
 | Linux MCP / CLI | Shared protocol, line ranges/tail/raw, plus output backpressure, SIGTERM, failed-test cleanup and stdout flags | 79/79 PASS |
-| Windows portable package | Same inputs produce identical ZIP; manifest/SPDX/hash checks and execution after extraction to a Unicode path | PASS, `eng/test-package.ps1`; 12 manifest inputs, 14 SPDX files, 15 relationships; see HANDOFF for the receipt |
+| Windows portable package | Same inputs produce identical ZIP; manifest/SPDX/hash checks and execution after extraction to a Unicode path | PASS, `eng/test-package.ps1`; 14 manifest inputs, 16 SPDX files, 17 relationships; install/update documentation is included |
+| Linux portable package | Versioned tar.gz, checksum sidecar, metadata and executable readback | PASS, `eng/package-linux.sh` with `CDX_VERSION=0.0.1`; Linux x64 archive and SHA-256 readback |
 | Independent clients | Official SDK and actual Codex integration | Earlier Windows baseline: 14 SDK workflows and fresh Codex read lifecycle PASS; changed runtime and title rendering NOT_RUN |
 | Filesystem / wider Linux | Independent ext4, ACL/xattr preservation, multiple distributions and soak | NOT_RUN; current file tests use WSL DrvFS and preserve owner/group/mode only |
-| Release | Compiler reproducibility, official SPDX schema validation, signing and published package readback | NOT_RUN |
-| Remote CI | Execution of the changed GitHub Actions workflow | NOT_RUN until the changes are pushed |
+| Release | Compiler reproducibility, official SPDX schema validation, signing and published package readback | NOT_RUN; tagged workflow is implemented |
+| Remote CI | Execution of the changed GitHub Actions workflow | NOT_RUN until the canonical branch and a `vMAJOR.MINOR.PATCH` tag are pushed |
 
 Final native totals: Windows **197** checks; Linux **183** checks. Pilot checks are recorded separately and are not added twice.
 

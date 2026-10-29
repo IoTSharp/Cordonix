@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "cdx/operations.h"
+#include "cdx/version.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -162,7 +163,7 @@ static void dispatch(const char *line, size_t length, int *initialized, active_r
     } else if (string_node(&json, method, "initialize")) {
         cdx_json_output_init(&output);
         response_start(&output, &json, id);
-        cdx_json_raw(&output, ",\"result\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"Cordonix\",\"version\":\"0.1.0-dev\"},\"instructions\":\"Use typed argv. workspace_edit changes only memory; commit explicitly before external builds. Close or commit dirty documents before session end.\"}}");
+        cdx_json_raw(&output, ",\"result\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"Cordonix\",\"version\":\"" CDX_VERSION "\"},\"instructions\":\"Use typed argv. workspace_edit changes only memory; commit explicitly before external builds. Close or commit dirty documents before session end.\"}}");
         send_output(&output);
         cdx_json_output_free(&output);
         *initialized = 1;
@@ -284,7 +285,7 @@ int main(int argc, char **argv) {
     if (argc == 2 && !strcmp(argv[1], "--mcp")) result = run_mcp();
     else if (argc == 3 && !strcmp(argv[1], "--request")) result = run_request(argv[2]);
     else if (argc == 2 && !strcmp(argv[1], "--version")) {
-        static const char version[] = "Cordonix cdx 0.1.0-dev\n";
+        static const char version[] = CDX_VERSION_TEXT "\n";
         result = write_output(version, sizeof(version) - 1u) ? 0 : 1;
     } else {
         (void)fputs("Usage: cdx --mcp | --request absolute-request.json | --version\n", stderr);

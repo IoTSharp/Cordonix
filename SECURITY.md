@@ -10,7 +10,7 @@ Use a trusted local MCP client and a normal least-privileged account. Keep netwo
 
 ## Reporting a vulnerability
 
-Use GitHub's **Report a vulnerability** action on [maikebing/Cordonix](https://github.com/maikebing/Cordonix/security) if the private reporting option is available. If it is not available, open a minimal issue asking for a private reporting channel without posting an exploit, credentials, private source or sensitive paths.
+Use GitHub's **Report a vulnerability** action on [IoTSharp/Cordonix](https://github.com/IoTSharp/Cordonix/security) if the private reporting option is available. If it is not available, open a minimal issue asking for a private reporting channel without posting an exploit, credentials, private source or sensitive paths.
 
 Include the affected commit, Windows version, compiler/build details, entry point, expected and actual behavior, and a minimal sanitized reproducer. Indicate whether the issue causes unintended execution, data loss, encoding corruption, stale-file overwrite or unowned-process termination. No response-time or remediation deadline is promised until the maintainers establish a support policy.
 

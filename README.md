@@ -2,9 +2,9 @@
 
 **A native execution and memory workspace for AI coding agents.**
 
-[![Windows checks](https://github.com/maikebing/Cordonix/actions/workflows/ci.yml/badge.svg)](https://github.com/maikebing/Cordonix/actions/workflows/ci.yml)
+[![Windows checks](https://github.com/IoTSharp/Cordonix/actions/workflows/ci.yml/badge.svg)](https://github.com/IoTSharp/Cordonix/actions/workflows/ci.yml)
 
-[简体中文](README.zh-CN.md) · [Roadmap](ROADMAP.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
+[简体中文](README.zh-CN.md) · [Roadmap](ROADMAP.md) · [Install/update](docs/install-update.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
 Cordonix, abbreviated **cdx**, gives agents a direct path to local programs and source files. Program arguments remain data. Text keeps its declared encoding. Repeated reads and edits can stay in memory until an explicit commit.
 
@@ -135,7 +135,7 @@ The default deadline is 10000 ms (allowed 1–60000), checked between file opera
 
 ## Build and run
 
-Clone [maikebing/Cordonix](https://github.com/maikebing/Cordonix) and use the repository's existing MSVC build entry points:
+Clone [IoTSharp/Cordonix](https://github.com/IoTSharp/Cordonix) and use the repository's existing MSVC build entry points:
 
 ```text
 eng\build.cmd

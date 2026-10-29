@@ -119,7 +119,9 @@ try {
     $requiredFiles = [ordered]@{
         'cdx.exe' = $InputExecutable; 'LICENSE' = Join-Path $SourceRoot 'LICENSE'
         'README.md' = Join-Path $SourceRoot 'README.md'; 'docs/packaging.md' = Join-Path $SourceRoot 'docs\packaging.md'
+        'docs/install-update.md' = Join-Path $SourceRoot 'docs\install-update.md'
         'examples/codex-config.toml' = Join-Path $SourceRoot 'examples\codex-config.toml'
+        'examples/cordonix-install-update-prompt.md' = Join-Path $SourceRoot 'examples\cordonix-install-update-prompt.md'
         'examples/read-lines.json' = Join-Path $SourceRoot 'examples\read-lines.json'
         'examples/read-first.json' = Join-Path $SourceRoot 'examples\read-first.json'
         'examples/read-tail.json' = Join-Path $SourceRoot 'examples\read-tail.json'
@@ -188,7 +190,7 @@ try {
     $relationships += @($spdxFiles | ForEach-Object { [ordered]@{ spdxElementId = 'SPDXRef-Package-Cordonix'; relationshipType = 'CONTAINS'; relatedSpdxElement = $_.SPDXID } })
     $sbom = [ordered]@{
         spdxVersion = 'SPDX-2.3'; dataLicense = 'CC0-1.0'; SPDXID = 'SPDXRef-DOCUMENT'; name = "Cordonix-$Version-win-x64"
-        documentNamespace = "https://github.com/maikebing/Cordonix/spdx/$contentHash"
+        documentNamespace = "https://github.com/IoTSharp/Cordonix/spdx/$contentHash"
         creationInfo = [ordered]@{ created = $epochText; creators = @('Tool: Cordonix eng/package.ps1') }
         packages = @([ordered]@{
             SPDXID = 'SPDXRef-Package-Cordonix'; name = 'Cordonix'; versionInfo = $Version; downloadLocation = 'NOASSERTION'

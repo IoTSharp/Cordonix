@@ -2,6 +2,7 @@
 #include "cdx/process.h"
 #include "cdx/document.h"
 #include "cdx/filesystem.h"
+#include "cdx/version.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -660,7 +661,7 @@ void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx
     ++call_count;
     if (arguments >= 0 && request->nodes[arguments].type != CDX_JSON_OBJECT) { error_result(output, "validation_error", "arguments must be an object"); return; }
     if (!strcmp(operation, "tool_info")) {
-        cdx_json_raw(output, "{\"status\":\"ok\",\"name\":\"Cordonix\",\"version\":\"0.1.0-dev\",\"platform\":\""
+        cdx_json_raw(output, "{\"status\":\"ok\",\"name\":\"Cordonix\",\"version\":\"" CDX_VERSION "\",\"platform\":\""
 #ifdef _WIN32
             "windows"
 #else

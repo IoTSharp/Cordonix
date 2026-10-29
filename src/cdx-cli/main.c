@@ -1,4 +1,5 @@
 #include "cdx/operations.h"
+#include "cdx/version.h"
 #include <io.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -134,7 +135,7 @@ static int run_mcp(void) {
             /* Notifications never receive JSON-RPC responses. */
         } else if (string_node(&json, method, "initialize")) {
             cdx_json_output_init(&output); response_start(&output, &json, id);
-            cdx_json_raw(&output, ",\"result\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"Cordonix\",\"version\":\"0.1.0-dev\"},\"instructions\":\"Use typed argv. workspace_edit changes only memory; commit explicitly before external builds. Close or commit dirty documents before session end.\"}}");
+            cdx_json_raw(&output, ",\"result\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"Cordonix\",\"version\":\"" CDX_VERSION "\"},\"instructions\":\"Use typed argv. workspace_edit changes only memory; commit explicitly before external builds. Close or commit dirty documents before session end.\"}}");
             send_output(&output); cdx_json_output_free(&output); initialized = 1;
         } else if (string_node(&json, method, "ping")) {
             cdx_json_output_init(&output); response_start(&output, &json, id); cdx_json_raw(&output, ",\"result\":{}}"); send_output(&output); cdx_json_output_free(&output);
@@ -187,7 +188,7 @@ int wmain(int argc, wchar_t **argv) {
     InitializeCriticalSection(&output_lock);
     if (argc == 2 && !wcscmp(argv[1], L"--mcp")) result = run_mcp();
     else if (argc == 3 && !wcscmp(argv[1], L"--request")) result = run_request(argv[2]);
-    else if (argc == 2 && !wcscmp(argv[1], L"--version")) { (void)puts("Cordonix cdx 0.1.0-dev"); result = 0; }
+    else if (argc == 2 && !wcscmp(argv[1], L"--version")) { (void)puts(CDX_VERSION_TEXT); result = 0; }
     else { (void)fputs("Usage: cdx --mcp | --request absolute-request.json | --version\n", stderr); result = 2; }
     DeleteCriticalSection(&output_lock); return result;
 }

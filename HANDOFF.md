@@ -5,10 +5,10 @@ Date: 2026-10-29 Asia/Shanghai
 ## Current state
 
 - Project: Cordonix / cdx, Apache-2.0, version 0.1.0-dev.
-- Repository: https://github.com/maikebing/Cordonix
+- Repository: https://github.com/IoTSharp/Cordonix
 - Canonical checkout: `D:\GitHub\Cordonix`.
-- Branch: `main`; implementation baseline `bc988f8`. Read the current revision and working-tree state with `git log -1` and `git status`.
-- The user authorized the local Cordonix code commit on 2026-10-29. Push and publication remain separate actions; no push or publication was performed.
+- Branch: `main`; the previous implementation baseline was `bc988f8`. Read the current revision and working-tree state with `git log -1` and `git status`.
+- The user authorized the release/CI implementation and code commit in the current request. GitHub/Gitee push, repository creation and `v0.0.1` publication are pending the local commit and final remote checks.
 - The checkout was clean at intake. The process, document and packaging agents used disjoint source ownership; the supervising agent integrated shared protocol, gates and documentation.
 
 ## Completed in this session
@@ -24,6 +24,8 @@ Date: 2026-10-29 Asia/Shanghai
 - CDX-09F: native `verify_encoding` with explicit encoding, expected count and lexical allowed-root preflight; no source contents are read until the complete path batch is valid. Seven distinct CP936 fixture files matched the posted .NET verification logic without writes. BOM mismatches, timeout, active cancellation and EOF are covered; real LaneApp verification was not requested for this turn.
 - MCP tool definitions now include readable Chinese titles. The client decides how to display them; current Codex UI rendering is not established by a tools/list test.
 - Roadmap now distinguishes completed local tasks, partial parent deliveries and unrun adoption/release gates with emoji.
+- Tagged release preparation centralizes `CDX_VERSION`, builds Windows/Linux assets from `vMAJOR.MINOR.PATCH` tags, includes installation/update guidance, and provides a bounded GitHub-first/Gitee-fallback prompt.
+- `.github/workflows/release.yml` builds and verifies both platform packages, creates the GitHub Release, mirrors `main`/tag to `IoTSharp/Cordonix`, and publishes the same assets to Gitee when `GITEE_TOKEN` is configured.
 
 ## Validation
 
@@ -33,16 +35,17 @@ Date: 2026-10-29 Asia/Shanghai
 - The independent review found and repaired real output-blocking and test-cleanup defects; the new fixtures are included in the final Linux gate.
 - Current native receipts: `build/encoding-verify/windows.json` and `linux.json`; independent seven-file .NET comparison: `comparison.json`. Linux ASan/UBSan/leak-detection production-MCP receipt: `sanitized.json` (79/79). Pure normalization/scope fixtures: Windows 19 and POSIX 17 checks PASS, receipt `build/encoding-scope/results.json`. Earlier evidence remains in its existing task directories.
 - Filesystem component checks: Windows 18 real NTFS checks PASS; Linux 19 isolated ASan/UBSan checks PASS. Invalid UTF-8 directory-entry testing is NOT_RUN because DrvFS converted the test name to replacement-character bytes; the original 18 PASS / 1 FAIL fixture evidence and explanation are retained in `build/filesystem-posix/verification.md`. A request-path encoding check does not substitute for that OS-entry gate.
-- Current `eng/test-package.ps1`: PASS. ZIP `build/packaging/cordonix-0.1.0-dev-win-x64.zip`, 294,405 bytes, SHA-256 `09add3071e28beffd8c5eb79e53a8d554a6fce654044412dd9607579a5788c63`. Two-run reproducibility, manifest/SPDX/hash relationships and Unicode-path CLI checks passed; seven operation examples include batch encoding verification. Current receipts: `build/encoding-verify/package.json` and `cleanup.json`; prior package receipts remain in the earlier task directories.
+- Current `eng/test-package.ps1 -Version 0.0.1`: PASS. Windows ZIP `build/packaging/cordonix-0.0.1-win-x64.zip` passed two-run reproducibility, 14-file manifest, 16-file SPDX/hash relationships and Unicode-path CLI checks. `CDX_VERSION=0.0.1 sh eng/package-linux.sh 0.0.1` also passed and produced the Linux x64 tar.gz plus checksum and metadata. The package now includes the install/update guide and copyable AI prompt.
 - Packaging first exposed multiple Git application paths being joined into one executable path. The script now selects the first resolved application and emits UTF-8 diagnostics; the successful rerun and original failure are both retained.
 - Earlier baseline SDK/Codex receipts remain historical: 14 official-SDK workflows and a fresh Windows Codex open/read/search/close lifecycle. They do not validate the changed executable or UI titles.
-- Remote CI, official SPDX schema validation, signing, release publication, fresh Linux Codex acceptance and ext4/ACL/xattr behavior are NOT_RUN.
+- Remote CI, official SPDX schema validation, signing, release publication, fresh Linux Codex acceptance, Gitee repository creation and ext4/ACL/xattr behavior are NOT_RUN.
 
 ## Next order
 
-1. Verify the new runtime in a fresh Codex session, including whether tool titles are displayed.
-2. Keep CDX-07D metadata/platform adoption, CDX-08B signed releases and CDX-09B remaining tool-adapter gaps separate.
-3. Declare file encoding before editing. Known GBK uses explicit CP936; AUTO is BOM/strict UTF-8 interpretation, not GBK detection. Commit memory edits before external builds.
+1. Commit the owned release/CI/docs changes, then create the empty `IoTSharp/Cordonix` Gitee repository, set the local GitHub origin to `https://github.com/IoTSharp/Cordonix.git`, and push `main` plus `v0.0.1`.
+2. Read back both GitHub and Gitee release pages and all Windows/Linux assets after the tagged workflow completes; retain any missing/unknown publication state.
+3. Verify the new runtime in a fresh Codex session, including whether the client displays MCP titles. Keep CDX-07D, signing and CDX-09B remaining tool-adapter gaps separate.
+4. Declare file encoding before editing. Known GBK uses explicit CP936; AUTO is BOM/strict UTF-8 interpretation, not GBK detection. Commit memory edits before external builds.
 
 ## Local integration changes and boundaries
 

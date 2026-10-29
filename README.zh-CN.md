@@ -2,9 +2,9 @@
 
 **面向 AI 编程代理的原生执行与内存工作区。**
 
-[![Windows 检查](https://github.com/maikebing/Cordonix/actions/workflows/ci.yml/badge.svg)](https://github.com/maikebing/Cordonix/actions/workflows/ci.yml)
+[![Windows 检查](https://github.com/IoTSharp/Cordonix/actions/workflows/ci.yml/badge.svg)](https://github.com/IoTSharp/Cordonix/actions/workflows/ci.yml)
 
-[English](README.md) · [路线图](ROADMAP.md) · [参与贡献](CONTRIBUTING.md) · [安全说明](SECURITY.md)
+[English](README.md) · [路线图](ROADMAP.md) · [安装与更新](docs/install-update.md) · [参与贡献](CONTRIBUTING.md) · [安全说明](SECURITY.md)
 
 Cordonix，简称 **cdx**，为智能体提供直接调用本地程序和处理源文件的工具。程序参数保持原样，文本编码明确可控，多次读取和编辑可以留在内存中，直到显式提交。
 
@@ -139,7 +139,7 @@ Tail 支持 1～1000 行，文件行数不足时返回全部；Raw 不受行数�
 
 ## 构建与运行
 
-克隆 [maikebing/Cordonix](https://github.com/maikebing/Cordonix)，使用仓库已有的 MSVC 构建入口：
+克隆 [IoTSharp/Cordonix](https://github.com/IoTSharp/Cordonix)，使用仓库已有的 MSVC 构建入口：
 
 ```text
 eng\build.cmd

@@ -32,6 +32,7 @@ static void Sleep(unsigned ms) {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "cdx/version.h"
 
 static unsigned passed, total;
 static ULONGLONG deadline;
@@ -1396,6 +1397,7 @@ static void stdout_flags_case(const char *program) {
     int pipes[2], status = 0, flags, valid;
     pid_t child;
     char bytes[128];
+    static const char expected[] = CDX_VERSION_TEXT "\n";
     ssize_t length;
     if (pipe(pipes)) { record("CLI restores shared stdout flags", 0); return; }
     flags = fcntl(pipes[1], F_GETFL);
@@ -1411,7 +1413,8 @@ static void stdout_flags_case(const char *program) {
     close(pipes[1]);
     length = fcntl(pipes[0], F_SETFL, O_NONBLOCK) == 0 ? read(pipes[0], bytes, sizeof(bytes)) : -1;
     close(pipes[0]);
-    record("CLI restores shared stdout flags", valid && length == 23 && !memcmp(bytes, "Cordonix cdx 0.1.0-dev\n", 23));
+    record("CLI restores shared stdout flags", valid && length == (ssize_t)(sizeof(expected) - 1u) &&
+           !memcmp(bytes, expected, sizeof(expected) - 1u));
 }
 #endif
 
