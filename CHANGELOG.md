@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.0.2 - 2026-10-29
+
+- Published Windows x64 ZIP and Linux x64 tar.gz on GitHub and Gitee from `c41ab22` through a fully passing tagged workflow.
+- Added verified bootstrap installation, hourly user update support and a copyable AI setup prompt; both platforms passed real 0.0.1-to-0.0.2 package upgrade checks.
+- Fixed original annotated-tag mirroring, Linux checksum paths/SPDX metadata and the reserved Windows encoding fixture filename.
+
+## 0.0.1 - 2026-10-29
+
+Initial native runtime release, published on both platforms from `586a240`. The detailed implementation and follow-up additions are listed below; the install/update and mirror fixes are included in 0.0.2.
+
 ### Added
 
 - Windows and Linux bootstrap installers with exact release-asset selection, SHA-256 and native runtime verification, bounded GitHub/Gitee fallback, preserved previous versions and stable MCP launch paths.

@@ -4,7 +4,7 @@ Date: 2026-10-29 Asia/Shanghai
 
 ## Current state
 
-- Project: Cordonix / cdx, Apache-2.0; default source build 0.1.0-dev, published v0.0.1, installer/update candidate v0.0.2.
+- Project: Cordonix / cdx, Apache-2.0; default source build 0.1.0-dev; published v0.0.1 and v0.0.2.
 - Repository: https://github.com/IoTSharp/Cordonix
 - Canonical checkout: `D:\GitHub\Cordonix`.
 - Branch: `main`; the previous implementation baseline was `bc988f8`. Read the current revision and working-tree state with `git log -1` and `git status`.
@@ -29,6 +29,7 @@ Date: 2026-10-29 Asia/Shanghai
 - v0.0.1 is published on both platforms at `586a2406f733ce53ddce965ace056d8d6f85ee86`, original annotated tag object `d164a733b1a6633e33b8c58024283660038866ea`. Ten original assets were downloaded from each source and compared SHA-for-SHA (`build/release-readback/v0.0.1/comparison.json`). Do not move or rebuild this published tag.
 - The hosted Windows gate exposed a reserved `nul.txt` fixture name; renamed to `nul-data.txt` while retaining the NUL content assertion. Linux checksum readback was fixed to run from the archive directory. The mirror now fetches the original annotated tag into a task ref; it never pushes checkout's rewritten lightweight tag or overwrites a published tag.
 - Windows/Linux installers implement bootstrap, SHA and native version checks, stable launch entries, preserved previous versions, no downgrade and optional hourly user scheduling. Windows uses Task Scheduler COM and PowerShell 7; Linux uses Python 3.9+ standard library, GNU timeout and a user systemd timer.
+- v0.0.2 is published at `c41ab22295f0ffa6ee3b4365fe78ad09ebcecfb0`, annotated tag object `5c2d15affcb89d888f67ba5baeeeba3d9e6d77a3`. Both platforms expose identical original assets; do not move or rebuild either published tag.
 
 ## Validation
 
@@ -39,17 +40,17 @@ Date: 2026-10-29 Asia/Shanghai
 - Current native receipts: `build/encoding-verify/windows.json` and `linux.json`; independent seven-file .NET comparison: `comparison.json`. Linux ASan/UBSan/leak-detection production-MCP receipt: `sanitized.json` (79/79). Pure normalization/scope fixtures: Windows 19 and POSIX 17 checks PASS, receipt `build/encoding-scope/results.json`. Earlier evidence remains in its existing task directories.
 - Filesystem component checks: Windows 18 real NTFS checks PASS; Linux 19 isolated ASan/UBSan checks PASS. Invalid UTF-8 directory-entry testing is NOT_RUN because DrvFS converted the test name to replacement-character bytes; the original 18 PASS / 1 FAIL fixture evidence and explanation are retained in `build/filesystem-posix/verification.md`. A request-path encoding check does not substitute for that OS-entry gate.
 - Local `CDX_VERSION=0.0.2`: Windows 197 and Linux 183 native checks PASS. Windows package reproducibility, 17-file manifest/19 SPDX files and Unicode extraction PASS; Linux package gate 115 checks PASS. Both packages now include the two installers and tool_info request.
-- Installer isolation: Windows 12 and Linux 14 checks PASS (real HTTP/local processes, fallback, update/no downgrade, corruption handling, schedule definitions and cleanup). Windows also installed public Gitee v0.0.1 into `build/public-install-windows` and passed the stable launcher's actual initialize/list/tool_info/EOF MCP lifecycle. No actual user runtime/config or persistent scheduled task was modified. WSL public networking is unavailable; its Internet download gate remains NOT_RUN.
+- Installer isolation: Windows 12 and Linux 14 checks PASS (real HTTP/local processes, fallback, update/no downgrade, corruption handling, schedule definitions and cleanup). Windows additionally installed public Gitee v0.0.1 and updated to v0.0.2 in a disposable build directory; both stable-launcher initialize/list/tool_info/EOF lifecycles PASS. No actual user runtime/config or persistent scheduled task was modified.
+- Linux published-package replay: 11 checks PASS (`build/published-linux-upgrade.json`). Publicly downloaded tar.gz/sidecars were served over WSL loopback: 0.0.1 install, 0.0.2 update, same-version no-op, old version retention, old MCP continues on 0.0.1 and new MCP reports 0.0.2. Seven owned processes exited cleanly and the HTTP/installation fixtures were removed. WSL direct Internet download remains NOT_RUN because networking was unavailable.
 - Packaging first exposed multiple Git application paths being joined into one executable path. The script now selects the first resolved application and emits UTF-8 diagnostics; the successful rerun and original failure are both retained.
 - Earlier baseline SDK/Codex receipts remain historical: 14 official-SDK workflows and a fresh Windows Codex open/read/search/close lifecycle. They do not validate the changed executable or UI titles.
-- Remote v0.0.1 native gates and GitHub Release PASS, run `40886685168`; its historic combined run retains the Gitee tag failure. Recovery workflow `40889366373` PASS and Gitee public readback PASS. Official SPDX schema validation, signing, persistent user scheduler registration, fresh Linux Codex acceptance and ext4/ACL/xattr behavior remain NOT_RUN. v0.0.2 remote gates are pending.
+- Remote v0.0.1 native gates and GitHub Release PASS, run `40886685168`; its historic combined run retains the Gitee tag failure. Recovery workflow `40889366373` PASS. v0.0.2 release run `40892674149` is entirely PASS, including Gitee source/tag/release; ordinary CI runs `40892674177` and `40892654143` also PASS. Each version's ten GitHub/Gitee assets were publicly downloaded and compared SHA-for-SHA (`build/release-readback/<tag>/comparison.json`). Official SPDX schema validation, signing, persistent user scheduler registration, fresh Linux Codex app acceptance and ext4/ACL/xattr behavior remain NOT_RUN.
 
 ## Next order
 
-1. Commit the owned installer, package and gate changes; publish the new v0.0.2 tag. Preserve the already-published v0.0.1 tag and assets.
-2. Read back both releases and all Windows/Linux assets, then verify the real 0.0.1-to-0.0.2 upgrade using the isolated Windows installation and Linux published packages; retain any missing/unknown publication state.
-3. Verify the new runtime in a fresh Codex session, including whether the client displays MCP titles. Keep CDX-07D, signing and CDX-09B remaining tool-adapter gaps separate.
-4. Declare file encoding before editing. Known GBK uses explicit CP936; AUTO is BOM/strict UTF-8 interpretation, not GBK detection. Commit memory edits before external builds.
+1. Published-release scope is complete. Preserve v0.0.1/v0.0.2 tags and assets; use a new SemVer tag for source/package changes.
+2. Verify the runtime in a fresh Codex app session, including whether the client displays MCP titles, and record recurring scheduler registration when installed on a target user machine. Keep CDX-07D, signing and CDX-09B adapter gaps separate.
+3. Declare file encoding before editing. Known GBK uses explicit CP936; AUTO is BOM/strict UTF-8 interpretation, not GBK detection. Commit memory edits before external builds.
 
 ## Local integration changes and boundaries
 
