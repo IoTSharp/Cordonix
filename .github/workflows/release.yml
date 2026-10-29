@@ -88,10 +88,13 @@ jobs:
         shell: bash
         run: |
           set -eu
-          archive="build/packaging/cordonix-$CDX_VERSION-linux-x64.tar.gz"
-          checksum="$archive.sha256"
-          sha256sum --check "$checksum"
-          timeout --kill-after=5s 30s tar -tzf "$archive" > /dev/null
+          package_dir="build/packaging"
+          archive="cordonix-$CDX_VERSION-linux-x64.tar.gz"
+          (
+            cd "$package_dir"
+            sha256sum --check "$archive.sha256"
+            timeout --kill-after=5s 30s tar -tzf "$archive" > /dev/null
+          )
       - name: Upload Linux release assets
         uses: actions/upload-artifact@v4
         with:
