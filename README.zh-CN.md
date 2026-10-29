@@ -8,6 +8,8 @@
 
 Cordonix，简称 **cdx**，为智能体提供直接调用本地程序和处理源文件的工具。程序参数保持原样，文本编码明确可控，多次读取和编辑可以留在内存中，直到显式提交。
 
+通过[安装与更新说明](docs/install-update.md)或[可复制 AI 提示词](examples/cordonix-install-update-prompt.md)安装 Windows x64 ZIP 或 Linux x64 tar.gz。安装器检查 SHA-256 和实际程序版本，GitHub 不通时转向 Gitee，并可启用每小时自动检查。正式 tag 使用 `vMAJOR.MINOR.PATCH`；[GitHub Release](https://github.com/IoTSharp/Cordonix/releases) 和 [Gitee Release](https://gitee.com/IoTSharp/Cordonix/releases) 提供相同成果物。
+
 当前实现是 **支持 Windows 和 Linux 的纯 C11 MVP**，可执行程序运行时不依赖 Python 或 PowerShell。Windows 构建使用 MSVC；Linux 使用 GCC、系统 libc/iconv 和 pthread。Cordonix 是独立开源项目，不属于 OpenAI 官方产品。
 
 ## 解决什么问题
@@ -34,7 +36,7 @@ Git、ripgrep、编译器和 Codex 的 `apply_patch` 仍是配套工具。Cordon
 | 编码与内存文档核心 | 36 项核心检查与 25 项编码/接线边界检查通过 | 外部工具读取磁盘，看不到未提交的内存修改 |
 | CLI 与 MCP | 14 个带可读标题的原生工具；Windows 75 项、Linux 79 项真实 stdio 检查 | 先前 Windows SDK/Codex 证据与本次修改树分开；Codex 是否显示新标题待验证 |
 | Linux | WSL Ubuntu 下 16 项进程、42 项文件、46 项 JSON、79 项 stdio 检查通过 | 独立 Linux Codex、ext4 语义、ACL/xattr 保留及长稳为独立门禁 |
-| Windows 便携包 | 固定输入可重复 ZIP、校验和、checkout 来源、SPDX 文件清单及解压测试脚本 | 本地未签名包；编译可复现、官方 SPDX schema 校验及公开发布为独立门禁 |
+| Windows/Linux 便携包 | ZIP/tar.gz、校验和、checkout 来源、SPDX 文件清单与解压运行门禁；v0.0.1 已在两端发布并核对全部附件 | 包未签名；编译可复现、官方 SPDX schema 校验和更广泛 Linux 环境为独立门禁 |
 
 上述结果是本地验证，不是性能基准，也不代表不会发生错误。各项验收边界见[质量门禁](docs/quality-gates.md)。
 

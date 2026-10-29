@@ -1,51 +1,91 @@
 # Cordonix 安装与自动更新
 
-本文定义 Cordonix (`cdx`) 的公开下载约定，也提供可以直接交给 AI 的安装/更新提示词。发布工作流以 `vMAJOR.MINOR.PATCH` 形式的 tag 为输入，例如 `v0.0.1`；没有符合这个格式的 tag 时，安装器不得把分支、commit 或开发版本当成正式版本。
+把[安装提示词](../examples/cordonix-install-update-prompt.md)复制给 AI，或让 AI 读取这个链接，就可以安装 Cordonix (cdx) 并开启每小时检查新版本。安装器能从零启动，不要求事先安装 cdx。运行时仍是纯 C；Windows 安装器及稳定启动器需要 PowerShell 7，Linux 安装器需要 Python 3.9+ 标准库和 GNU timeout。
 
-## 发布源和成果物
+## 下载入口
 
-两个公开源使用相同的仓库名和 tag：
+| 内容 | GitHub（优先） | Gitee（回退） |
+| --- | --- | --- |
+| 仓库 | [IoTSharp/Cordonix](https://github.com/IoTSharp/Cordonix) | [IoTSharp/Cordonix](https://gitee.com/IoTSharp/Cordonix) |
+| Release | [发布与附件](https://github.com/IoTSharp/Cordonix/releases) | [发布与附件](https://gitee.com/IoTSharp/Cordonix/releases) |
+| Windows 安装脚本 | [install.ps1](https://raw.githubusercontent.com/IoTSharp/Cordonix/main/install/install.ps1) | [install.ps1](https://gitee.com/IoTSharp/Cordonix/raw/main/install/install.ps1) |
+| Linux 安装脚本 | [install.sh](https://raw.githubusercontent.com/IoTSharp/Cordonix/main/install/install.sh) | [install.sh](https://gitee.com/IoTSharp/Cordonix/raw/main/install/install.sh) |
+| AI 提示词 | [复制提示词](https://github.com/IoTSharp/Cordonix/blob/main/examples/cordonix-install-update-prompt.md) | [复制提示词](https://gitee.com/IoTSharp/Cordonix/blob/main/examples/cordonix-install-update-prompt.md) |
 
-| 优先级 | 源 | Release API | 发布页面 |
-| --- | --- | --- | --- |
-| 1 | GitHub `IoTSharp/Cordonix` | `https://api.github.com/repos/IoTSharp/Cordonix/releases/latest` | `https://github.com/IoTSharp/Cordonix/releases` |
-| 2 | Gitee `IoTSharp/Cordonix` | `https://gitee.com/api/v5/repos/IoTSharp/Cordonix/releases/latest` | `https://gitee.com/IoTSharp/Cordonix/releases` |
+先将对应脚本下载并保存到本地，检查来源后执行，避免把网络响应直接送进解释器。安装器查询 GitHub https://api.github.com/repos/IoTSharp/Cordonix/releases/latest；GitHub 网络、元数据或资产下载失败时，再使用 Gitee https://gitee.com/api/v5/repos/IoTSharp/Cordonix/releases?page=1&per_page=20 。Gitee 在最多 20 个条目中选择数值最高的稳定版本，忽略预发布和草稿。
 
-每个正式 release 应提供以下资产。`<version>` 是去掉 tag 前缀 `v` 后的 SemVer，例如 tag `v0.0.1` 对应 `0.0.1`：
+Tag 必须是规范的 vMAJOR.MINOR.PATCH，例如 v0.0.1。两个发布源提供相同 tag、源提交和二进制资产：
 
 | 平台 | 压缩包 | 校验文件 |
 | --- | --- | --- |
-| Windows x64 | `cordonix-<version>-win-x64.zip` | `cordonix-<version>-win-x64.zip.sha256` |
-| Linux x64 | `cordonix-<version>-linux-x64.tar.gz` | `cordonix-<version>-linux-x64.tar.gz.sha256` |
+| Windows x64 | `cordonix-<version>-win-x64.zip` | 同名 `.zip.sha256` |
+| Linux x64 | `cordonix-<version>-linux-x64.tar.gz` | 同名 `.tar.gz.sha256` |
 
-安装器应从 release API 返回的资产列表中按**完整文件名**选择资产，并读取同名 `.sha256` 文件。不要根据页面中的第一个附件、重定向后的临时名称或一个模糊的 `*.zip`/`*.tar.gz` 匹配来下载。校验文件使用一行标准 SHA-256 格式：
+Linux 发布包由 Ubuntu 24.04 构建，动态链接 glibc；其他发行版需通过实际运行验证。当前不提供 ARM64、macOS 或 musl/Alpine 二进制。Gitee 还会列出自动生成的源码压缩包，安装器只匹配上表中的完整资产名。
 
-```text
-<64 位十六进制 sha256>  <完整资产文件名>
+## Windows
+
+使用 PowerShell 7 执行已保存的脚本：
+
+```powershell
+& 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -File 'C:\absolute\install.ps1' -EnableAutoUpdate
 ```
 
-如果某个平台的资产、校验文件、tag 或 API 响应缺失，保留 `NOT_RUN` 或 `UNKNOWN`，不要把另一个平台的二进制改名后当成目标平台安装包。
+默认安装根目录为 `%LOCALAPPDATA%\Cordonix`，版本位于 `versions\<version>`；`current.json` 记录当前版本，稳定启动器是 `launch.ps1`。有需要可传入 `-InstallRoot 'D:\Tools\Cordonix'`、`-Source gitee` 或 `-Proxy 'http://127.0.0.1:7890'`。默认 `-Source auto` 会在 GitHub 不通时转向 Gitee；自动任务也保留选定的 source 和显式代理。
 
-## 安装流程
+首次安装成功后，将以下区块合并到 ~/.codex/config.toml，把 USER 替换成真实用户目录；保留已有服务器和其他配置：
 
-1. 识别操作系统和架构。当前正式资产只支持 Windows x64 和 Linux x64；其他架构应明确返回 `NOT_RUN`。
-2. 先读取 GitHub `releases/latest`，确认 `tag_name` 完全匹配 `^v[0-9]+\\.[0-9]+\\.[0-9]+$`，再按上表选择两个精确资产。单个 HTTP 请求的连接和读取截止时间为 20 秒，元数据正文最多读取 1 MiB。
-3. GitHub 出现 DNS、TLS、超时、非 2xx、响应格式错误或缺少精确资产时，最多切换一次到 Gitee 的对应 API。不要在一个不确定的下载写入后无限重试；每个平台至多一次元数据请求和一次资产下载。
-4. 在任务目录中下载压缩包与 `.sha256`，先验证文件名、长度上限（默认 256 MiB）和 SHA-256，再解压。SHA 不匹配时删除本次任务创建的临时文件并返回 `FAIL`；不要覆盖旧安装。
-5. 解压到版本目录，运行 `cdx --version`，结果必须等于 `Cordonix cdx <version>`。Windows 还应运行 `cdx --request <temporary-tool-info.json>` 并确认 `platform=windows`、`runtime=C11`；Linux 对应确认 `platform=linux`、`runtime=C11`。
-6. 只有上述检查通过，才把版本目录注册到本机的 Codex MCP 配置。保留旧版本目录，更新失败时可以把配置指回旧版本。配置示例见 [`examples/codex-config.toml`](../examples/codex-config.toml)。
-7. 输出可审计回执：源平台、tag、资产名、下载 SHA、安装路径、旧版本、新版本、验证结果和任何 `UNKNOWN`/`NOT_RUN` 边界。
+```toml
+[mcp_servers.cordonix]
+command = 'C:\Program Files\PowerShell\7\pwsh.exe'
+args = ['-NoLogo', '-NoProfile', '-File', 'C:\Users\USER\AppData\Local\Cordonix\launch.ps1', '--mcp']
+startup_timeout_sec = 15
+tool_timeout_sec = 300
+```
 
-建议的安装目录是 Windows `%LOCALAPPDATA%\\Cordonix\\<version>\\`，Linux `~/.local/opt/cordonix/<version>/`。目录只是约定，安装器可以使用用户指定目录；不得写入仓库源码树，也不得静默修改系统级 PATH。
+-EnableAutoUpdate 通过 Windows Task Scheduler COM 注册当前用户任务，每小时检查一次，每次最多 3 分钟，重叠运行会跳过；需要该用户登录。任务名带安装目录哈希。脚本不调用 Windows PowerShell 5.1，也不修改系统 PATH。
 
-## 更新流程
+```powershell
+# 只查询版本；手动更新；停止自动检查（保留安装文件）。
+.\install.ps1 -CheckOnly
+.\install.ps1
+.\install.ps1 -DisableAutoUpdate
+```
 
-更新先读取当前配置指向的 `cdx --version`，再执行与安装相同的双源查询。只有最新 tag 的 SemVer 严格大于当前版本时才下载；相等时返回 `up_to_date`，小于当前版本时返回 `older_release` 并保持原配置。下载、解压、版本检查和 `tool_info` 验证均在新版本目录完成，全部通过后再切换配置，切换失败仍保留旧版本可用。
+-TaskDefinitionOnly 只输出任务 XML，不注册任务，可用于审查计划任务定义。任务实际注册是否成功，与二进制安装是否成功分别报告。
 
-网络失败、两个源都没有正式 tag、校验文件缺失、SHA 不匹配、架构不支持或验证命令超时都必须单独报告。外部写入超时后无法判断是否完成时，状态为 `UNKNOWN`；先检查目标目录和配置，再决定是否重试。更新流程最多处理两个源、一个候选 tag 和一个目标平台，不能使用无界轮询。
+## Linux
 
-## 给 AI 的复制提示词
+```sh
+sh /absolute/install.sh --enable-auto-update
+```
 
-可以复制 [`examples/cordonix-install-update-prompt.md`](../examples/cordonix-install-update-prompt.md) 作为一次性安装或以后更新的任务说明。提示词要求 AI 优先使用 GitHub、失败时切换 Gitee，按完整资产名和 SHA-256 校验，并将所有结果分成 `PASS`、`FAIL`、`UNKNOWN`、`NOT_RUN`。它也要求使用 Cordonix 的 typed `execute_program` 和保存的 PowerShell 7 脚本，不把路径、参数或远程请求拼成 shell 命令字符串。
+默认安装根目录是 `~/.local/opt/cordonix`，可用 `--root /absolute/path` 更换。版本位于 `versions/<version>`，稳定路径是 `<root>/current/cdx`；`current` 是验证通过后原子切换的符号链接。`--source gitee` 可固定来源，默认 `--source auto` 保留 GitHub 优先、Gitee 回退。网络代理采用进程环境的 `HTTPS_PROXY`/`HTTP_PROXY`。
 
-当前仓库尚未因本文而声明正式发布。只有 CI 在真实 `v0.0.1` 或更高 SemVer tag 上成功生成并在两个 Release 页面独立回读资产后，安装器才可以报告对应版本已发布。
+```toml
+[mcp_servers.cordonix]
+command = '/home/USER/.local/opt/cordonix/current/cdx'
+args = ['--mcp']
+startup_timeout_sec = 15
+tool_timeout_sec = 300
+```
+
+--enable-auto-update 保存安装器并启用当前用户的 systemd timer，每小时检查一次。服务单次最多 190 秒，安装器内部另有 170 秒预算及 180 秒外层超时。它不使用 sudo，也不修改全局 PATH。需要可用的用户 systemd 管理器；没有用户会话或用户管理器停止时，检查不会运行。需要退出登录后持续运行的机器，应由机器管理员按其策略配置用户管理器生命周期。
+
+```sh
+sh /absolute/install.sh --check
+sh /absolute/install.sh
+sh /absolute/install.sh --disable-auto-update
+```
+
+`--schedule-dry-run` 与 enable/disable 配合，只处理 `<root>/systemd` 中的定义，回执标记真实注册 `NOT_RUN`。缺少 systemd 或注册失败时，安装器会报告自动更新未启用，已验证的安装文件仍保留。
+
+## 校验、切换和回滚
+
+每个源最多一次元数据请求、一次校验文件和一次压缩包下载，单个请求最多 20 秒。元数据最多 1 MiB，压缩包最多 256 MiB。文件名与 SHA-256 必须匹配，再检查归档路径和大小，随后运行实际 cdx --version 和 tool_info，确认 tag、平台和 runtime=C11。失败时保留旧入口；Windows 的 SHA 校验失败会立即停止，Linux 会记录失败原因并在 auto 模式尝试另一个来源。
+
+只有所有验证通过才切换当前版本。相同版本返回 up_to_date，远端更旧返回 older_release，不会降级。旧版本目录保留；需要回滚时，Windows 可把 current.json 指回已验证的旧版本，Linux 可将 current 指回旧版本目录。回滚期间应先停用自动检查，避免下一次检查再次升级。
+
+正在运行的 MCP 会话继续使用原来的进程；新版本在下次启动 MCP 时生效。升级不会强行终止其他会话。首次修改 Codex MCP 配置后，新建会话并调用 tool_info，确认实际连接的版本。配置字段参考 [OpenAI 官方 MCP 文档](https://developers.openai.com/codex/extend/mcp)。
+
+SHA-256 校验保护下载一致性；当前发布包没有代码签名，不宣称签名认证或跨文件事务。PASS、FAIL、UNKNOWN、NOT_RUN 分开保留；下载完成、安装通过、自动任务注册成功及新会话加载新版本是四项不同证据。

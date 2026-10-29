@@ -4,6 +4,10 @@
 
 ### Added
 
+- Windows and Linux bootstrap installers with exact release-asset selection, SHA-256 and native runtime verification, bounded GitHub/Gitee fallback, preserved previous versions and stable MCP launch paths.
+- Optional hourly user updates through PowerShell 7 / Task Scheduler on Windows and systemd user service/timer on Linux; isolated HTTP, rollback and scheduler-definition gates.
+- A recovery workflow to mirror an existing GitHub release to Gitee without rebuilding or overwriting published assets.
+
 - Initial Cordonix product charter, short form `cdx`, roadmap identifiers and eight agent rules.
 - Native C11 CLI JSON request mode and persistent MCP stdio mode.
 - Windows process ownership, literal argv, bounded output, cancellation and whole-Job cleanup.
@@ -42,6 +46,10 @@
 - Roadmap progress uses emoji markers with separate PASS/FAIL/UNKNOWN/NOT_RUN evidence.
 
 ### Fixed
+
+- Gitee source mirroring preserves the original annotated tag object instead of the lightweight event tag produced by Actions checkout.
+- Linux package checksums resolve relative filenames from the package directory; SPDX verification codes, package relationships and checkout provenance now carry actual content evidence.
+- Windows encoding fixtures avoid the reserved `nul.txt` device name, so the hosted Windows gate exercises a real NUL-containing file.
 
 - Linux UTF-8 validation rejects historic iconv sequences above U+10FFFF.
 - Linux execution preserves the calling process when a child closes stdin, accepts root cwd, and keeps cleanup bounded after the root exits or closes its streams.

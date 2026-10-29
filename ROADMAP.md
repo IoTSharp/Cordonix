@@ -19,7 +19,7 @@ Progress: ✅ complete within the stated boundary · 🟡 partial · 🚧 in pro
 | CDX-05 | C MCP stdio adapter | ✅ Windows MVP | CDX-04 | Real stdio, asynchronous cancellation, official SDK and Codex | Local stdio gate; earlier baseline had 14 SDK workflows and fresh Codex open/read/search/close |
 | CDX-06 | Memory workspace | ✅ bounded single-file MVP | CDX-03 | Reuse open documents, memory editing/search, explicit commit/conflict | Windows 25 encoding/integration edge checks; external programs read disk |
 | CDX-07 | Linux POSIX backend | 🟡 local MVP implemented | CDX-02, CDX-04 | Process ownership and encoding/file parity | WSL Ubuntu native process/document/JSON/MCP integration; independent Linux adoption and metadata parity remain open |
-| CDX-08 | Packaging and repeatable releases | 🟡 tagged CI implemented; publication pending | CDX-05 | Portable package, provenance, SBOM, install guide and signed release | Deterministic Windows ZIP, Linux tar.gz, checksum/provenance assets and dual-platform release workflow; signing and remote readback remain separate |
+| CDX-08 | Packaging and repeatable releases | 🟡 dual publication complete; signing separate | CDX-05 | Portable packages, provenance, SBOM, install/update guide and signed release | v0.0.1 published to GitHub/Gitee with ten identical assets; updater source/gates ready for v0.0.2; signing remains open |
 | CDX-09 | Replace overlapping local agent tools with cdx | 🟡 gradual adoption | CDX-05, CDX-06 | Retire predecessors after real capability coverage | Local execution and encoding-aware edits use cdx first; specialized adapters remain for gaps |
 
 ## Current parallel tasks
@@ -33,7 +33,9 @@ The process and document agents own disjoint platform sources. The packaging age
 | CDX-07C | Linux CLI/MCP, builds and final integration | ✅ local gate passed | Linux 183/183 and Windows 197/197; real stdio cancellation/EOF/output blocking/SIGTERM and readable titles |
 | CDX-07D | Independent Linux adoption and filesystem metadata | ⬜ planned | Fresh Codex session, ext4 acceptance, ACL/xattr policy and broader workloads |
 | CDX-08A | Windows/Linux portable packages | ✅ local gate passed | Identical Windows ZIP from two runs plus Linux tar.gz, SHA-256 metadata, install/update docs and runtime readback |
-| CDX-08B | Tagged dual-platform releases | 🚧 CI ready; remote publication pending | `vMAJOR.MINOR.PATCH` workflow, GitHub release, Gitee mirror/release, independent asset readback and signing boundary |
+| CDX-08B | Tagged dual-platform releases | ✅ v0.0.1 published and read back | Windows/Linux native CI and GitHub Release PASS; Gitee recovery PASS; ten identical assets from both sources |
+| CDX-08C | Release signing | ⬜ planned | Signing identity and independent signature verification; checksum verification does not close this gate |
+| CDX-08D | Installers and hourly user updates | 🚧 local gates complete; v0.0.2 release pending | Windows 12 and Linux 14 installer checks, stable entries, no downgrade and failed-update preservation; persistent user scheduler registration separate |
 | CDX-09A | Local execution and encoding-aware edit migration | ✅ local policy updated | Retired PowerShell execution skill; known GBK opens explicitly as CP936 before editing |
 | CDX-09B | Remaining Native Tools adapters | ⬜ planned | Evaluate create-file, environment overrides and parsed rg/Git adapters before retirement |
 | CDX-09C | Native line-range reading | ✅ local gate passed | One-shot read_file and memory workspace_read line mode; 16 shared real MCP checks; unchanged-SHA comparisons for TableStore.cs Skip 950 / First 245 and encoding_posix.c First 100 |
@@ -43,7 +45,7 @@ The process and document agents own disjoint platform sources. The packaging age
 
 ## Next item
 
-Push the canonical `IoTSharp/Cordonix` branch, create the Gitee mirror and publish the first `v0.0.1` tag through the release workflow, then independently read back both release pages and all Windows/Linux assets. Verify the new runtime in a fresh Codex session, including whether the client displays MCP titles. CDX-07D and CDX-09B retain their own acceptance evidence; signing and remote publication remain separate gates until readback passes.
+Publish installer/update support as a new v0.0.2 tag, preserve v0.0.1 and independently verify a real 0.0.1-to-0.0.2 update. Verify the new runtime in a fresh Codex session, including whether the client displays MCP titles. CDX-07D, CDX-08C and CDX-09B retain their own acceptance evidence.
 
 ## Capability gaps
 

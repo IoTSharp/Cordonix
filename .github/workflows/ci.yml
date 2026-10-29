@@ -8,6 +8,8 @@ jobs:
   windows:
     runs-on: windows-2022
     timeout-minutes: 10
+    env:
+      CDX_VERSION: '0.0.1'
     steps:
       - uses: actions/checkout@v4
       - name: Compile C11 and exercise native processes, encodings and MCP
@@ -15,16 +17,25 @@ jobs:
         run: eng\test.cmd
       - name: Verify the portable package and its provenance
         shell: pwsh
-        run: ./eng/test-package.ps1
+        run: ./eng/test-package.ps1 -Version $env:CDX_VERSION
+      - name: Verify installation, mirror fallback and update rollback
+        shell: pwsh
+        run: ./eng/test-install-windows.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: cordonix-windows-x64
-          path: build/packaging/cordonix-0.1.0-dev-win-x64.*
+          path: build/packaging/cordonix-0.0.1-win-x64.*
           if-no-files-found: error
   linux:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      CDX_VERSION: '0.0.1'
     steps:
       - uses: actions/checkout@v4
       - name: Compile C11 and exercise POSIX processes, encodings and MCP
         run: timeout --kill-after=5s 300s sh eng/test-linux.sh
+      - name: Verify Linux package metadata and extracted executable
+        run: sh eng/test-package-linux.sh
+      - name: Verify installation, mirror fallback and update rollback
+        run: sh eng/test-install-linux.sh

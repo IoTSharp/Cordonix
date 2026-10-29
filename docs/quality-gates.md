@@ -12,12 +12,15 @@ Validated locally on 2026-10-29 (Asia/Shanghai). Each row proves only its stated
 | Linux process ownership / argv | Literal args, pipes, root cwd, closed stdin, timeout/cancel and process-group cleanup | 16/16 PASS, WSL Ubuntu 24.04 / GCC 13.3.0 |
 | Linux encoding / documents | Strict encodings, four SHA-256 vectors, edits, conversion, conflict and commit readback | 42/42 PASS, including ASan + UBSan + leak detection |
 | Linux MCP / CLI | Shared protocol, line ranges/tail/raw, plus output backpressure, SIGTERM, failed-test cleanup and stdout flags | 79/79 PASS |
-| Windows portable package | Same inputs produce identical ZIP; manifest/SPDX/hash checks and execution after extraction to a Unicode path | PASS, `eng/test-package.ps1`; 14 manifest inputs, 16 SPDX files, 17 relationships; install/update documentation is included |
-| Linux portable package | Versioned tar.gz, checksum sidecar, metadata and executable readback | PASS, `eng/package-linux.sh` with `CDX_VERSION=0.0.1`; Linux x64 archive and SHA-256 readback |
+| Windows portable package | Same inputs produce identical ZIP; manifest/SPDX/hash checks and execution after extraction to a Unicode path | PASS for `CDX_VERSION=0.0.2`; 17 manifest inputs, 19 SPDX files, 20 relationships; both installers included |
+| Linux portable package | Repeated tar.gz, manifest/SPDX/checksum checks and extracted runtime | 115 checks PASS for `0.0.2`, `eng/test-package-linux.sh` |
+| Windows installer | Real local HTTP and actual cdx runtime, fallback, stable launcher and failed-update preservation | 12 checks PASS; Gitee public `0.0.1` install and launcher MCP lifecycle also PASS |
+| Linux installer | Bounded HTTP fixture, real processes, fallback, upgrade and failed-update preservation | 14 checks PASS including real systemd unit parser; public downloads from this WSL environment NOT_RUN due network isolation |
+| User scheduling | Register and execute recurring updates in an actual user session | Task XML and systemd definition verification PASS; persistent user task registration NOT_RUN in isolated tests |
 | Independent clients | Official SDK and actual Codex integration | Earlier Windows baseline: 14 SDK workflows and fresh Codex read lifecycle PASS; changed runtime and title rendering NOT_RUN |
 | Filesystem / wider Linux | Independent ext4, ACL/xattr preservation, multiple distributions and soak | NOT_RUN; current file tests use WSL DrvFS and preserve owner/group/mode only |
-| Release | Compiler reproducibility, official SPDX schema validation, signing and published package readback | NOT_RUN; tagged workflow is implemented |
-| Remote CI | Execution of the changed GitHub Actions workflow | NOT_RUN until the canonical branch and a `vMAJOR.MINOR.PATCH` tag are pushed |
+| Release | GitHub/Gitee releases and independent published-asset readback | `v0.0.1`: ten assets downloaded from each source, identical SHA-256; compiler reproducibility, official SPDX schema and signing remain NOT_RUN |
+| Remote CI | Execution of the changed GitHub Actions workflow | `v0.0.1` Windows/Linux build and GitHub publication PASS; Gitee recovery workflow PASS; updater gates pending first `v0.0.2` tagged run |
 
 Final native totals: Windows **197** checks; Linux **183** checks. Pilot checks are recorded separately and are not added twice.
 

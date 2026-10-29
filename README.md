@@ -8,6 +8,8 @@
 
 Cordonix, abbreviated **cdx**, gives agents a direct path to local programs and source files. Program arguments remain data. Text keeps its declared encoding. Repeated reads and edits can stay in memory until an explicit commit.
 
+Install from a published Windows x64 ZIP or Linux x64 tar.gz using the [installation guide](docs/install-update.md) or the [copyable AI prompt](examples/cordonix-install-update-prompt.md). The installers verify SHA-256 and the actual executable version, use Gitee when GitHub is unavailable, and can enable hourly user updates. Published tags use `vMAJOR.MINOR.PATCH`; both [GitHub](https://github.com/IoTSharp/Cordonix/releases) and [Gitee](https://gitee.com/IoTSharp/Cordonix/releases) carry the same assets.
+
 The implementation is **pure C11 for Windows and Linux**. Its executable does not need Python or PowerShell at runtime. Windows builds use MSVC; the Linux backend uses GCC, libc/iconv and pthreads. Cordonix is an independent open-source project, not an OpenAI product.
 
 ## Why it exists
@@ -34,7 +36,7 @@ Cordonix is a development MVP. Windows has first-party Codex usage evidence; Lin
 | Encoding and memory document core | 36 core checks plus 25 integration/encoding edge checks passed locally | External tools read disk; they do not see uncommitted memory revisions |
 | CLI and MCP | Fourteen native tools with readable titles; 75 Windows and 79 Linux real stdio checks | The earlier Windows SDK/Codex evidence is separate from this changed tree; new title rendering in Codex is unverified |
 | Linux | 16 process, 42 document, 46 JSON and 79 stdio checks passed in WSL Ubuntu | Independent Linux Codex use, ext4 semantics, ACL/xattr preservation and soak remain separate |
-| Windows portable package | Deterministic ZIP, checksums, checkout provenance, SPDX inventory and extraction test scripts | Unsigned local artifact; compiler reproducibility, official SPDX schema validation and public release are separate gates |
+| Windows/Linux portable packages | ZIP/tar.gz, checksums, checkout provenance, SPDX inventory and extracted runtime gates; v0.0.1 published on both hosts with identical assets | Unsigned packages; compiler reproducibility, official SPDX schema and wider Linux environments remain separate gates |
 
 These are local validation results, not performance benchmarks or a zero-error guarantee. See [quality gates](docs/quality-gates.md) for the separate acceptance boundaries.
 

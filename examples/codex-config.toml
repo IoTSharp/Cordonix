@@ -5,7 +5,8 @@ args = [ '--mcp' ]
 startup_timeout_sec = 15
 tool_timeout_sec = 300
 enabled_tools = [
-  'tool_info', 'execute_program',
+  'tool_info', 'execute_program', 'read_file',
+  'list_directory', 'resolve_path', 'verify_encoding',
   'workspace_open', 'workspace_read', 'workspace_search', 'workspace_status',
   'workspace_edit', 'workspace_convert_encoding', 'workspace_commit', 'workspace_close'
 ]
