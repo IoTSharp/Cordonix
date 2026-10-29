@@ -1,0 +1,58 @@
+name: Mirror an existing release to Gitee
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing GitHub release tag (for example v0.0.1)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cordonix-mirror-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate the existing release and download its original assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -eu
+          if ! printf '%s\n' "$TAG" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
+            echo 'Expected a stable vMAJOR.MINOR.PATCH tag.' >&2
+            exit 2
+          fi
+          version=${TAG#v}
+          timeout --kill-after=5s 30s gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease |
+            jq -e --arg tag "$TAG" '.tagName == $tag and (.isDraft | not) and (.isPrerelease | not)'
+          mkdir release-assets
+          timeout --kill-after=5s 120s gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --dir release-assets --pattern "cordonix-$version-*"
+          (
+            cd release-assets
+            sha256sum --check "cordonix-$version-win-x64.zip.sha256"
+            sha256sum --check "cordonix-$version-linux-x64.tar.gz.sha256"
+          )
+      - name: Mirror the original tag and publish the same assets
+        shell: bash
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -eu
+          timeout --kill-after=10s 300s sh eng/mirror-gitee.sh "$TAG"
+          commit=$(git rev-parse "refs/tags/$TAG^{commit}")
+          timeout --kill-after=10s 300s sh eng/publish-gitee-release.sh \
+            IoTSharp Cordonix "$TAG" "$commit" "$GITHUB_WORKSPACE/release-assets"

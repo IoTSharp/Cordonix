@@ -12,17 +12,20 @@ target_commit=$4
 asset_root=$5
 body_file=${6:-}
 
-case "$owner/$repository" in
-    ''|*[!A-Za-z0-9._/-]*) echo "Invalid Gitee repository identifier" >&2; exit 2 ;;
+case "$owner" in
+    ''|*[!A-Za-z0-9._-]*) echo 'Invalid Gitee owner' >&2; exit 2 ;;
+esac
+case "$repository" in
+    ''|*[!A-Za-z0-9._-]*) echo 'Invalid Gitee repository' >&2; exit 2 ;;
 esac
 if ! printf '%s\n' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
     echo "Release tag must use v<major>.<minor>.<patch>: $tag" >&2
     exit 2
 fi
-case "$target_commit" in
-    [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]*) ;;
-    *) echo "Target commit must be a hexadecimal revision" >&2; exit 2 ;;
-esac
+if ! printf '%s\n' "$target_commit" | grep -Eq '^[0-9a-fA-F]{40}$'; then
+    echo 'Target commit must be a full hexadecimal revision' >&2
+    exit 2
+fi
 if [ -z "${GITEE_TOKEN:-}" ]; then
     echo 'GITEE_TOKEN is required for Gitee release publication.' >&2
     exit 2
@@ -78,8 +81,9 @@ request() {
     uri=$2
     output=$3
     shift 3
-    curl --silent --show-error --fail-with-body --max-time 30 --retry 0 \
-        -X "$method" -H "Accept: application/json" -H "Authorization: token $GITEE_TOKEN" "$uri" "$@" > "$output"
+    printf 'header = "Authorization: token %s"\n' "$GITEE_TOKEN" |
+        curl --config - --silent --show-error --fail-with-body --connect-timeout 10 --max-time 30 --retry 0 \
+            -X "$method" -H 'Accept: application/json' "$uri" "$@" > "$output"
 }
 
 repository_json="$task_root/repository.json"
@@ -89,9 +93,9 @@ if ! request GET "$repository_api" "$repository_json"; then
 fi
 
 tag_json="$task_root/tag.json"
-tag_status=$(curl --silent --show-error --max-time 30 --retry 0 \
-    -o "$tag_json" -w '%{http_code}' -H "Accept: application/json" -H "Authorization: token $GITEE_TOKEN" \
-    "$repository_api/releases/tags/$tag")
+tag_status=$(printf 'header = "Authorization: token %s"\n' "$GITEE_TOKEN" |
+    curl --config - --silent --show-error --connect-timeout 10 --max-time 30 --retry 0 \
+        -o "$tag_json" -w '%{http_code}' -H 'Accept: application/json' "$repository_api/releases/tags/$tag")
 release_id=''
 if [ "$tag_status" = '200' ]; then
     release_id=$(jq -r '.id // empty' "$tag_json")
@@ -101,7 +105,7 @@ elif [ "$tag_status" != '404' ]; then
 fi
 
 if [ -z "$release_id" ]; then
-    release_body="Cordonix $tag\n\nWindows and Linux assets are available here and on GitHub: https://github.com/IoTSharp/Cordonix/releases/tag/$tag"
+    release_body=$(printf 'Cordonix %s\n\nWindows and Linux assets mirror the GitHub release: https://github.com/IoTSharp/Cordonix/releases/tag/%s\n' "$tag" "$tag")
     if [ -n "$body_file" ]; then
         release_body=$(cat -- "$body_file")
     fi
@@ -120,6 +124,10 @@ fi
 
 release_json="$task_root/release.json"
 request GET "$repository_api/releases/$release_id" "$release_json"
+if ! jq -e --arg tag "$tag" '.tag_name == $tag' "$release_json" >/dev/null; then
+    echo 'Gitee returned a different release tag.' >&2
+    exit 1
+fi
 while IFS= read -r asset; do
     name=$(basename "$asset")
     if jq -e --arg name "$name" '[.assets[]?.name] | index($name) != null' "$release_json" >/dev/null; then
