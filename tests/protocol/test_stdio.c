@@ -1225,6 +1225,7 @@ static void verify_encoding_cases(wire_client *client, const char *program) {
         entry = verification_entry(&data, i);
         all = all && string_is(&data, entry, "verification", "FAIL") && cdx_json_get(&data, entry, "sha256") < 0 && cdx_json_get(&data, entry, "bytes") < 0;
     }
+    if (!all) (void)fprintf(stderr, "verify_encoding mixed result: %s\n", data.source ? data.source : "<null>");
     record("verify_encoding mixed failures keep aggregate UNKNOWN", all && i == 4 && fixture_bytes_equal(&fixtures[8], invalid_cp936, sizeof(invalid_cp936)) && fixture_bytes_equal(&fixtures[9], nul_text, sizeof(nul_text))); cdx_json_free(&data);
     batch[0] = fixtures[11].utf8_path;
     valid = call_verify(client, batch, 1, "cp936", NULL, "", id++, &data);
