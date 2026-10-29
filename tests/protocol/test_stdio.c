@@ -1190,7 +1190,7 @@ static void verify_encoding_cases(wire_client *client, const char *program) {
         batch[i - 1u] = fixtures[i].utf8_path;
     }
     if (i != 8 || !filesystem_child(&fixtures[8], &fixtures[0], "invalid.txt") ||
-        !filesystem_child(&fixtures[9], &fixtures[0], "nul.txt") || !filesystem_child(&fixtures[10], &fixtures[0], "missing.txt") ||
+        !filesystem_child(&fixtures[9], &fixtures[0], "nul-data.txt") || !filesystem_child(&fixtures[10], &fixtures[0], "missing.txt") ||
         !filesystem_child(&fixtures[11], &fixtures[0], "utf8-bom.txt") || !filesystem_child(&fixtures[12], &fixtures[0], "utf16le.txt") ||
         !filesystem_child(&fixtures[13], &fixtures[0], "utf16be.txt") || !filesystem_child(&fixtures[14], &fixtures[0], "nested") ||
         !filesystem_child(&fixtures[15], &fixtures[0], "nested/../cp936-1.txt") || !filesystem_child(&fixtures[16], &fixtures[0], "large.txt") ||
@@ -1224,30 +1224,6 @@ static void verify_encoding_cases(wire_client *client, const char *program) {
     for (i = 1; i < 4 && GetTickCount64() < deadline; ++i) {
         entry = verification_entry(&data, i);
         all = all && string_is(&data, entry, "verification", "FAIL") && cdx_json_get(&data, entry, "sha256") < 0 && cdx_json_get(&data, entry, "bytes") < 0;
-    }
-    if (!all) {
-        int summary_status = cdx_json_get(&data, 0, "status");
-        int files_node = cdx_json_get(&data, 0, "files");
-        int checked_node = cdx_json_get(&data, 0, "checked");
-        int passed_node = cdx_json_get(&data, 0, "passed");
-        int failed_node = cdx_json_get(&data, 0, "failed");
-        int not_run_node = cdx_json_get(&data, 0, "not_run");
-        (void)fprintf(stderr, "verify_encoding mixed summary: status=%s files=%.0f checked=%.0f passed=%.0f failed=%.0f not_run=%.0f\n",
-            summary_status >= 0 ? data.nodes[summary_status].string : "<missing>",
-            files_node >= 0 ? data.nodes[files_node].number : -1.0,
-            checked_node >= 0 ? data.nodes[checked_node].number : -1.0,
-            passed_node >= 0 ? data.nodes[passed_node].number : -1.0,
-            failed_node >= 0 ? data.nodes[failed_node].number : -1.0,
-            not_run_node >= 0 ? data.nodes[not_run_node].number : -1.0);
-        for (i = 0; i < 4; ++i) {
-            int status_node, verification_node;
-            entry = verification_entry(&data, i);
-            status_node = entry >= 0 ? cdx_json_get(&data, entry, "status") : -1;
-            verification_node = entry >= 0 ? cdx_json_get(&data, entry, "verification") : -1;
-            (void)fprintf(stderr, "verify_encoding mixed entry%u: status=%s verification=%s\n", i,
-                status_node >= 0 ? data.nodes[status_node].string : "<missing>",
-                verification_node >= 0 ? data.nodes[verification_node].string : "<missing>");
-        }
     }
     record("verify_encoding mixed failures keep aggregate UNKNOWN", all && i == 4 && fixture_bytes_equal(&fixtures[8], invalid_cp936, sizeof(invalid_cp936)) && fixture_bytes_equal(&fixtures[9], nul_text, sizeof(nul_text))); cdx_json_free(&data);
     batch[0] = fixtures[11].utf8_path;
