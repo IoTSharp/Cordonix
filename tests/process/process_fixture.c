@@ -21,6 +21,20 @@ int wmain(int argc, wchar_t **argv) {
     if (wcscmp(argv[1], L"echo") == 0) {
         int index;
         for (index = 2; index < argc; ++index) write_text(argv[index]);
+    } else if (wcscmp(argv[1], L"env") == 0 && argc == 3) {
+        wchar_t value[32768];
+        char converted[131072];
+        DWORD length;
+        int count;
+        SetLastError(ERROR_SUCCESS);
+        length = GetEnvironmentVariableW(argv[2], value, _countof(value));
+        if (!length && GetLastError() == ERROR_ENVVAR_NOT_FOUND) write_bytes(output, "<absent>", 8);
+        else if (length >= _countof(value)) return 3;
+        else if (length) {
+            count = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, value, (int)length, converted, sizeof(converted), NULL, NULL);
+            if (!count) return 3;
+            write_bytes(output, converted, (DWORD)count);
+        }
     } else if (wcscmp(argv[1], L"stdin") == 0) {
         unsigned char bytes[4096];
         DWORD read = 0, iteration;

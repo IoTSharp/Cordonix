@@ -32,12 +32,12 @@ Git、ripgrep、编译器和 Codex 的 `apply_patch` 仍是配套工具。Cordon
 
 | 部分 | 当前证据 | 尚未覆盖的边界 |
 |---|---|---|
-| Windows 进程核心 | 本地 15 项检查通过 | 更广泛应用和长时间负载仍需验证 |
+| Windows 进程核心 | 本地 35 项检查通过，包含子进程环境隔离 | 更广泛应用和长时间负载仍需验证 |
 | 编码与内存文档核心 | 36 项核心检查与 25 项编码/接线边界检查通过 | 外部工具读取磁盘，看不到未提交的内存修改 |
-| CLI 与 MCP | 15 个带可读标题的原生工具；Windows 83 项、Linux 87 项真实 stdio 检查 | 先前 Windows SDK/Codex 证据与本次修改树分开；Codex 是否显示新标题待验证 |
+| CLI 与 MCP | 17 个带可读标题的原生工具；Windows 96 项、Linux 100 项真实 stdio 检查，以及 12 项当前官方 Python SDK 检查 | 先前 Windows SDK/Codex 证据与本次修改树分开；Codex 是否显示新标题待验证 |
 | 新文本文件 | 两平台各 20 项原生检查，以及 8 项共享 MCP 检查 | 尚未发布；已有路径不覆盖，父目录必须存在 |
-| Linux | WSL Ubuntu 下 211 项原生检查；真实 ext4 上 14 项 MCP 与 42 项文档检查通过 | 独立 Linux Codex、ACL/xattr 保留、多发行版及长稳仍为独立门禁 |
-| Windows/Linux 便携包 | ZIP/tar.gz、校验和、checkout 来源、SPDX 文件清单与解压运行门禁；v0.0.1 已在两端发布并核对全部附件 | 包未签名；编译可复现、官方 SPDX schema 校验和更广泛 Linux 环境为独立门禁 |
+| Linux | WSL Ubuntu 下 264 项本地检查（含 Git 适配器）；独立客户端 44/44，覆盖 ext4/tmpfs/9p 以及 60 轮、600 秒有限长稳 | 本机 Linux rg 未安装，Linux Codex 缺原生包；ACL/xattr 不支持，多发行版和更长时段仍单独验收 |
+| Windows/Linux 便携包 | ZIP/tar.gz、校验和、checkout 来源、SPDX 文件清单与解压运行门禁；v0.0.1 已在两端发布并核对全部附件 | 包未签名；官方 SPDX schema 已验证，构建 revision/dirty 从实际二进制回读；这些不是签名构建证明 |
 
 上述结果是本地验证，不是性能基准，也不代表不会发生错误。各项验收边界见[质量门禁](docs/quality-gates.md)。
 
@@ -77,6 +77,22 @@ workspace_open -> workspace_read / workspace_search
 | `workspace_close` | 释放文档，显式处理未提交内容 |
 
 工具定义现在提供中文 `title`，例如“执行本地程序”“编辑文本（仅内存）”“提交文件到磁盘”，原来的工具标识保持不变。客户端决定是否采用标题；服务端不能为每次调用指定动态标题。Cordonix 执行本地程序，不会仅凭脚本名称把操作标成“远程方法”或“新增文件”。
+
+## 程序执行边界
+
+`execute_program` 管理一次有界调用。主进程退出后，即使退出码为 0，仍会回收本次所属的剩余进程。需要持续运行的浏览器、守护进程和服务应由现有的生命周期管理入口启动。`completed` 表示命令退出状态符合预期，并不保证它启动的浏览器继续存在。结果同时提供 `active_processes_before_cleanup`、`active_processes_after_cleanup` 和 `cleanup_complete`。
+
+`args` 是扁平的原生 argv 数组。PowerShell 7 的 `-File` 不会把后续 argv 自动重组为脚本的命名 `[string[]]` 参数；应在保存的脚本中构造数组，或使用目标脚本明确支持的数据接口。`output_encoding` 只指定捕获字节的解码方式，不改变子程序的输出编码。遇到 `encoding_error`，先查看 `process_status`、`exit_code` 和保留的 Base64 字节，再决定是否重试。详见[执行边界与示例](docs/execution-boundaries.md)。
+
+## 子进程环境与外部工具适配器
+
+`execute_program` 的可选 `env` 对象只覆盖子进程环境，例如 `{"HTTPS_PROXY":"http://127.0.0.1:7890","REMOVE_ME":null,"EMPTY":""}`。其余变量从父环境继承；父进程不变。null 删除变量，空字符串保留空值。最多 64 项；名称不空、不含 `=`，最多 255 个原生字符/字节，值最多 32767。Windows 名称不区分大小写，POSIX 区分；非法编码及按平台规则重复的名称在启动前拒绝。
+
+`search_text` 要求 rg 的绝对 `program`、`cwd`、1～32 项 `patterns` 和 1～8 个绝对 `roots`。可选 `globs` 最多 16 项，`literal` 默认 true。每个模式单独传 `-e`，根路径前传 `--`，使用 `--no-config --json`，结果保留 rg 的 `{text}` 或 Base64 `{bytes}` 字段。退出码 1 返回 `no_match`。默认 `encoding=none` 保留字节；显式 UTF-8/UTF-16/GBK 转换由 rg 完成，可能替换非法字节。严格编码验证仍使用 `verify_encoding`。
+
+`git_status` 要求 Git 的绝对 `program` 与 `cwd`，解析 `--no-optional-locks status --porcelain=v2 --branch -z` 的分支、普通、重命名、冲突和未跟踪记录；重命名前后路径分别保留。输出路径允许空格、引号、换行。非法 UTF-8 返回 `encoding_error` 和原始 Base64，不猜测替换编码。`untracked` 可选 `normal`（默认）、`all` 或 `no`。
+
+两个适配器都有超时、取消和输出上限：`timeout_ms` 为 1～60000（默认 30000），`output_limit_bytes` 为 1～262144，`max_entries` 为 1～1000（默认 200）。搜索另有 `max_matches_per_file` 为 1～1000（默认 50），结果会披露该限制。截断不能写成完整成功；Git 与 rg 仍须单独安装。
 
 ## 创建新文本文件
 
@@ -174,7 +190,7 @@ sh eng/test-linux.sh
 build/linux/bin/cdx --version
 ```
 
-两平台使用相同的 JSON 请求和十五个 MCP 工具。Linux 使用绝对 UTF-8 路径，执行错误字段为 `posix_error`；Windows 保留 `win32_error`。Linux 程序动态链接系统库。Windows 完成 `eng\test.cmd` 后，在 PowerShell 7 运行 `./eng/test-package.ps1` 构建和验证本地便携 ZIP，详见[打包说明](docs/packaging.md)。
+两平台使用相同的 JSON 请求和十七个 MCP 工具。Linux 使用绝对 UTF-8 路径，执行错误字段为 `posix_error`；Windows 保留 `win32_error`。Linux 程序动态链接系统库。Windows 完成 `eng\test.cmd` 后，在 PowerShell 7 运行 `./eng/test-package.ps1` 构建和验证本地便携 ZIP，详见[打包说明](docs/packaging.md)。
 
 CLI 入口为：
 

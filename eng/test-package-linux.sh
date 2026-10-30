@@ -114,7 +114,9 @@ try:
         require(path.resolve().is_relative_to(extracted.resolve()) and path.is_file() and
                 path.stat().st_size == record['size_bytes'] and digest(path) == record['sha256'], 'Payload differs from manifest')
     require(digest(extracted / 'LICENSE') == digest(root / 'LICENSE'), 'Packaged license differs from source')
-    require(provenance['binary_build_revision'] == 'UNKNOWN' and provenance['version'] == version and
+    build_info = json.loads(run([str(extracted / 'cdx'), '--request', str(extracted / 'examples/request.json')]))
+    require(provenance['binary_build_revision'] == build_info['build_revision'] and
+            provenance['binary_build_dirty'] == build_info['build_dirty'] and provenance['version'] == version and
             re.fullmatch('[0-9a-f]{40}', provenance['checkout_revision_at_packaging']) and
             provenance['checkout_dirty_at_packaging'] == bool(provenance['checkout_status_at_packaging']) and
             provenance['input_executable_sha256'] == digest(extracted / 'cdx'), 'Invalid packaging provenance')

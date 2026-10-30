@@ -2,8 +2,18 @@
 
 ## Unreleased
 
+- Added per-child environment overrides, including deletion and empty values, without mutating the parent. Real process checks cover Unicode, platform name matching and simultaneous child isolation.
+- Added parsed external ripgrep JSON and Git porcelain v2 NUL adapters, with raw byte preservation, rename paths and distinct no-match/failure/limit states.
+- Added independent Linux client acceptance across ext4/tmpfs/9p, a 60-round/600-second finite soak, and explicit crash-before-commit disk readback.
+- Added actual Windows/Linux natural scheduler acceptance scripts and failure/cleanup regressions; first natural invocations have passed while hourly recurrence is recorded separately.
+- Added embedded build revision/dirty readback, clean-release provenance checks, official SPDX 2.3 schema validation and same-environment compiler reproducibility gates.
+- Added a fixed 128 KiB fresh-versus-memory read benchmark. OS I/O counters include pipes; physical disk I/O and model token counts remain unmeasured.
+
+- Clarified flat argv versus PowerShell named array binding, call-scoped cleanup for persistent browser launchers, and output decoding versus process status in MCP tool descriptions and bilingual usage guidance.
+- Exposed existing active-process observations before and after cleanup through `execute_program`; retained process ownership and exit-status behavior. Added real MCP coverage for successful-root descendant cleanup and independent encoding/process results.
+
 - Added native `create_file` to CLI/MCP and the public C API: strict declared encoding, same-directory temporary writes, no replacement of existing paths, cancellation and explicit write/cleanup results.
-- Added 20 native create-file checks on each platform and eight shared real MCP checks; current native gates pass 225 Windows and 211 Linux checks.
+- Added 20 native create-file checks on each platform and eight shared real MCP checks; the original create-file batch passed 225 Windows and 211 Linux checks.
 - Added a separate real ext4 MCP gate and CI step for invalid UTF-8 directory entries, owner/group/mode and external permission changes. ACL/xattr non-preservation remains explicit.
 - Verified real Windows Task Scheduler registration, one manually triggered hourly-update action, completion and removal in an isolated public-v0.0.2 installation (seven checks). Natural periodic firing and Linux scheduler registration remain separate.
 

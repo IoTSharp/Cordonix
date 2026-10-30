@@ -35,6 +35,10 @@ int main(int argc, char **argv) {
     if (strcmp(argv[1], "echo") == 0) {
         int index;
         for (index = 2; index < argc; ++index) (void)write_all(STDOUT_FILENO, argv[index], strlen(argv[index]));
+    } else if (strcmp(argv[1], "env") == 0 && argc == 3) {
+        const char *value = getenv(argv[2]);
+        if (value) (void)write_all(STDOUT_FILENO, value, strlen(value));
+        else (void)write_all(STDOUT_FILENO, "<absent>", 8u);
     } else if (strcmp(argv[1], "stdin") == 0) {
         unsigned char buffer[4096];
         size_t iteration;

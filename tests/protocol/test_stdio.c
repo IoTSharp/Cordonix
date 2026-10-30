@@ -1386,6 +1386,46 @@ cleanup:
     free(fixtures);
 }
 
+static void environment_cases(wire_client *client, const char *fixture) {
+    static const struct { const char *extra, *status, *value; } cases[] = {
+        {"", "completed", "parent"},
+        {",\"env\":{\"CDX_MCP_ENV_20261030\":\"中文 $() \\\"\\n\"}", "completed", "中文 $() \"\n"},
+        {"", "completed", "parent"},
+        {",\"env\":{\"CDX_MCP_ENV_20261030\":null}", "completed", "<absent>"},
+        {",\"env\":{\"CDX_MCP_ENV_20261030\":\"\"}", "completed", ""},
+        {"", "completed", "parent"},
+        {",\"env\":[]", "validation_error", NULL},
+        {",\"env\":{\"CDX_MCP_ENV_20261030\":123}", "validation_error", NULL},
+        {",\"env\":{\"\":\"bad\"}", "validation_error", NULL},
+        {",\"env\":{\"BAD=NAME\":\"bad\"}", "validation_error", NULL}
+    };
+    size_t i;
+    for (i = 0; i < sizeof(cases) / sizeof(cases[0]) && GetTickCount64() < deadline; ++i) {
+        cdx_json_output request;
+        cdx_json response, data;
+        int valid;
+        char label[100];
+        memset(&response, 0, sizeof(response)); memset(&data, 0, sizeof(data));
+        cdx_json_output_init(&request);
+        cdx_json_raw(&request, "{\"jsonrpc\":\"2.0\",\"id\":700,\"method\":\"tools/call\",\"params\":{\"name\":\"execute_program\",\"arguments\":{\"program\":");
+        cdx_json_quote(&request, fixture, strlen(fixture));
+        cdx_json_raw(&request, ",\"args\":[\"env\",\"CDX_MCP_ENV_20261030\"],\"timeout_ms\":3000,\"cwd\":");
+#ifdef _WIN32
+        cdx_json_quote(&request, "C:\\Windows", strlen("C:\\Windows"));
+#else
+        cdx_json_quote(&request, "/", 1);
+#endif
+        cdx_json_raw(&request, cases[i].extra); cdx_json_raw(&request, "}}}\n");
+        valid = !request.failed && wire_send(client, request.data, request.size) &&
+            wire_read(client, &response) && wire_tool_data(&response, &data);
+        (void)snprintf(label, sizeof(label), "MCP child environment case %u", (unsigned)i + 1u);
+        record(label, valid && string_is(&data, 0, "status", cases[i].status) &&
+            (!cases[i].value || string_is(&data, 0, "stdout", cases[i].value)));
+        cdx_json_output_free(&request); cdx_json_free(&response); cdx_json_free(&data);
+    }
+    record("MCP environment cases finish within budget", i == sizeof(cases) / sizeof(cases[0]));
+}
+
 static void wire_execute(wire_client *client, const char *fixture, const char *mode, int id) {
     cdx_json_output request;
     char number[32];
@@ -1499,6 +1539,11 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
     static const char cancel[] = "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":11}}\n";
     deadline = GetTickCount64() + 60000;
     memset(&response, 0, sizeof(response)); memset(&data, 0, sizeof(data));
+#ifdef _WIN32
+    if (!SetEnvironmentVariableW(L"CDX_MCP_ENV_20261030", L"parent")) return 1;
+#else
+    if (setenv("CDX_MCP_ENV_20261030", "parent", 1)) return 1;
+#endif
     if (!wire_start(&client, program)) { record("MCP server starts", 0); wire_stop(&client); return 1; }
     valid = wire_send(&client, initialize, sizeof(initialize) - 1) && wire_read(&client, &response);
     record("MCP initialize", valid && cdx_json_get(&response, 0, "result") >= 0); cdx_json_free(&response);
@@ -1510,12 +1555,12 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
         int tool = node >= 0 ? response.nodes[node].first : -1;
         unsigned count = 0;
         int titles_valid = 1, execution_title = 0;
-        for (; tool >= 0 && count < 16; tool = response.nodes[tool].next, ++count) {
+        for (; tool >= 0 && count < 18; tool = response.nodes[tool].next, ++count) {
             int title = cdx_json_get(&response, tool, "title");
             if (title < 0 || response.nodes[title].type != CDX_JSON_STRING || !*response.nodes[title].string) titles_valid = 0;
             if (string_is(&response, tool, "name", "execute_program")) execution_title = string_is(&response, tool, "title", "执行本地程序");
         }
-        record("MCP fifteen tools expose human-readable titles", count == 15 && titles_valid && execution_title);
+        record("MCP seventeen tools expose human-readable titles", count == 17 && titles_valid && execution_title);
     }
     cdx_json_free(&response);
     valid = wire_send(&client, malformed, sizeof(malformed) - 1) && wire_read(&client, &response);
@@ -1537,15 +1582,26 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
     tail_raw_cases(&client);
     filesystem_cases(&client);
     verify_encoding_cases(&client, program);
+    environment_cases(&client, fixture);
     wire_execute(&client, fixture, "streams", 10);
     valid = wire_read(&client, &response); memset(&data, 0, sizeof(data));
     valid = valid && wire_tool_data(&response, &data);
     record("MCP process stdout/stderr preserved", valid && string_is(&data, 0, "status", "completed") && string_is(&data, 0, "stdout", "stdout\r\n\n") && string_is(&data, 0, "stderr", "stderr\n"));
     cdx_json_free(&response); cdx_json_free(&data);
+    wire_execute(&client, fixture, "tree", 14);
+    valid = wire_read(&client, &response); memset(&data, 0, sizeof(data));
+    valid = valid && wire_tool_data(&response, &data);
+    node = valid ? cdx_json_get(&data, 0, "active_processes_before_cleanup") : -1;
+    record("MCP parent success reports remaining owned processes", valid && string_is(&data, 0, "status", "completed") &&
+        number_is(&data, "exit_code", 0) && node >= 0 && data.nodes[node].type == CDX_JSON_NUMBER && data.nodes[node].number >= 1);
+    record("MCP parent-exit cleanup reports no active owned processes", valid && bool_is(&data, "cleanup_complete", 1) &&
+        number_is(&data, "active_processes_after_cleanup", 0));
+    cdx_json_free(&response); cdx_json_free(&data);
     wire_execute(&client, fixture, "invalid-utf8", 12);
     valid = wire_read(&client, &response); memset(&data, 0, sizeof(data));
     valid = valid && wire_tool_data(&response, &data);
-    record("MCP invalid UTF8 preserves original base64", valid && string_is(&data, 0, "status", "encoding_error") && string_is(&data, 0, "stdout_base64", "dmFsaWT/Cg=="));
+    record("MCP invalid UTF8 preserves process status and original base64", valid && string_is(&data, 0, "status", "encoding_error") &&
+        string_is(&data, 0, "process_status", "completed") && number_is(&data, "exit_code", 0) && string_is(&data, 0, "stdout_base64", "dmFsaWT/Cg=="));
     cdx_json_free(&response); cdx_json_free(&data);
     wire_execute(&client, fixture, "sleep", 11);
     Sleep(150);

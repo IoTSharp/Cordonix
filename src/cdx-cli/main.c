@@ -145,6 +145,8 @@ static int run_mcp(void) {
         } else if (string_node(&json, method, "tools/call")) {
             if (active.thread) rpc_error(&json, id, -32001, "An operation is running; wait or cancel that request");
             else if (string_node(&json, cdx_json_get(&json, params, "name"), "execute_program") ||
+                     string_node(&json, cdx_json_get(&json, params, "name"), "search_text") ||
+                     string_node(&json, cdx_json_get(&json, params, "name"), "git_status") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "verify_encoding") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "create_file")) {
                 active.json = json; active.id = id; active.params = params; active.cancel = CreateEventW(NULL, TRUE, FALSE, NULL);

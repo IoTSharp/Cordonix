@@ -22,6 +22,9 @@ extern "C" {
 #endif
 
 #define CDX_MAX_ARGS 512u
+#define CDX_MAX_ENV 64u
+#define CDX_MAX_ENV_NAME 255u
+#define CDX_MAX_ENV_VALUE 32767u
 #define CDX_MAX_OUTPUT_BYTES (16u * 1024u * 1024u)
 #define CDX_MAX_TIMEOUT_MS (30u * 60u * 1000u)
 
@@ -36,6 +39,11 @@ typedef enum cdx_status {
     CDX_EXECUTION_ERROR
 } cdx_status;
 
+typedef struct cdx_env_entry {
+    const cdx_path_char *name;
+    const cdx_path_char *value; /* NULL removes the inherited variable; "" keeps an empty value. */
+} cdx_env_entry;
+
 typedef struct cdx_exec_request {
     const cdx_path_char *program;
     const cdx_path_char *cwd;
@@ -48,6 +56,8 @@ typedef struct cdx_exec_request {
     size_t stdin_size;
     size_t output_limit_bytes;
     cdx_cancel_handle cancel_event;
+    const cdx_env_entry *env;
+    size_t env_count;
 } cdx_exec_request;
 
 typedef struct cdx_byte_buffer {

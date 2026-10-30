@@ -27,6 +27,10 @@
 #define CDX_POSIX_POLL_MS 20
 #define CDX_POSIX_MAX_POLLS 180000u
 #define CDX_POSIX_MAX_PROC_SCAN 4096u
+#define CDX_ENVIRONMENT_CAP (1024u * 1024u)
+#define CDX_INHERITED_ENV_MAX 4096u
+
+extern char **environ;
 
 static uint64_t monotonic_ms(void) {
     struct timespec now;
@@ -69,6 +73,32 @@ static int shell_basename(const char *path) {
     return 0;
 }
 
+static int environment_utf8(const char *text, size_t limit, int nonempty) {
+    size_t size, offset;
+    if (!text) return 0;
+    size = strnlen(text, limit + 1u);
+    if (size > limit || (nonempty && !size)) return 0;
+    for (offset = 0; offset < size; ++offset) {
+        unsigned char first = (unsigned char)text[offset];
+        uint32_t code;
+        size_t tail, index;
+        if (first < 0x80u) continue;
+        if (first >= 0xc2u && first <= 0xdfu) { tail = 1u; code = first & 0x1fu; }
+        else if (first >= 0xe0u && first <= 0xefu) { tail = 2u; code = first & 0x0fu; }
+        else if (first >= 0xf0u && first <= 0xf4u) { tail = 3u; code = first & 7u; }
+        else return 0;
+        if (tail >= size - offset) return 0;
+        for (index = 0; index < tail; ++index) {
+            unsigned char next = (unsigned char)text[++offset];
+            if ((next & 0xc0u) != 0x80u) return 0;
+            code = (code << 6) | (next & 0x3fu);
+        }
+        if ((tail == 2u && code < 0x800u) || (tail == 3u && code < 0x10000u) ||
+            code > 0x10ffffu || (code >= 0xd800u && code <= 0xdfffu)) return 0;
+    }
+    return 1;
+}
+
 static int validate_request(const cdx_exec_request *request, int *error_code) {
     struct stat program_stat, cwd_stat;
     size_t index;
@@ -87,6 +117,19 @@ static int validate_request(const cdx_exec_request *request, int *error_code) {
         *error_code = EINVAL;
         return 0;
     }
+    if (request->env_count > CDX_MAX_ENV || (request->env_count && !request->env)) {
+        *error_code = EINVAL; return 0;
+    }
+    for (index = 0; index < request->env_count; ++index) {
+        size_t prior;
+        const cdx_env_entry *entry = &request->env[index];
+        if (!environment_utf8(entry->name, CDX_MAX_ENV_NAME, 1) || strchr(entry->name, '=') ||
+            (entry->value && !environment_utf8(entry->value, CDX_MAX_ENV_VALUE, 0))) {
+            *error_code = EINVAL; return 0;
+        }
+        for (prior = 0; prior < index; ++prior)
+            if (strcmp(entry->name, request->env[prior].name) == 0) { *error_code = EINVAL; return 0; }
+    }
     if (shell_basename(request->program)) { *error_code = EACCES; return 0; }
     if (stat(request->program, &program_stat) != 0) { *error_code = errno; return 0; }
     if (!S_ISREG(program_stat.st_mode)) { *error_code = EACCES; return 0; }
@@ -101,6 +144,52 @@ static int validate_request(const cdx_exec_request *request, int *error_code) {
     }
     *error_code = 0;
     return 1;
+}
+
+static int build_environment(const cdx_exec_request *request, uint64_t deadline, char ***environment, char **storage) {
+    char **entries = NULL, *bytes = NULL;
+    size_t used = 0, scanned = 0, count = 0, inherited, index;
+    int error = 0;
+    if (!request->env_count) return 0;
+    entries = (char **)calloc(CDX_INHERITED_ENV_MAX + CDX_MAX_ENV + 1u, sizeof(*entries));
+    bytes = (char *)malloc(CDX_ENVIRONMENT_CAP);
+    if (!entries || !bytes) { error = ENOMEM; goto done; }
+    for (inherited = 0; inherited < CDX_INHERITED_ENV_MAX && environ[inherited]; ++inherited) {
+        const char *entry = environ[inherited], *equals;
+        size_t length, name_length;
+        int replaced = 0;
+        if (monotonic_ms() >= deadline) { error = ETIMEDOUT; goto done; }
+        if (request->cancel_event && atomic_load_explicit(request->cancel_event, memory_order_acquire)) { error = ECANCELED; goto done; }
+        length = strnlen(entry, CDX_ENVIRONMENT_CAP - scanned);
+        if (length == CDX_ENVIRONMENT_CAP - scanned) { error = E2BIG; goto done; }
+        scanned += length + 1u;
+        equals = strchr(entry, '=');
+        name_length = equals ? (size_t)(equals - entry) : length;
+        for (index = 0; index < request->env_count; ++index)
+            if (strlen(request->env[index].name) == name_length && memcmp(entry, request->env[index].name, name_length) == 0) { replaced = 1; break; }
+        if (!replaced) {
+            entries[count++] = bytes + used;
+            memcpy(bytes + used, entry, length + 1u); used += length + 1u;
+        }
+    }
+    if (inherited == CDX_INHERITED_ENV_MAX && environ[inherited]) { error = E2BIG; goto done; }
+    for (index = 0; index < request->env_count; ++index) {
+        size_t name_length, value_length;
+        if (monotonic_ms() >= deadline) { error = ETIMEDOUT; goto done; }
+        if (request->cancel_event && atomic_load_explicit(request->cancel_event, memory_order_acquire)) { error = ECANCELED; goto done; }
+        if (!request->env[index].value) continue;
+        name_length = strlen(request->env[index].name); value_length = strlen(request->env[index].value);
+        if (name_length + value_length + 2u > CDX_ENVIRONMENT_CAP - used) { error = E2BIG; goto done; }
+        entries[count++] = bytes + used;
+        memcpy(bytes + used, request->env[index].name, name_length); used += name_length;
+        bytes[used++] = '=';
+        memcpy(bytes + used, request->env[index].value, value_length + 1u); used += value_length + 1u;
+    }
+    *environment = entries; *storage = bytes;
+    return 0;
+done:
+    free(entries); free(bytes);
+    return error;
 }
 
 static int expected_exit(uint32_t code, const cdx_exec_request *request) {
@@ -227,8 +316,8 @@ cdx_status cdx_execute(const cdx_exec_request *request, cdx_exec_result *result)
     uint32_t group_total = 0, group_active = 0;
     int group_known = 0;
     pid_t child = -1;
-    char **argv = NULL;
-    uint64_t started, deadline, cleanup_deadline = 0;
+    char **argv = NULL, **environment = NULL, *environment_storage = NULL;
+    uint64_t started = monotonic_ms(), deadline, cleanup_deadline = 0;
     uint32_t polls = 0;
 
     if (!result) return CDX_VALIDATION_ERROR;
@@ -242,6 +331,13 @@ cdx_status cdx_execute(const cdx_exec_request *request, cdx_exec_result *result)
     if (request->cancel_event && atomic_load_explicit(request->cancel_event, memory_order_acquire)) {
         result->status = CDX_CANCELLED;
         return result->status;
+    }
+    deadline = started + request->timeout_ms;
+    result->posix_error = build_environment(request, deadline, &environment, &environment_storage);
+    if (result->posix_error) {
+        result->status = result->posix_error == ECANCELED ? CDX_CANCELLED :
+            result->posix_error == ETIMEDOUT ? CDX_TIMED_OUT : CDX_EXECUTION_ERROR;
+        goto done;
     }
     result->stdout_bytes.data = (unsigned char *)calloc(request->output_limit_bytes + 1u, 1u);
     result->stderr_bytes.data = (unsigned char *)calloc(request->output_limit_bytes + 1u, 1u);
@@ -271,7 +367,7 @@ cdx_status cdx_execute(const cdx_exec_request *request, cdx_exec_result *result)
         if (chdir(request->cwd) != 0) child_fail(exec_pipe[1], errno);
         if (dup2(input_pipe[0], STDIN_FILENO) < 0 || dup2(output_pipe[1], STDOUT_FILENO) < 0 || dup2(error_pipe[1], STDERR_FILENO) < 0) child_fail(exec_pipe[1], errno);
         close(input_pipe[0]); close(input_pipe[1]); close(output_pipe[0]); close(output_pipe[1]); close(error_pipe[0]); close(error_pipe[1]); close(exec_pipe[0]);
-        execv(request->program, argv);
+        execve(request->program, argv, environment ? environment : environ);
         error_code = errno;
         child_fail(exec_pipe[1], error_code);
     }
@@ -291,8 +387,6 @@ cdx_status cdx_execute(const cdx_exec_request *request, cdx_exec_result *result)
         reason = 3;
     }
     if (!request->stdin_size) close_fd(&stdin_fd);
-    started = monotonic_ms();
-    deadline = started + request->timeout_ms;
     while (polls++ < CDX_POSIX_MAX_POLLS) {
         struct pollfd descriptors[4] = {{0}};
         int descriptor_kind[4];
@@ -397,6 +491,7 @@ done:
     close_fd(&error_pipe[0]); close_fd(&error_pipe[1]); close_fd(&exec_pipe[0]); close_fd(&exec_pipe[1]);
     close_fd(&stdin_fd); close_fd(&stdout_fd); close_fd(&stderr_fd); close_fd(&exec_fd);
     free(argv);
+    free(environment); free(environment_storage);
     return result->status;
 }
 

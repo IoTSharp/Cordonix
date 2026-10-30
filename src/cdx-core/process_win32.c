@@ -7,6 +7,8 @@
 #define CDX_PIPE_CHUNK 4096u
 #define CDX_CLEANUP_MS 3000u
 #define CDX_ABORT_CODE 0xe0000001u
+#define CDX_ENVIRONMENT_CAP (1024u * 1024u)
+#define CDX_INHERITED_ENV_MAX 4096u
 
 typedef struct cdx_output_state {
     CRITICAL_SECTION lock;
@@ -43,6 +45,7 @@ typedef struct cdx_owned_process {
     int lock_initialized;
     LPPROC_THREAD_ATTRIBUTE_LIST attributes;
     int attributes_initialized;
+    wchar_t *environment;
 } cdx_owned_process;
 
 static DWORD cdx_validate_request(const cdx_exec_request *request);
@@ -51,6 +54,7 @@ static int cdx_start(const cdx_exec_request *request, wchar_t *command, cdx_owne
 static cdx_status cdx_wait(const cdx_exec_request *request, cdx_owned_process *owned, cdx_exec_result *result, ULONGLONG deadline);
 static void cdx_cleanup(cdx_owned_process *owned, cdx_exec_result *result);
 static void cdx_close(cdx_owned_process *owned);
+static DWORD cdx_build_environment(const cdx_exec_request *request, ULONGLONG deadline, wchar_t **environment);
 
 cdx_status cdx_execute(const cdx_exec_request *request, cdx_exec_result *result) {
     cdx_owned_process owned;
@@ -71,6 +75,13 @@ cdx_status cdx_execute(const cdx_exec_request *request, cdx_exec_result *result)
         return result->status;
     }
     ZeroMemory(&owned, sizeof(owned));
+    result->win32_error = cdx_build_environment(request, started + request->timeout_ms, &owned.environment);
+    if (result->win32_error) {
+        result->status = result->win32_error == ERROR_CANCELLED ? CDX_CANCELLED :
+            result->win32_error == ERROR_TIMEOUT ? CDX_TIMED_OUT : CDX_EXECUTION_ERROR;
+        free(command);
+        return result->status;
+    }
     if (cdx_start(request, command, &owned, result)) {
         result->status = cdx_wait(request, &owned, result, started + request->timeout_ms);
     } else {
@@ -97,6 +108,21 @@ static DWORD cdx_validate_request(const cdx_exec_request *request) {
     DWORD attributes;
     if (!request || !request->program || !request->cwd || !cdx_absolute_path(request->program) || !cdx_absolute_path(request->cwd)) return ERROR_INVALID_PARAMETER;
     if (request->arg_count > CDX_MAX_ARGS || (request->arg_count && !request->args) || request->timeout_ms == 0 || request->timeout_ms > CDX_MAX_TIMEOUT_MS || request->output_limit_bytes == 0 || request->output_limit_bytes > CDX_MAX_OUTPUT_BYTES || request->stdin_size > CDX_MAX_OUTPUT_BYTES || (request->stdin_size && !request->stdin_utf8) || request->expected_exit_count > 32 || (request->expected_exit_count && !request->expected_exit_codes)) return ERROR_INVALID_PARAMETER;
+    if (request->env_count > CDX_MAX_ENV || (request->env_count && !request->env)) return ERROR_INVALID_PARAMETER;
+    for (index = 0; index < request->env_count; ++index) {
+        const cdx_env_entry *entry = &request->env[index];
+        size_t prior, value_length;
+        length = wcsnlen_s(entry->name, CDX_MAX_ENV_NAME + 1u);
+        if (!length || length > CDX_MAX_ENV_NAME || wcschr(entry->name, L'=') ||
+            !WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, entry->name, (int)length, NULL, 0, NULL, NULL)) return ERROR_INVALID_PARAMETER;
+        if (entry->value) {
+            value_length = wcsnlen_s(entry->value, CDX_MAX_ENV_VALUE + 1u);
+            if (value_length > CDX_MAX_ENV_VALUE || (value_length &&
+                !WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, entry->value, (int)value_length, NULL, 0, NULL, NULL))) return ERROR_INVALID_PARAMETER;
+        }
+        for (prior = 0; prior < index; ++prior)
+            if (CompareStringOrdinal(entry->name, -1, request->env[prior].name, -1, TRUE) == CSTR_EQUAL) return ERROR_INVALID_PARAMETER;
+    }
     length = wcslen(request->program);
     if (length < 4 || _wcsicmp(request->program + length - 4, L".exe") != 0) return ERROR_BAD_EXE_FORMAT;
     name = wcsrchr(request->program, L'\\');
@@ -133,6 +159,77 @@ static DWORD cdx_validate_request(const cdx_exec_request *request) {
         if (!GetHandleInformation(request->cancel_event, &flags)) return ERROR_INVALID_HANDLE;
     }
     return ERROR_SUCCESS;
+}
+
+static size_t cdx_environment_name_length(const wchar_t *entry) {
+    const wchar_t *equals = wcschr(entry + (entry[0] == L'=' ? 1 : 0), L'=');
+    return equals ? (size_t)(equals - entry) : wcslen(entry);
+}
+
+static int cdx_environment_order(const void *left, const void *right) {
+    const wchar_t *a = *(const wchar_t *const *)left, *b = *(const wchar_t *const *)right;
+    return CompareStringOrdinal(a, (int)cdx_environment_name_length(a),
+        b, (int)cdx_environment_name_length(b), TRUE) - CSTR_EQUAL;
+}
+
+static DWORD cdx_build_environment(const cdx_exec_request *request, ULONGLONG deadline, wchar_t **environment) {
+    wchar_t *snapshot = NULL, *storage = NULL, *block = NULL, **entries = NULL;
+    size_t offset = 0, used = 0, count = 0, index, inherited;
+    DWORD error = ERROR_SUCCESS;
+    if (!request->env_count) return ERROR_SUCCESS;
+    snapshot = GetEnvironmentStringsW();
+    if (!snapshot) return GetLastError();
+    storage = (wchar_t *)calloc(CDX_ENVIRONMENT_CAP, sizeof(wchar_t));
+    entries = (wchar_t **)calloc(CDX_INHERITED_ENV_MAX + CDX_MAX_ENV, sizeof(wchar_t *));
+    if (!storage || !entries) { error = ERROR_NOT_ENOUGH_MEMORY; goto done; }
+    for (inherited = 0; inherited < CDX_INHERITED_ENV_MAX; ++inherited) {
+        size_t length, name_length;
+        int replaced = 0;
+        if (GetTickCount64() >= deadline) { error = ERROR_TIMEOUT; goto done; }
+        if (request->cancel_event && WaitForSingleObject(request->cancel_event, 0) == WAIT_OBJECT_0) { error = ERROR_CANCELLED; goto done; }
+        length = wcsnlen_s(snapshot + offset, CDX_ENVIRONMENT_CAP - offset);
+        if (length == CDX_ENVIRONMENT_CAP - offset) { error = ERROR_BAD_ENVIRONMENT; goto done; }
+        if (!length) break;
+        name_length = cdx_environment_name_length(snapshot + offset);
+        for (index = 0; index < request->env_count; ++index)
+            if (CompareStringOrdinal(snapshot + offset, (int)name_length, request->env[index].name, -1, TRUE) == CSTR_EQUAL) { replaced = 1; break; }
+        if (!replaced) {
+            if (length + 2u > CDX_ENVIRONMENT_CAP - used) { error = ERROR_BAD_ENVIRONMENT; goto done; }
+            entries[count++] = storage + used;
+            memcpy(storage + used, snapshot + offset, (length + 1u) * sizeof(wchar_t));
+            used += length + 1u;
+        }
+        offset += length + 1u;
+        if (offset >= CDX_ENVIRONMENT_CAP) { error = ERROR_BAD_ENVIRONMENT; goto done; }
+    }
+    if (inherited == CDX_INHERITED_ENV_MAX && snapshot[offset]) { error = ERROR_BAD_ENVIRONMENT; goto done; }
+    for (index = 0; index < request->env_count; ++index) {
+        size_t name_length, value_length;
+        if (GetTickCount64() >= deadline) { error = ERROR_TIMEOUT; goto done; }
+        if (request->cancel_event && WaitForSingleObject(request->cancel_event, 0) == WAIT_OBJECT_0) { error = ERROR_CANCELLED; goto done; }
+        if (!request->env[index].value) continue;
+        name_length = wcslen(request->env[index].name); value_length = wcslen(request->env[index].value);
+        if (name_length + value_length + 3u > CDX_ENVIRONMENT_CAP - used) { error = ERROR_BAD_ENVIRONMENT; goto done; }
+        entries[count++] = storage + used;
+        memcpy(storage + used, request->env[index].name, name_length * sizeof(wchar_t)); used += name_length;
+        storage[used++] = L'=';
+        memcpy(storage + used, request->env[index].value, (value_length + 1u) * sizeof(wchar_t)); used += value_length + 1u;
+    }
+    qsort(entries, count, sizeof(*entries), cdx_environment_order);
+    block = (wchar_t *)calloc(used + 2u, sizeof(wchar_t));
+    if (!block) { error = ERROR_NOT_ENOUGH_MEMORY; goto done; }
+    offset = 0;
+    for (index = 0; index < count; ++index) {
+        size_t length = wcslen(entries[index]) + 1u;
+        if (GetTickCount64() >= deadline) { error = ERROR_TIMEOUT; goto done; }
+        if (request->cancel_event && WaitForSingleObject(request->cancel_event, 0) == WAIT_OBJECT_0) { error = ERROR_CANCELLED; goto done; }
+        memcpy(block + offset, entries[index], length * sizeof(wchar_t)); offset += length;
+    }
+    *environment = block; block = NULL;
+done:
+    FreeEnvironmentStringsW(snapshot);
+    free(storage); free(entries); free(block);
+    return error;
 }
 
 static int cdx_put(wchar_t *command, size_t *used, wchar_t value, size_t count) {
@@ -252,7 +349,7 @@ static int cdx_start(const cdx_exec_request *request, wchar_t *command, cdx_owne
     owned->attributes_initialized = 1;
     if (!UpdateProcThreadAttribute(owned->attributes, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, owned->child_pipes, sizeof(owned->child_pipes), NULL, NULL)) return 0;
     si.lpAttributeList = owned->attributes;
-    if (!CreateProcessW(request->program, command, NULL, NULL, TRUE, EXTENDED_STARTUPINFO_PRESENT | CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW, NULL, request->cwd, &si.StartupInfo, &owned->pi)) return 0;
+    if (!CreateProcessW(request->program, command, NULL, NULL, TRUE, EXTENDED_STARTUPINFO_PRESENT | CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW, owned->environment, request->cwd, &si.StartupInfo, &owned->pi)) return 0;
     result->pid = owned->pi.dwProcessId;
     result->cleanup_complete = 0;
     if (!AssignProcessToJobObject(owned->job, owned->pi.hProcess)) return 0;
@@ -346,6 +443,7 @@ static void cdx_cleanup(cdx_owned_process *owned, cdx_exec_result *result) {
 
 static void cdx_close(cdx_owned_process *owned) {
     size_t index;
+    free(owned->environment);
     if (owned->job) CloseHandle(owned->job);
     for (index = 0; index < 3; ++index) {
         if (owned->threads[index]) CloseHandle(owned->threads[index]);

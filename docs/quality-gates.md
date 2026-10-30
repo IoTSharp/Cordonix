@@ -1,5 +1,19 @@
 # Cordonix Quality Gates
 
+## Successor evidence, 2026-10-30
+
+The latest integration has **284 Windows checks** and **264 local Linux checks**. Windows process/MCP/adapters are 35/96/26; Linux process/MCP/Git-adapter scope is 39/100/17. Linux rg is NOT_RUN locally because it is absent; CI requires the full external-rg gate. The earlier counts below remain historical boundaries.
+
+Current independent official Python SDK acceptance is 12/12. Independent adapter CLI/MCP acceptance is Windows 12/12 and Linux Git 9/9. Linux adoption is 44/44 across ext4/tmpfs/9p and 60 rounds over 600.004 seconds, including actual SIGKILL before commit and unchanged disk bytes. ACL/xattr remain NOT_SUPPORTED. A fresh Linux Codex client cannot run because its native optional package is missing.
+
+Official SPDX 2.3 schema (SHA-256 `239208b7ac287b3cf5d9a9af23f9d69863971102a5e1587a27a398b43490b89b`) passed using Python jsonschema and native PowerShell Test-Json. Both same-environment compiler repeat-build gates pass, but the Windows first dirty-state readback was incorrect and has a separately corrected run. Embedded build revision/dirty metadata is not a signature or independent builder attestation.
+
+The fixed benchmark verifies equal 128 KiB text SHA across 600 calls. Timing, process CPU and logical/OS I/O counters are retained in `build/successor-20261030-performance/measurement.json`; OS I/O includes pipes and is not physical disk measurement. Model tokens and physical disk IO remain NOT_MEASURED.
+
+Both isolated schedulers have their first natural success. Windows hourly recurrence passed at 10:58:09 (3601 seconds) and its task/install/process cleanup passed. Linux recurrence and cleanup remain pending; no manual trigger or shortened product interval is counted. Linux failure/cleanup regression uses a separate short timer. Exact baseline remote CI `40986467787` passed for `61eb8f2`; this successor tree still requires its own remote CI, package publication and installed-client gates.
+
+## Earlier release and creation evidence
+
 Native, ext4 and current development-package gates validated locally on 2026-10-30 (Asia/Shanghai). Published release/upgrade results below retain their 2026-10-29 release boundary. Each row proves only its stated boundary.
 
 | Gate | What it proves | Current state |

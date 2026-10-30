@@ -2,6 +2,24 @@
 
 Date: 2026-10-30 Asia/Shanghai
 
+## Successor implementation and current evidence
+
+- Intake was clean at `61eb8f2537332e4decb6104e4da2af469c11b6c1`; both remotes and every step of exact-commit CI run `40986467787` were independently confirmed PASS. This supersedes earlier remote NOT_RUN notes for that commit.
+- Three new workers implemented environment overlays, structured external adapters and Linux acceptance, with disjoint sources/output directories. The supervisor integrated shared protocol/build/CI and independently reviewed results. The user additionally authorized integration of the concurrent execution-boundary feedback; that chat has been asked to stop writes.
+- Final feature integration currently passes Windows **284** checks (35 process, 36 documents, 20 create, 46 JSON, 25 edges, 96 MCP, 26 adapters) and local Linux **264** (39, 42, 20, 46, 100 MCP, 17 Git adapters). Local Ubuntu has no native rg, so the additional Linux rg gate remains NOT_RUN locally and required in CI. MSVC /analyze and Linux ASan/UBSan/leak checks passed for environment and adapter code.
+- Official Python MCP SDK 1.30.0 passes 12 current workflows. Independent Windows CLI/MCP adapter checks pass 12/12; Linux Git checks 9/9. Linux client acceptance passes 44/44 on ext4/tmpfs/9p, with 60 rounds over 600.004 seconds. SIGKILL before commit preserves disk bytes. These do not establish native Linux Codex adoption: its existing npm shim lacks `@openai/codex-linux-x64`.
+- Isolated Linux and Windows hourly tasks have naturally completed initial invocations at 09:48:33 and 09:58:08 Asia/Shanghai, respectively. Windows hourly recurrence passed at 10:58:09 (3601 seconds) and its task/install/process cleanup passed; Linux recurrence and final cleanup remain pending. A host suspend advanced wall time without equivalent WSL monotonic time; the Linux gate records its bounded observation adjustment without changing the timer interval.
+- Current official SPDX schema checks pass on both platform SBOMs. Build scripts embed revision/dirty state; packaging queries the actual binary, and clean release mode requires matching clean source. Compiler repeat-build hashes match within the same environment; Windows dirty-state acquisition was corrected after its first incorrect clean readback. Signing remains NOT_RUN because no configured signing key/certificate was found.
+- Fixed benchmark: 128 KiB UTF-8, three alternating 100-call fresh/memory pairs with identical response SHA. Raw latency/CPU/logical/OS-I/O receipts are retained; physical disk IO and model tokens are NOT_MEASURED. No general speedup/savings claim is made.
+- Evidence directories: `build/successor-20261030-supervisor/`, `-env/`, `-adapters/`, `-linux/`, `-performance/`, `-windows-scheduler/` and `-windows-scheduler-regression/`. Earlier failures and original receipts are retained. See `docs/successor-acceptance.md` for every remaining item.
+
+## Execution-boundary feedback (2026-10-30)
+
+- Investigated a real Playwright launcher failure. A flattened `pwsh -File ... -Arguments ... -File ...` call failed in PowerShell named-array binding; the same argv failed through .NET `ProcessStartInfo.ArgumentList`. Constructing the array inside a saved script preserved all five arguments. Strict CP936 decoding of the original retained Base64 recovered the diagnostic without repeating the browser operation.
+- A browser launcher returned exit 0 before its remaining owned processes were cleaned up. Clarified this existing invocation lifetime in MCP descriptions, both READMEs and `docs/execution-boundaries.md`. Exposed the core's existing `active_processes_before_cleanup` / `active_processes_after_cleanup` observations without changing ownership or termination behavior. Counts can include the root and are observations, not a list of killed descendants.
+- Validation: `eng/test.cmd` exit 0, including 96/96 real MCP checks; WSL Ubuntu `eng/test-linux.sh` exit 0, including 100/100 real MCP checks. The two new checks exercise parent-exit descendant cleanup; the encoding check also asserts independent process status/exit code. Linux ripgrep adapter checks remain NOT_RUN because no native `rg` is installed; its Git adapter scope passes 17/17. Local PowerShell binding reproduction, both skill validators and whitespace checks passed.
+- Updated the local `cordonix` and `codex-local-workflow` skill guidance for array binding, output decoding and persistent-process routing. Existing publishing scripts/profile/state were read only. Local receipts are in `build/douyin-execution-review/`; the new result fields are verified against the locally built executable. The connected older MCP runtime is unchanged, so release publication and fresh-client adoption remain NOT_RUN. No commit, push or installation was performed; concurrent unrelated changes were preserved.
+
 ## Current state
 
 - Project: Cordonix / cdx, Apache-2.0; default source build 0.1.0-dev; published v0.0.1 and v0.0.2.

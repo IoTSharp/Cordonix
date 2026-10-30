@@ -30,23 +30,26 @@ The process and document agents own disjoint platform sources. The packaging age
 |---|---|---|---|
 | CDX-07A | POSIX process backend and native fixtures | ✅ local gate passed | 16 real process checks; cleanup is limited to the created group and incomplete observations remain explicit |
 | CDX-07B | POSIX documents and shared edit core | ✅ local gate passed | 42 file checks, ASan/UBSan/leak detection, four SHA-256 known vectors |
-| CDX-07C | Linux CLI/MCP, builds and final integration | ✅ local gate passed | Current tree: Linux 211/211 and Windows 225/225; real stdio cancellation/EOF/output blocking/SIGTERM and readable titles |
-| CDX-07D | Independent Linux adoption and filesystem metadata | 🟡 ext4 gate passed | Real ext4: 14 MCP checks and 42 document checks; ACL/xattr non-preservation observed explicitly. Fresh Linux Codex, preservation support and broader workloads remain open |
+| CDX-07C | Linux CLI/MCP, builds and final integration | ✅ local gate passed | Current tree: Linux 264/264 (Git adapter scope, rg NOT_RUN locally) and Windows 284/284; real stdio cancellation/EOF/output blocking/SIGTERM and readable titles |
+| CDX-07D | Independent Linux adoption and filesystem metadata | 🟡 independent client and bounded soak PASS | 44 checks across ext4/tmpfs/9p; 60 rounds over 600 seconds; crash-before-commit discards memory. ACL/xattr NOT_SUPPORTED; native Linux Codex package missing; other distributions NOT_RUN |
 | CDX-08A | Windows/Linux portable packages | ✅ local gate passed | Identical Windows ZIP from two runs plus Linux tar.gz, SHA-256 metadata, install/update docs and runtime readback |
 | CDX-08B | Tagged dual-platform releases | ✅ v0.0.2 full workflow PASS | Windows/Linux gates, GitHub release, original Gitee tag mirror and Gitee release all PASS; ten identical assets downloaded from each source for both versions |
-| CDX-08C | Release signing | ⬜ planned | Signing identity and independent signature verification; checksum verification does not close this gate |
+| CDX-08C | Release signing | 🟡 external identity missing | No configured Git signing key or Windows code-signing certificate was found. Independent signature verification NOT_RUN; checksums, schema and embedded provenance do not close this gate |
 | CDX-08D | Installers and hourly user updates | ✅ implementation and isolated Windows scheduler PASS | Windows 12 and Linux 14 installer checks; published upgrade gates; seven real Windows register/run/disable checks. Natural hourly triggering and Linux user scheduling remain separate |
 | CDX-09A | Local execution and encoding-aware edit migration | ✅ local policy updated | Retired PowerShell execution skill; known GBK opens explicitly as CP936 before editing |
-| CDX-09B | Remaining Native Tools adapters | 🟡 file creation implemented locally | Environment overrides and parsed rg/Git remain; installed clients still need release/adoption before predecessor retirement |
+| CDX-09B | Remaining Native Tools adapters | ✅ source and local gates | Creation, child environments, parsed rg/Git implemented; installed-client adoption and published assets remain separate |
 | CDX-09B1 | Native new-file creation | ✅ local gate passed, unreleased | Strict encoding, no overwrite, bounded cancellation, 20 native checks per platform plus eight shared MCP checks; Windows /analyze and Linux ASan/UBSan/leaks PASS |
 | CDX-09C | Native line-range reading | ✅ local gate passed | One-shot read_file and memory workspace_read line mode; 16 shared real MCP checks; unchanged-SHA comparisons for TableStore.cs Skip 950 / First 245 and encoding_posix.c First 100 |
 | CDX-09D | Native tail and complete-text reading | ✅ local gate passed | 14 shared MCP checks; real Tail 55 and Raw examples match PowerShell with unchanged source SHAs; over-budget complete reads fail explicitly |
 | CDX-09E | Native directory listing and path resolution | ✅ local gate passed | 12 shared MCP checks; hidden/system entries, limits, normalization and explicit missing paths; existing-directory comparison matches PowerShell |
 | CDX-09F | Native batch encoding verification | ✅ local gate passed | 14 shared MCP checks; seven distinct CP936 fixtures match .NET strict verification without writes; scope/count preflight, BOM mismatch, timeout/cancel/EOF and NOT_RUN evidence |
+| CDX-09G | Execution boundary diagnostics and caller guidance | ✅ local gate passed, unreleased | PowerShell array binding reproduced; cleanup observations exposed; Windows 96/96 and Linux 100/100 real MCP checks. Persistent sessions remain outside this API; installed-client adoption is separate |
 
 ## Next item
 
-Continue CDX-09B with per-child environment overrides, then evaluate parsed rg/Git adapters. The new-file slice is local and unreleased; fresh Codex adoption still uses the installed runtime and requires a separate check. Windows scheduling has isolated registration and manually triggered execution evidence, while natural hourly firing and Linux scheduling remain open. CDX-07D and signing retain separate gates. Published v0.0.1/v0.0.2 tags and assets are immutable.
+CDX-09B2 (child environments) passes Windows 35 / Linux 39 process checks and 11 shared MCP checks. CDX-09B3 (external adapters) passes Windows 26 / Linux Git 17 native checks; Linux full rg remains a required CI gate. Official Python SDK acceptance passes 12 workflows. Compiler reproducibility and SPDX schema have their own gates; they do not establish a signing identity.
+
+CDX-09B source gates are complete. Finish exact-commit remote CI, new-version release/readback and installed Codex adoption. Both isolated schedulers have naturally completed their first invocation; true hourly recurrence is still observed under finite bounds. The Linux observation records a host suspend that delays monotonic time. Signing identity, native Linux Codex installation, UI title rendering and other distributions retain separate gates. See [the complete acceptance ledger](docs/successor-acceptance.md). Published v0.0.1/v0.0.2 tags and assets are immutable.
 
 ## Capability gaps
 
@@ -55,7 +58,7 @@ Continue CDX-09B with per-child environment overrides, then evaluate parsed rg/G
 | GAP-01 | C core packaging | Reusable header/library and native executable | maintainers | Windows MVP | ✅ native build and process checks |
 | GAP-02 | Memory edits and external compiler reads | Explicit commit materializes memory before external execution | maintainers | Windows MVP | ✅ MCP edit/convert/commit/readback |
 | GAP-03 | External writer during final replacement | Hash/identity checks prior changes; no filesystem compare-and-swap | maintainers | stronger transaction guarantees | 🟡 documented limitation; no speculative locking |
-| GAP-04 | Crash before memory commit | Uncommitted session data is discarded | maintainers | crash recovery | ⬜ no journal or implicit writes |
-| GAP-05 | Performance/token/physical-I/O claims | Measure fixed workloads first | maintainers | public performance claims | ⬜ not measured; logical counters only |
-| GAP-06 | File creation and execution environment overrides | New-file creation passes locally; environment is still inherited | maintainers | retirement of remaining adapters | 🟡 create_file source gate closed; release/adoption and environment override gaps remain |
+| GAP-04 | Crash before memory commit | Uncommitted session data is discarded | maintainers | crash recovery | ✅ declared discard behavior verified by real SIGKILL and unchanged disk bytes; recovery NOT_SUPPORTED |
+| GAP-05 | Performance/token/physical-I/O claims | Measure fixed workloads first | maintainers | public performance claims | ✅ fixed 128 KiB, 3 x 100 fresh/memory measurements and equal response SHA; physical IO/token NOT_MEASURED, no general savings claim |
+| GAP-06 | File creation and execution environment overrides | Native creation and isolated child overrides | maintainers | retirement of remaining adapters | ✅ local source gates; release and installed adoption remain separate |
 | GAP-07 | Readable tool titles in Codex | tools/list includes title; UI selection belongs to the client | maintainers/client | dynamic per-call labels | 🟡 protocol title readback passes; fresh Codex rendering and dynamic labels UNKNOWN |

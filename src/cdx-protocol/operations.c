@@ -404,8 +404,9 @@ static void execute_program(const cdx_json *json, int arguments, cdx_cancel_hand
     const char *stdin_text = string_arg(json, arguments, "stdin", "", &valid);
     const char *encoding = string_arg(json, arguments, "output_encoding", "utf-8", &valid);
     cdx_path_char *wprogram = NULL, *wcwd = NULL, *argv[CDX_MAX_ARGS] = {0};
+    cdx_env_entry environment[CDX_MAX_ENV] = {{0}};
     int expected[32] = {0};
-    size_t arg_count = 0, expected_count = 1, i;
+    size_t arg_count = 0, expected_count = 1, env_count = 0, i;
     cdx_exec_request request;
     cdx_exec_result result;
     memset(&request, 0, sizeof(request));
@@ -430,6 +431,20 @@ static void execute_program(const cdx_json *json, int arguments, cdx_cancel_hand
         }
     }
     if (strcmp(encoding, "utf-8") && strcmp(encoding, "cp936") && strcmp(encoding, "gbk")) valid = 0;
+    array = cdx_json_get(json, arguments, "env");
+    if (array >= 0) {
+        if (json->nodes[array].type != CDX_JSON_OBJECT) valid = 0;
+        else for (node = json->nodes[array].first; node >= 0; node = json->nodes[node].next) {
+            if (env_count == CDX_MAX_ENV || (json->nodes[node].type != CDX_JSON_STRING &&
+                json->nodes[node].type != CDX_JSON_NULL)) { valid = 0; break; }
+            environment[env_count].name = native_text(json->nodes[node].key);
+            if (json->nodes[node].type == CDX_JSON_STRING)
+                environment[env_count].value = native_text(json->nodes[node].string);
+            ++env_count;
+            if (!environment[env_count - 1].name || (json->nodes[node].type == CDX_JSON_STRING &&
+                !environment[env_count - 1].value)) { valid = 0; break; }
+        }
+    }
     if (valid) { wprogram = native_text(program); wcwd = native_text(cwd); valid = wprogram && wcwd; }
     if (!valid) { error_result(output, "validation_error", "Use program/cwd strings, args array, and bounded numeric limits"); }
     else {
@@ -438,6 +453,7 @@ static void execute_program(const cdx_json *json, int arguments, cdx_cancel_hand
         request.program = wprogram; request.cwd = wcwd; request.args = (const cdx_path_char *const *)argv; request.arg_count = arg_count;
         request.expected_exit_codes = expected; request.expected_exit_count = expected_count;
         request.stdin_utf8 = (const unsigned char *)stdin_text; request.stdin_size = strlen(stdin_text); request.cancel_event = cancellation;
+        request.env = environment; request.env_count = env_count;
         cdx_result_init(&result); (void)cdx_execute(&request, &result);
         stdout_text = decode_output(&result.stdout_bytes, encoding); stderr_text = decode_output(&result.stderr_bytes, encoding);
         status = stdout_text.valid && stderr_text.valid ? cdx_status_name(result.status) : "encoding_error";
@@ -446,6 +462,8 @@ static void execute_program(const cdx_json *json, int arguments, cdx_cancel_hand
         cdx_json_raw(output, ",\"exit_code\":"); if (result.exit_code_known) cdx_json_uint(output, result.exit_code); else cdx_json_raw(output, "null");
         cdx_json_raw(output, ",\"pid\":"); cdx_json_uint(output, result.pid);
         cdx_json_raw(output, ",\"cleanup_complete\":"); cdx_json_raw(output, result.cleanup_complete ? "true" : "false");
+        cdx_json_raw(output, ",\"active_processes_before_cleanup\":"); cdx_json_uint(output, result.job_active_before_cleanup);
+        cdx_json_raw(output, ",\"active_processes_after_cleanup\":"); cdx_json_uint(output, result.job_active_after_cleanup);
         cdx_json_raw(output, ",\"stdout\":"); if (stdout_text.valid) cdx_json_quote(output, stdout_text.text, stdout_text.length); else cdx_json_raw(output, "null");
         cdx_json_raw(output, ",\"stderr\":"); if (stderr_text.valid) cdx_json_quote(output, stderr_text.text, stderr_text.length); else cdx_json_raw(output, "null");
         if (!stdout_text.valid) { cdx_json_raw(output, ",\"stdout_base64\":"); base64_output(output, &result.stdout_bytes); }
@@ -462,6 +480,9 @@ static void execute_program(const cdx_json *json, int arguments, cdx_cancel_hand
         cdx_result_free(&result); free(stdout_text.text); free(stderr_text.text);
     }
     for (i = 0; i < arg_count; ++i) free(argv[i]);
+    for (i = 0; i < env_count; ++i) {
+        free((void *)environment[i].name); free((void *)environment[i].value);
+    }
     free(wprogram); free(wcwd);
 }
 
@@ -699,10 +720,15 @@ void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx
         cdx_json_uint(output, call_count); cdx_json_raw(output, ",\"document_loads\":"); cdx_json_uint(output, disk_reads);
         cdx_json_raw(output, ",\"document_commits\":"); cdx_json_uint(output, disk_writes);
         cdx_json_raw(output, ",\"commit_checks\":"); cdx_json_uint(output, commit_checks);
+        cdx_json_raw(output, ",\"build_revision\":\"" CDX_BUILD_REVISION "\",\"build_dirty\":");
+        cdx_json_raw(output, CDX_BUILD_DIRTY < 0 ? "null" : CDX_BUILD_DIRTY ? "true" : "false");
         cdx_json_raw(output, ",\"counter_scope\":\"logical operations, not physical disk IO\",\"max_documents\":16,\"max_document_bytes\":8388608}"); return;
     }
     if (arguments < 0) { error_result(output, "validation_error", "arguments must be an object"); return; }
     if (!strcmp(operation, "execute_program")) { execute_program(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "search_text") || !strcmp(operation, "git_status")) {
+        cdx_adapter_call(operation, request, arguments, cancellation, output); return;
+    }
     if (!strcmp(operation, "create_file")) { create_file(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "workspace_open")) { open_document(request, arguments, output); return; }
     if (!strcmp(operation, "read_file")) { read_file(request, arguments, cancellation, output); return; }

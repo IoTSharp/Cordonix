@@ -32,12 +32,12 @@ Cordonix is a development MVP. Windows has first-party Codex usage evidence; Lin
 
 | Area | Current evidence | Remaining boundary |
 |---|---|---|
-| Windows process core | 15 checks passed locally | Broader application and long-running workload coverage continues |
+| Windows process core | 35 checks passed locally, including isolated child environments | Broader application and long-running workload coverage continues |
 | Encoding and memory document core | 36 core checks plus 25 integration/encoding edge checks passed locally | External tools read disk; they do not see uncommitted memory revisions |
-| CLI and MCP | Fifteen native tools with readable titles; 83 Windows and 87 Linux real stdio checks | The earlier Windows SDK/Codex evidence is separate from this changed tree; new title rendering in Codex is unverified |
+| CLI and MCP | Seventeen native tools; 96 Windows and 100 Linux real stdio checks; 12 current official Python SDK checks | Actual installed-client adoption and Codex UI title rendering have separate gates |
 | New text files | 20 native checks on each platform plus eight shared MCP checks | Unreleased; existing paths are never overwritten and parent directories must exist |
-| Linux | 211 native checks in WSL Ubuntu; 14 real ext4 MCP checks and 42 document checks on ext4 | Independent Linux Codex use, ACL/xattr preservation, other distributions and soak remain separate |
-| Windows/Linux portable packages | ZIP/tar.gz, checksums, checkout provenance, SPDX inventory and extracted runtime gates; v0.0.1 published on both hosts with identical assets | Unsigned packages; compiler reproducibility, official SPDX schema and wider Linux environments remain separate gates |
+| Linux | 264 local checks including Git adapters; independent MCP client 44/44 across ext4/tmpfs/9p and 60 rounds over 600 seconds | Local Linux rg is NOT_RUN; Linux Codex lacks its native binary. Other distributions and longer soak are separate |
+| Windows/Linux portable packages | ZIP/tar.gz, checksums, embedded build revision/dirty readback, official SPDX schema validation | Unsigned packages; build metadata is not a signed attestation. Published v0.0.1/v0.0.2 remain immutable |
 
 These are local validation results, not performance benchmarks or a zero-error guarantee. See [quality gates](docs/quality-gates.md) for the separate acceptance boundaries.
 
@@ -62,6 +62,8 @@ The memory workspace belongs to one running session. MCP keeps that process aliv
 |---|---|
 | `tool_info` | Version, platform and document-load/commit counters |
 | `execute_program` | Literal argv execution with bounded output, timeout and owned-process cleanup |
+| `search_text` | Parse JSON results from an explicitly supplied ripgrep executable |
+| `git_status` | Parse Git porcelain v2 NUL records, including both rename paths |
 | `create_file` | Create a new text file with strict encoding and no overwrite; parent directory must exist |
 | `list_directory` | List immediate directory entries, with hidden-item and result-count controls |
 | `resolve_path` | Normalize an existing absolute filesystem path and report its type |
@@ -77,6 +79,22 @@ The memory workspace belongs to one running session. MCP keeps that process aliv
 | `workspace_close` | Release a document, with explicit handling of dirty memory |
 
 MCP tool definitions include a human-readable `title`, such as `执行本地程序`, `编辑文本（仅内存）` and `提交文件到磁盘`. Tool identifiers stay unchanged. The client decides whether to display these titles; the server cannot assign a dynamic title to each invocation. Cordonix executes local programs and does not infer that an arbitrary script is a remote method or a file creation operation.
+
+## Execution boundaries
+
+`execute_program` owns one bounded invocation. When its root process exits, Cordonix cleans up remaining owned processes even after exit code 0. Start persistent browsers, daemons and services through their existing lifecycle owner. `completed` confirms the command's exit status; it does not promise that a launched browser remains open. Results expose `active_processes_before_cleanup` and `active_processes_after_cleanup` alongside `cleanup_complete`.
+
+`args` is a flat native argv array. PowerShell 7 `-File` does not reconstruct a named `[string[]]` script parameter from subsequent argv entries; construct that array inside a saved script or use a data interface the target script explicitly supports. `output_encoding` selects how Cordonix decodes captured bytes, without changing the child program. On `encoding_error`, inspect `process_status`/`exit_code` and the preserved Base64 bytes before any retry. See [execution boundaries and examples](docs/execution-boundaries.md).
+
+## Child environment and external adapters
+
+Optional `execute_program.env` is an object of child-only overrides, for example `{"HTTPS_PROXY":"http://127.0.0.1:7890","REMOVE_ME":null,"EMPTY":""}`. Other parent variables are inherited; the parent is not modified. Null removes a variable; an empty string keeps an empty value. At most 64 overrides are accepted. Names must be nonempty, contain no `=`, and fit 255 native characters/bytes; values fit 32767. Windows names are case insensitive; POSIX names are case sensitive. Invalid text and duplicate names under those rules fail before spawning.
+
+`search_text` requires absolute `program` (rg), `cwd`, `patterns` (1–32) and absolute `roots` (1–8). Optional `globs` accepts up to 16 patterns; `literal` defaults true. Arguments use `--no-config --json`, a separate `-e` for every pattern and `--` before roots. Matches retain rg's `path`, `lines` and `submatches` as `{text}` or Base64 `{bytes}`. Exit 1 returns `no_match`. Default `encoding=none` preserves bytes; explicit UTF-8/UTF-16/GBK conversion is delegated to rg and may replace invalid input. Use `verify_encoding` for strict encoding verification.
+
+`git_status` requires absolute `program` (Git) and `cwd`. It runs `--no-optional-locks status --porcelain=v2 --branch -z`, parses branch metadata and ordinary/renamed/unmerged/untracked entries, and keeps both rename paths. Output paths may contain spaces, quotes and newlines. Invalid UTF-8 output returns `encoding_error` with raw Base64, without guessing a replacement encoding. `untracked` is `normal` (default), `all` or `no`.
+
+Both adapters accept `timeout_ms` (1–60000, default 30000), `output_limit_bytes` (1–262144) and `max_entries` (1–1000, default 200). Search also has `max_matches_per_file` (1–1000, default 50), disclosed in the result. Limits, cancellation and timeout do not become a complete successful result. Git and rg remain separately installed external programs.
 
 ## Create a new text file
 
@@ -170,7 +188,7 @@ sh eng/test-linux.sh
 build/linux/bin/cdx --version
 ```
 
-Both platforms use the same JSON requests and fifteen MCP tools. Linux paths are absolute UTF-8 paths, and execution errors report `posix_error`; Windows keeps `win32_error`. The Linux executable is dynamically linked to system libraries. Build a local Windows ZIP with PowerShell 7 using `./eng/test-package.ps1` after `eng\test.cmd`; see [packaging](docs/packaging.md).
+Both platforms use the same JSON requests and seventeen MCP tools. Linux paths are absolute UTF-8 paths, and execution errors report `posix_error`; Windows keeps `win32_error`. The Linux executable is dynamically linked to system libraries. Build a local Windows ZIP with PowerShell 7 using `./eng/test-package.ps1` after `eng\test.cmd`; see [packaging](docs/packaging.md).
 
 The CLI exposes these forms:
 

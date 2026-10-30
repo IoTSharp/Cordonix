@@ -26,7 +26,7 @@ try {
     $archivePath = $second.archive
     $archive = [IO.Compression.ZipFile]::OpenRead($archivePath)
     try {
-        if ($archive.Entries.Count -ne 20) { throw 'Package must contain exactly 20 files.' }
+        if ($archive.Entries.Count -ne 21) { throw 'Package must contain exactly 21 files.' }
         foreach ($entry in $archive.Entries) {
             Assert-PackageBudget $deadline
             if ($entry.Length -gt 33554432) { throw 'Package entry exceeds 32 MiB.' }
@@ -37,7 +37,7 @@ try {
     $manifest = Get-Content -Raw -LiteralPath (Join-Path $extractRoot 'manifest.json') | ConvertFrom-Json
     $provenance = Get-Content -Raw -LiteralPath (Join-Path $extractRoot 'provenance.json') | ConvertFrom-Json
     $sbom = Get-Content -Raw -LiteralPath (Join-Path $extractRoot 'sbom.spdx.json') | ConvertFrom-Json
-    if ($manifest.format_version -ne 1 -or $manifest.version -cne $Version -or $manifest.target -cne 'windows-x64' -or @($manifest.files).Count -ne 17) { throw 'Invalid package manifest.' }
+    if ($manifest.format_version -ne 1 -or $manifest.version -cne $Version -or $manifest.target -cne 'windows-x64' -or @($manifest.files).Count -ne 18) { throw 'Invalid package manifest.' }
     foreach ($file in $manifest.files) {
         Assert-PackageBudget $deadline
         $path = Join-Path $extractRoot $file.path
@@ -45,11 +45,14 @@ try {
         if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -cne $file.sha256 -or (Get-Item -LiteralPath $path).Length -ne $file.size_bytes) { throw "Manifest mismatch: $($file.path)" }
     }
     if ((Get-FileHash -LiteralPath (Join-Path $extractRoot 'LICENSE') -Algorithm SHA256).Hash -cne (Get-FileHash -LiteralPath (Join-Path $SourceRoot 'LICENSE') -Algorithm SHA256).Hash) { throw 'Package license differs from source.' }
-    if ($provenance.format_version -ne 1 -or $provenance.binary_build_revision -cne 'UNKNOWN' -or
+    $buildReadback = Invoke-PackageProgram (Join-Path $extractRoot 'cdx.exe') @('--request', (Join-Path $extractRoot 'examples\request.json')) $extractRoot $auditPath $deadline
+    $buildInfo = $buildReadback.Stdout | ConvertFrom-Json
+    if ($buildReadback.ExitCode -ne 0 -or $provenance.format_version -ne 1 -or $provenance.binary_build_revision -cne $buildInfo.build_revision -or
+        $provenance.binary_build_dirty -ne $buildInfo.build_dirty -or
         $provenance.verified_executable_version -cne "Cordonix cdx $Version" -or $provenance.checkout_revision_at_packaging -notmatch '^[0-9a-f]{40}$' -or
         $provenance.input_executable_sha256 -cne ($manifest.files | Where-Object path -eq 'cdx.exe').sha256) { throw 'Invalid packaging provenance.' }
     if ($sbom.spdxVersion -cne 'SPDX-2.3' -or $sbom.dataLicense -cne 'CC0-1.0' -or $sbom.SPDXID -cne 'SPDXRef-DOCUMENT' -or
-        @($sbom.packages).Count -ne 1 -or @($sbom.files).Count -ne 19 -or @($sbom.relationships).Count -ne 20 -or
+        @($sbom.packages).Count -ne 1 -or @($sbom.files).Count -ne 20 -or @($sbom.relationships).Count -ne 21 -or
         $sbom.documentNamespace -notmatch '^https://github.com/IoTSharp/Cordonix/spdx/[0-9a-f]{64}$') { throw 'Invalid SPDX document shape.' }
     $package = $sbom.packages[0]
     if (-not $package.filesAnalyzed -or $package.versionInfo -cne $Version -or $package.licenseDeclared -cne 'Apache-2.0' -or
@@ -89,7 +92,7 @@ try {
     Assert-PackageBudget $deadline
     $success = $true
     [ordered]@{ status = 'PASS'; reproducible_sha256 = $second.archive_sha256; archive = $archivePath; version = $Version
-        manifest_files = 17; spdx_files = 19; spdx_verification = 'PASS'; unicode_path_cli = 'PASS'; signature = 'NOT_RUN' } | ConvertTo-Json
+        manifest_files = 18; spdx_files = 20; spdx_verification = 'PASS'; unicode_path_cli = 'PASS'; signature = 'NOT_RUN' } | ConvertTo-Json
 }
 finally {
     Assert-PackageContained $taskRoot $verificationRoot

@@ -58,7 +58,7 @@ json_lines() {
     } END { printf "]" }' "$1"
 }
 
-files='cdx LICENSE README.md docs/packaging.md docs/install-update.md install/install.ps1 install/install.sh examples/cordonix-install-update-prompt.md examples/codex-config.toml examples/request.json examples/read-lines.json examples/read-first.json examples/read-tail.json examples/read-raw.json examples/list-directory.json examples/resolve-path.json examples/verify-encoding.json'
+files='cdx LICENSE README.md docs/packaging.md docs/execution-boundaries.md docs/install-update.md install/install.ps1 install/install.sh examples/cordonix-install-update-prompt.md examples/codex-config.toml examples/request.json examples/read-lines.json examples/read-first.json examples/read-tail.json examples/read-raw.json examples/list-directory.json examples/resolve-path.json examples/verify-encoding.json'
 printf '%s\n' $files | sort > "$task_root/payload-list.txt"
 for name in $files; do
     source="$root/$name"
@@ -95,8 +95,23 @@ manifest="$staging/manifest.json"
     printf ']}\n'
 } > "$manifest"
 
-printf '{"format_version":1,"name":"Cordonix","version":"%s","target":"linux-x64","checkout_revision_at_packaging":"%s","checkout_dirty_at_packaging":%s,"checkout_status_at_packaging":%s,"binary_build_revision":"UNKNOWN","provenance_boundary":"Checkout state at packaging time; executable build origin is not verified.","verified_executable_version":"Cordonix cdx %s","input_executable_sha256":"%s","source_date_epoch":%s,"builder":"eng/package-linux.sh","signature":"NOT_RUN"}\n' \
-    "$version" "$revision" "$dirty" "$dirty_json" "$version" "$(sha256sum "$binary" | cut -d ' ' -f 1)" "$source_epoch" > "$staging/provenance.json"
+timeout --kill-after=2s 15s "$binary" --request "$root/examples/request.json" > "$task_root/build-info.json"
+timeout --kill-after=2s 15s python3 - "$task_root/build-info.json" "$staging/provenance.json" "$version" "$revision" "$dirty" "$dirty_json" "$binary" "$source_epoch" <<'PY'
+import hashlib, json, os, pathlib, re, sys
+info = json.loads(pathlib.Path(sys.argv[1]).read_text())
+if info.get('status') != 'ok' or info.get('version') != sys.argv[3] or not re.fullmatch(r'(UNKNOWN|[0-9a-f]{40})', info.get('build_revision', '')):
+    raise SystemExit('Invalid executable build metadata')
+if os.environ.get('CDX_REQUIRE_CLEAN_BUILD') == '1' and (sys.argv[5] != 'false' or info['build_dirty'] is not False or info['build_revision'] != sys.argv[4]):
+    raise SystemExit('Release requires a clean build of the packaging revision')
+data = dict(format_version=1, name='Cordonix', version=sys.argv[3], target='linux-x64',
+    checkout_revision_at_packaging=sys.argv[4], checkout_dirty_at_packaging=sys.argv[5] == 'true',
+    checkout_status_at_packaging=json.loads(sys.argv[6]), binary_build_revision=info['build_revision'],
+    binary_build_dirty=info['build_dirty'],
+    provenance_boundary='Build-script revision and dirty flag embedded in the executable and independently read back. This is not a signed builder attestation.',
+    verified_executable_version='Cordonix cdx ' + sys.argv[3], input_executable_sha256=hashlib.sha256(pathlib.Path(sys.argv[7]).read_bytes()).hexdigest(),
+    source_date_epoch=int(sys.argv[8]), builder='eng/package-linux.sh', signature='NOT_RUN')
+pathlib.Path(sys.argv[2]).write_text(json.dumps(data, separators=(',', ':')) + '\n')
+PY
 
 printf '%s\n' $files manifest.json provenance.json | sort > "$task_root/analyzed-list.txt"
 {

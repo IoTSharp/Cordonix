@@ -116,9 +116,15 @@ try {
     if ($versionResult.ExitCode -ne 0 -or $versionResult.Stdout.Trim() -cne "Cordonix cdx $Version") {
         throw "Input executable version does not equal requested package version '$Version'."
     }
+    $infoResult = Invoke-PackageProgram $InputExecutable @('--request', (Join-Path $SourceRoot 'examples\request.json')) $SourceRoot $auditPath $DeadlineUtc
+    if ($infoResult.ExitCode -ne 0) { throw 'Executable build metadata query failed.' }
+    $buildInfo = $infoResult.Stdout | ConvertFrom-Json
+    if ($buildInfo.status -cne 'ok' -or $buildInfo.version -cne $Version -or
+        $buildInfo.build_revision -notmatch '^(UNKNOWN|[0-9a-f]{40})$') { throw 'Executable build metadata is invalid.' }
     $requiredFiles = [ordered]@{
         'cdx.exe' = $InputExecutable; 'LICENSE' = Join-Path $SourceRoot 'LICENSE'
         'README.md' = Join-Path $SourceRoot 'README.md'; 'docs/packaging.md' = Join-Path $SourceRoot 'docs\packaging.md'
+        'docs/execution-boundaries.md' = Join-Path $SourceRoot 'docs\execution-boundaries.md'
         'docs/install-update.md' = Join-Path $SourceRoot 'docs\install-update.md'
         'install/install.ps1' = Join-Path $SourceRoot 'install\install.ps1'
         'install/install.sh' = Join-Path $SourceRoot 'install\install.sh'
@@ -147,6 +153,8 @@ try {
     if ($revision.ExitCode -ne 0 -or $status.ExitCode -ne 0) { throw 'Could not read packaging checkout provenance.' }
     $gitStatus = @($status.Stdout -split "`r?`n" | Where-Object { $_ })
     if ($gitStatus.Count -gt 100) { throw 'Packaging checkout has more than 100 changed paths.' }
+    if ($env:CDX_REQUIRE_CLEAN_BUILD -eq '1' -and ($gitStatus.Count -gt 0 -or $buildInfo.build_dirty -ne $false -or
+        $buildInfo.build_revision -cne $revision.Stdout.Trim())) { throw 'Release requires a clean build of the packaging revision.' }
     $fileRecords = @(
         foreach ($name in @($requiredFiles.Keys | Sort-Object -CaseSensitive)) {
             Assert-PackageBudget $DeadlineUtc
@@ -164,8 +172,9 @@ try {
     $provenance = [ordered]@{
         format_version = 1; name = 'Cordonix'; version = $Version; target = 'windows-x64'
         checkout_revision_at_packaging = $revision.Stdout.Trim(); checkout_dirty_at_packaging = ($gitStatus.Count -gt 0)
-        checkout_status_at_packaging = $gitStatus; binary_build_revision = 'UNKNOWN'
-        provenance_boundary = 'Checkout state at packaging time; executable build origin is not verified.'
+        checkout_status_at_packaging = $gitStatus; binary_build_revision = $buildInfo.build_revision
+        binary_build_dirty = $buildInfo.build_dirty
+        provenance_boundary = 'Build-script revision and dirty flag embedded in the executable and independently read back. This is not a signed builder attestation.'
         input_executable_sha256 = ($fileRecords | Where-Object path -eq 'cdx.exe').sha256
         verified_executable_version = $versionResult.Stdout.Trim(); source_date_epoch = $SourceDateEpoch
         builder = 'eng/package.ps1'; signature = 'NOT_RUN'
@@ -231,7 +240,7 @@ try {
     $success = $true
     [ordered]@{ status = 'PASS'; archive = $archivePath; archive_sha256 = $archiveHash; version = $Version
         checkout_revision_at_packaging = $revision.Stdout.Trim(); checkout_dirty_at_packaging = ($gitStatus.Count -gt 0)
-        binary_build_revision = 'UNKNOWN'; signature = 'NOT_RUN' } | ConvertTo-Json -Depth 5
+        binary_build_revision = $buildInfo.build_revision; binary_build_dirty = $buildInfo.build_dirty; signature = 'NOT_RUN' } | ConvertTo-Json -Depth 5
 }
 finally {
     Assert-PackageContained $taskRoot $OutputDirectory

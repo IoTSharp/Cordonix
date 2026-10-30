@@ -142,6 +142,120 @@ static void test_review_regressions(void) {
     cdx_result_free(&result);
 }
 
+static void check_environment(const char *label, cdx_exec_request *request, const char *expected) {
+    cdx_exec_result result;
+    size_t length = strlen(expected);
+    int ok = cdx_execute(request, &result) == CDX_COMPLETED && result.cleanup_complete &&
+        result.stdout_bytes.size == length && (!length || memcmp(result.stdout_bytes.data, expected, length) == 0);
+    record(label, ok);
+    cdx_result_free(&result);
+}
+
+static void test_environment(int pilot) {
+    const char *args[] = {"env", "CDX_ENV_TEST_OWNED"};
+    cdx_env_entry entries[] = {{"CDX_ENV_TEST_OWNED", "中文 $(literal)=\"quote\"\n"}, {"CDX_ENV_TEST_NEW", "new"}};
+    cdx_exec_request request = request_for(args, 2);
+    if (setenv(args[1], "parent", 1) != 0) { record("environment fixture setup", 0); return; }
+    request.env = entries; request.env_count = sizeof(entries) / sizeof(entries[0]);
+    check_environment("child Unicode environment override", &request, "中文 $(literal)=\"quote\"\n");
+    if (!pilot) {
+        args[1] = "CDX_ENV_TEST_NEW";
+        check_environment("new child environment variable", &request, "new");
+        args[1] = "CDX_ENV_TEST_OWNED"; entries[0].value = "";
+        check_environment("empty child environment value", &request, "");
+        entries[0].value = NULL;
+        check_environment("deleted child environment value", &request, "<absent>");
+        request.env = NULL; request.env_count = 0;
+        check_environment("inherit environment without overrides", &request, "parent");
+        record("parent environment unchanged", getenv(args[1]) && strcmp(getenv(args[1]), "parent") == 0);
+        args[1] = "CDX_ENV_TEST_NEW";
+        check_environment("new child variable absent from parent", &request, "<absent>");
+        entries[0].name = "CDX_ENV_中文"; entries[0].value = "value";
+        request.env = entries; request.env_count = 1; args[1] = entries[0].name;
+        check_environment("Unicode environment name", &request, "value");
+        entries[0].name = "cdx_env_test_owned"; entries[0].value = "lower";
+        args[1] = "CDX_ENV_TEST_OWNED";
+        check_environment("POSIX case-sensitive inherited name", &request, "parent");
+        args[1] = "cdx_env_test_owned";
+        check_environment("POSIX separate lowercase name", &request, "lower");
+    }
+    (void)unsetenv("CDX_ENV_TEST_OWNED");
+}
+
+static void test_environment_validation(void) {
+    const char *args[] = {"env", "CDX_ENV_TEST"};
+    const char invalid_utf8[] = {(char)0xff, 0};
+    const char *invalid_names[] = {NULL, "", "bad=name", invalid_utf8};
+    cdx_env_entry entries[CDX_MAX_ENV + 1u];
+    char names[CDX_MAX_ENV][32], long_name[CDX_MAX_ENV_NAME + 2u], long_value[CDX_MAX_ENV_VALUE + 2u];
+    cdx_exec_request request = request_for(args, 2);
+    cdx_exec_result result;
+    size_t index;
+    request.env = entries; request.env_count = 1; entries[0].value = "value";
+    for (index = 0; index < sizeof(invalid_names) / sizeof(invalid_names[0]); ++index) {
+        entries[0].name = invalid_names[index];
+        record("invalid environment name rejects before spawn", cdx_execute(&request, &result) == CDX_VALIDATION_ERROR && result.pid == 0);
+        cdx_result_free(&result);
+    }
+    entries[0].name = "CDX_ENV_TEST"; entries[0].value = invalid_utf8;
+    record("invalid environment value UTF-8 rejects", cdx_execute(&request, &result) == CDX_VALIDATION_ERROR && result.pid == 0);
+    cdx_result_free(&result);
+    memset(long_name, 'x', CDX_MAX_ENV_NAME + 1u); long_name[CDX_MAX_ENV_NAME + 1u] = 0;
+    entries[0].name = long_name; entries[0].value = "value";
+    record("oversize environment name rejects", cdx_execute(&request, &result) == CDX_VALIDATION_ERROR && result.pid == 0);
+    cdx_result_free(&result);
+    memset(long_value, 'x', CDX_MAX_ENV_VALUE + 1u); long_value[CDX_MAX_ENV_VALUE + 1u] = 0;
+    entries[0].name = "CDX_ENV_TEST"; entries[0].value = long_value;
+    record("oversize environment value rejects", cdx_execute(&request, &result) == CDX_VALIDATION_ERROR && result.pid == 0);
+    cdx_result_free(&result);
+    entries[0].value = "one"; entries[1].name = "CDX_ENV_TEST"; entries[1].value = "two"; request.env_count = 2;
+    record("duplicate environment names reject", cdx_execute(&request, &result) == CDX_VALIDATION_ERROR && result.pid == 0);
+    cdx_result_free(&result);
+    entries[1].name = "cdx_env_test"; args[1] = "cdx_env_test";
+    check_environment("POSIX differently cased overrides coexist", &request, "two");
+    request.env_count = CDX_MAX_ENV + 1u;
+    record("environment count bound rejects", cdx_execute(&request, &result) == CDX_VALIDATION_ERROR && result.pid == 0);
+    cdx_result_free(&result);
+    request.env_count = 1; request.env = NULL;
+    record("missing environment array rejects", cdx_execute(&request, &result) == CDX_VALIDATION_ERROR && result.pid == 0);
+    cdx_result_free(&result);
+    for (index = 0; index < CDX_MAX_ENV; ++index) {
+        (void)snprintf(names[index], sizeof(names[index]), "CDX_ENV_BOUND_%zu", index);
+        entries[index].name = names[index]; entries[index].value = "value";
+    }
+    request.env = entries; request.env_count = CDX_MAX_ENV; args[1] = names[CDX_MAX_ENV - 1u];
+    check_environment("maximum environment override count", &request, "value");
+}
+
+typedef struct environment_case {
+    cdx_exec_request request;
+    cdx_exec_result result;
+} environment_case;
+
+static void *run_environment(void *raw) {
+    environment_case *test = (environment_case *)raw;
+    cdx_execute(&test->request, &test->result);
+    return NULL;
+}
+
+static void test_parallel_environment(void) {
+    const char *args[] = {"env", "CDX_ENV_PARALLEL"};
+    cdx_env_entry first_env = {"CDX_ENV_PARALLEL", "first"}, second_env = {"CDX_ENV_PARALLEL", "second"};
+    environment_case first, second;
+    pthread_t threads[2];
+    first.request = request_for(args, 2); first.request.env = &first_env; first.request.env_count = 1;
+    second.request = request_for(args, 2); second.request.env = &second_env; second.request.env_count = 1;
+    if (pthread_create(&threads[0], NULL, run_environment, &first) != 0) { record("parallel environment setup", 0); return; }
+    if (pthread_create(&threads[1], NULL, run_environment, &second) != 0) {
+        (void)pthread_join(threads[0], NULL); cdx_result_free(&first.result); record("parallel environment setup", 0); return;
+    }
+    (void)pthread_join(threads[0], NULL); (void)pthread_join(threads[1], NULL);
+    record("parallel child environment isolation", first.result.status == CDX_COMPLETED && second.result.status == CDX_COMPLETED &&
+        first.result.cleanup_complete && second.result.cleanup_complete && first.result.stdout_bytes.size == 5u && second.result.stdout_bytes.size == 6u &&
+        memcmp(first.result.stdout_bytes.data, "first", 5u) == 0 && memcmp(second.result.stdout_bytes.data, "second", 6u) == 0);
+    cdx_result_free(&first.result); cdx_result_free(&second.result);
+}
+
 int main(int argc, char **argv) {
     int pilot = argc == 3 && strcmp(argv[2], "--pilot") == 0;
     alarm(30u);
@@ -150,7 +264,8 @@ int main(int argc, char **argv) {
     memcpy(fixture, argv[1], strlen(argv[1]) + 1u);
     printf("owner_pid=%ld\n", (long)getpid());
     test_argv();
-    if (!pilot) { test_statuses(); test_stdin_and_limit(); test_cancel_timeout(); test_validation_and_group(); test_review_regressions(); }
+    test_environment(pilot);
+    if (!pilot) { test_statuses(); test_stdin_and_limit(); test_cancel_timeout(); test_validation_and_group(); test_review_regressions(); test_environment_validation(); test_parallel_environment(); }
     printf("{\"status\":\"%s\",\"passed\":%u,\"total\":%u}\n", passed == total ? "PASS" : "FAIL", passed, total);
     return passed == total ? 0 : 1;
 }

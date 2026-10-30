@@ -15,8 +15,8 @@
 
 - `cordonix-0.1.0-dev-win-x64.zip`，包含可执行文件、Apache-2.0 许可证、README、打包说明、安装/更新说明、可复制 AI 提示词、配置示例和三份元数据。
 - `*.manifest.json`，记录 17 个输入文件的大小和 SHA-256，包含请求示例、安装/更新说明以及 Windows/Linux 安装脚本。`format_version: 1` 是本脚本的格式版本，不引用不存在的外部 schema。
-- `*.provenance.json`，记录打包时 checkout 的 Git revision、dirty 状态、输入二进制 SHA-256 和实际版本。`binary_build_revision: UNKNOWN` 明确表示没有证明二进制来自这一 revision。
-- `*.spdx.json`，SPDX 2.3 文件清单，包括 payload、manifest 和 provenance 共 19 个文件、`DESCRIBES`/`CONTAINS` 关系、基于排序后的文件 SHA-1 计算的 package verification code，以及绑定内容 SHA-256 的文档 namespace。SBOM 自身列为 verification code 的排除项，避免自引用哈希。
+- `*.provenance.json`，记录打包时 checkout 的 Git revision、dirty 状态、输入二进制 SHA-256 和实际版本。`binary_build_revision` 与 `binary_build_dirty` 从实际程序的 `tool_info` 回读，构建脚本在编译时嵌入 Git revision 和工作树状态。正式 Release 要求编译与打包 revision 相同且二者均干净；这不是签名构建证明。
+- `*.spdx.json`，SPDX 2.3 文件清单，包括 payload、manifest 和 provenance 共 20 个文件、`DESCRIBES`/`CONTAINS` 关系、基于排序后的文件 SHA-1 计算的 package verification code，以及绑定内容 SHA-256 的文档 namespace。SBOM 自身列为 verification code 的排除项，避免自引用哈希。
 - `*.zip.sha256`，外层 ZIP 的 SHA-256。
 
 ZIP 的 20 个条目使用固定排序、1980-01-01 时间和无压缩存储。同一文件内容、Git 状态及脚本参数可产生相同 ZIP；这不声称重新编译的二进制可复现。`-SourceDateEpoch` 控制元数据日期，默认值为 0。

@@ -45,6 +45,7 @@ jobs:
     env:
       CDX_VERSION: ${{ needs.version.outputs.version }}
       SOURCE_DATE_EPOCH: '0'
+      CDX_REQUIRE_CLEAN_BUILD: '1'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,6 +56,12 @@ jobs:
       - name: Verify Windows package
         shell: pwsh
         run: ./eng/test-package.ps1 -Version $env:CDX_VERSION
+      - name: Validate official SPDX 2.3 schema
+        shell: pwsh
+        run: ./eng/test-spdx.ps1 -Path "build/packaging/cordonix-$env:CDX_VERSION-win-x64.spdx.json"
+      - name: Verify compiler reproducibility in this environment
+        shell: pwsh
+        run: ./eng/test-build-reproducibility.ps1
       - name: Verify Windows installation and updates
         shell: pwsh
         run: ./eng/test-install-windows.ps1
@@ -77,6 +84,7 @@ jobs:
     env:
       CDX_VERSION: ${{ needs.version.outputs.version }}
       SOURCE_DATE_EPOCH: '0'
+      CDX_REQUIRE_CLEAN_BUILD: '1'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -84,9 +92,17 @@ jobs:
       - name: Run Linux C11 gate
         shell: bash
         run: timeout --kill-after=10s 300s sh eng/test-linux.sh
+      - name: Require the real Linux ripgrep adapter
+        run: timeout --kill-after=5s 85s sh eng/test-adapters-linux.sh
       - name: Build Linux release package
         shell: bash
         run: sh eng/test-package-linux.sh "$CDX_VERSION"
+      - name: Validate official SPDX 2.3 schema
+        shell: pwsh
+        run: ./eng/test-spdx.ps1 -Path "build/packaging/cordonix-$env:CDX_VERSION-linux-x64.sbom.spdx.json"
+      - name: Verify compiler reproducibility in this environment
+        shell: pwsh
+        run: ./eng/test-build-reproducibility.ps1
       - name: Verify Linux installation and updates
         shell: bash
         run: sh eng/test-install-linux.sh
