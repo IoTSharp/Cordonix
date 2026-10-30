@@ -12,6 +12,9 @@ jobs:
       CDX_VERSION: '0.0.1'
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare pinned external ripgrep
+        shell: pwsh
+        run: ./eng/prepare-ripgrep.ps1 -Destination "$env:RUNNER_TEMP/cordonix-ripgrep-15.2.0"
       - name: Compile C11 and exercise native processes, encodings and MCP
         shell: cmd
         run: eng\test.cmd
@@ -39,6 +42,9 @@ jobs:
       CDX_VERSION: '0.0.1'
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare pinned external ripgrep
+        shell: pwsh
+        run: ./eng/prepare-ripgrep.ps1 -Destination "$env:RUNNER_TEMP/cordonix-ripgrep-15.2.0"
       - name: Compile C11 and exercise POSIX processes, encodings and MCP
         run: timeout --kill-after=5s 300s sh eng/test-linux.sh
       - name: Require the real Linux ripgrep adapter

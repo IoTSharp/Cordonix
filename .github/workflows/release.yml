@@ -50,7 +50,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
-      - name: Run Windows C11 gate
+      - name: Prepare pinned external ripgrep on Windows
+        shell: pwsh
+        run: ./eng/prepare-ripgrep.ps1 -Destination "$env:RUNNER_TEMP/cordonix-ripgrep-15.2.0"
+      - name: Compile and test Windows C11
         shell: cmd
         run: eng\test.cmd
       - name: Verify Windows package
@@ -89,7 +92,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
-      - name: Run Linux C11 gate
+      - name: Prepare pinned external ripgrep on Linux
+        shell: pwsh
+        run: ./eng/prepare-ripgrep.ps1 -Destination "$env:RUNNER_TEMP/cordonix-ripgrep-15.2.0"
+      - name: Compile and test Linux C11
         shell: bash
         run: timeout --kill-after=10s 300s sh eng/test-linux.sh
       - name: Require the real Linux ripgrep adapter
