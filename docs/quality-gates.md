@@ -2,6 +2,8 @@
 
 ## Successor evidence, 2026-10-30
 
+Latest update: exact-head CI `40998386056` on `35350ce` is **PASS in every step**. Windows is **284** and complete Linux is **276**, including Linux rg 29/29. Pinned rg 15.2.0 is installed in CI/WSL with reviewed upstream hashes. Both natural hourly schedulers and their cleanup are PASS (Windows 3601 seconds; Linux monotonic 3641.826 seconds, with host suspend recorded). Native Linux Codex 0.162.0 starts; model authentication is still absent. Earlier NOT_RUN statements below describe the preceding observations.
+
 The latest integration has **284 Windows checks** and **264 local Linux checks**. Windows process/MCP/adapters are 35/96/26; Linux process/MCP/Git-adapter scope is 39/100/17. Linux rg is NOT_RUN locally because it is absent; CI requires the full external-rg gate. The earlier counts below remain historical boundaries.
 
 Current independent official Python SDK acceptance is 12/12. Independent adapter CLI/MCP acceptance is Windows 12/12 and Linux Git 9/9. Linux adoption is 44/44 across ext4/tmpfs/9p and 60 rounds over 600.004 seconds, including actual SIGKILL before commit and unchanged disk bytes. ACL/xattr remain NOT_SUPPORTED. A fresh Linux Codex client cannot run because its native optional package is missing.

@@ -4,6 +4,12 @@ Date: 2026-10-30 Asia/Shanghai
 
 ## Successor implementation and current evidence
 
+Latest delivery update: implementation `8ee549a`, CI provisioning `ea91bb0` and fast-exit audit fix `35350ce` are pushed to GitHub/Gitee. Every step of exact-head CI [40998386056](https://github.com/IoTSharp/Cordonix/actions/runs/40998386056) passed, including both complete rg/Git gates, packaging, official SPDX, compiler reproducibility and installers. Linux full native total is **276**; Windows **284**.
+
+Both real hourly schedulers are now PASS and removed. Windows actual interval was 3601 seconds. Linux naturally ran again at 11:17:49 Asia/Shanghai; its monotonic interval was 3641.826 seconds, with host suspend recorded separately from the longer wall-clock interval. Product disable and task/install cleanup passed. No default persistent update task was enabled.
+
+The user explicitly approved pinned rg 15.2.0 in CI and WSL plus official Codex CLI 0.162.0 in an isolated WSL user prefix. Linux rg passes 29/29; native Codex starts successfully, but its login status is Not logged in. No credentials or HOME/CODEX_HOME were modified. Signing identity remains unavailable; title rendering and model-backed Linux Codex remain separate. Release 0.0.3 is being prepared from the verified source without changing earlier tags/assets.
+
 - Intake was clean at `61eb8f2537332e4decb6104e4da2af469c11b6c1`; both remotes and every step of exact-commit CI run `40986467787` were independently confirmed PASS. This supersedes earlier remote NOT_RUN notes for that commit.
 - Three new workers implemented environment overlays, structured external adapters and Linux acceptance, with disjoint sources/output directories. The supervisor integrated shared protocol/build/CI and independently reviewed results. The user additionally authorized integration of the concurrent execution-boundary feedback; that chat has been asked to stop writes.
 - Final feature integration currently passes Windows **284** checks (35 process, 36 documents, 20 create, 46 JSON, 25 edges, 96 MCP, 26 adapters) and local Linux **264** (39, 42, 20, 46, 100 MCP, 17 Git adapters). Local Ubuntu has no native rg, so the additional Linux rg gate remains NOT_RUN locally and required in CI. MSVC /analyze and Linux ASan/UBSan/leak checks passed for environment and adapter code.

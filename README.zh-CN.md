@@ -35,8 +35,8 @@ Git、ripgrep、编译器和 Codex 的 `apply_patch` 仍是配套工具。Cordon
 | Windows 进程核心 | 本地 35 项检查通过，包含子进程环境隔离 | 更广泛应用和长时间负载仍需验证 |
 | 编码与内存文档核心 | 36 项核心检查与 25 项编码/接线边界检查通过 | 外部工具读取磁盘，看不到未提交的内存修改 |
 | CLI 与 MCP | 17 个带可读标题的原生工具；Windows 96 项、Linux 100 项真实 stdio 检查，以及 12 项当前官方 Python SDK 检查 | 先前 Windows SDK/Codex 证据与本次修改树分开；Codex 是否显示新标题待验证 |
-| 新文本文件 | 两平台各 20 项原生检查，以及 8 项共享 MCP 检查 | 尚未发布；已有路径不覆盖，父目录必须存在 |
-| Linux | WSL Ubuntu 下 264 项本地检查（含 Git 适配器）；独立客户端 44/44，覆盖 ext4/tmpfs/9p 以及 60 轮、600 秒有限长稳 | 本机 Linux rg 未安装，Linux Codex 缺原生包；ACL/xattr 不支持，多发行版和更长时段仍单独验收 |
+| 新文本文件 | 两平台各 20 项原生检查，以及 8 项共享 MCP 检查 | 已有路径不覆盖，父目录必须存在 |
+| Linux | WSL Ubuntu 下 276 项完整检查（含 Git/rg 适配器）；独立客户端 44/44，覆盖 ext4/tmpfs/9p 以及 60 轮、600 秒有限长稳 | 原生 rg 与 Codex CLI 已安装；Linux Codex 模型调用仍需认证。ACL/xattr 不支持，多发行版和更长时段仍单独验收 |
 | Windows/Linux 便携包 | ZIP/tar.gz、校验和、checkout 来源、SPDX 文件清单与解压运行门禁；v0.0.1 已在两端发布并核对全部附件 | 包未签名；官方 SPDX schema 已验证，构建 revision/dirty 从实际二进制回读；这些不是签名构建证明 |
 
 上述结果是本地验证，不是性能基准，也不代表不会发生错误。各项验收边界见[质量门禁](docs/quality-gates.md)。
@@ -96,7 +96,7 @@ workspace_open -> workspace_read / workspace_search
 
 ## 创建新文本文件
 
-尚未发布的 `create_file` 会立即创建一个新文件。传入绝对字面路径 `path`、UTF-8 文本 `content` 和可选 `encoding`（默认 `utf-8`）。支持 UTF-8、UTF-8 BOM、带 BOM 的 UTF-16LE/BE，以及 CP936/GBK；拒绝 `auto`。允许空文件；NUL、非法 UTF-8 或目标编码无法表示的字符在写入前拒绝。C API 的输入 UTF-8 与编码后字节均最多 8 MiB，CLI/MCP 还受现有 JSON 帧大小限制。
+`create_file` 会立即创建一个新文件。传入绝对字面路径 `path`、UTF-8 文本 `content` 和可选 `encoding`（默认 `utf-8`）。支持 UTF-8、UTF-8 BOM、带 BOM 的 UTF-16LE/BE，以及 CP936/GBK；拒绝 `auto`。允许空文件；NUL、非法 UTF-8 或目标编码无法表示的字符在写入前拒绝。C API 的输入 UTF-8 与编码后字节均最多 8 MiB，CLI/MCP 还受现有 JSON 帧大小限制。
 
 ```json
 {"operation":"create_file","arguments":{"path":"D:\\project\\new.txt","content":"中文\r\n","encoding":"cp936"}}

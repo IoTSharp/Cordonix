@@ -28,6 +28,8 @@ Each row retains source, local native/MCP, remote CI, package, actual installati
 
 ## Implemented and locally accepted
 
+Latest state: full Windows 284 / Linux 276 and every step of remote CI `40998386056` on `35350ce` PASS. Both natural hourly recurrences and cleanup PASS. Linux rg 15.2.0 and native Codex CLI 0.162.0 are installed under the explicitly approved user prefix; full rg 29/29 PASS. Model-backed Linux Codex remains blocked by missing authentication. The original intake table above is historical; these later outcomes supersede its implementation and scheduler NOT_RUN rows.
+
 - CDX-09B2: Windows 35 and Linux 39 process checks; 11 shared environment MCP checks; /analyze and ASan/UBSan/leaks PASS. Parent environment and simultaneous children stay isolated.
 - CDX-09B3: Windows 26 and Linux Git 17 native adapter checks; actual CLI/MCP Windows 12 and Linux Git 9. Local Linux rg NOT_RUN; CI requires it. Official Python SDK passes 12 new-runtime workflows.
 - CDX-07D/GAP-04: independent client 44/44, ext4/tmpfs/9p and 60 rounds over 600.004 seconds. Actual SIGKILL of dirty memory leaves original disk bytes. ACL/xattr remain NOT_SUPPORTED; native Linux Codex package is absent.

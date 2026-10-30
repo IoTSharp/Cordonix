@@ -1,6 +1,6 @@
 # Cordonix Changelog
 
-## Unreleased
+## 0.0.3 - 2026-10-30
 
 - Added per-child environment overrides, including deletion and empty values, without mutating the parent. Real process checks cover Unicode, platform name matching and simultaneous child isolation.
 - Added parsed external ripgrep JSON and Git porcelain v2 NUL adapters, with raw byte preservation, rename paths and distinct no-match/failure/limit states.

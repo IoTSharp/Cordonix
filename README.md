@@ -35,8 +35,8 @@ Cordonix is a development MVP. Windows has first-party Codex usage evidence; Lin
 | Windows process core | 35 checks passed locally, including isolated child environments | Broader application and long-running workload coverage continues |
 | Encoding and memory document core | 36 core checks plus 25 integration/encoding edge checks passed locally | External tools read disk; they do not see uncommitted memory revisions |
 | CLI and MCP | Seventeen native tools; 96 Windows and 100 Linux real stdio checks; 12 current official Python SDK checks | Actual installed-client adoption and Codex UI title rendering have separate gates |
-| New text files | 20 native checks on each platform plus eight shared MCP checks | Unreleased; existing paths are never overwritten and parent directories must exist |
-| Linux | 264 local checks including Git adapters; independent MCP client 44/44 across ext4/tmpfs/9p and 60 rounds over 600 seconds | Local Linux rg is NOT_RUN; Linux Codex lacks its native binary. Other distributions and longer soak are separate |
+| New text files | 20 native checks on each platform plus eight shared MCP checks | Existing paths are never overwritten and parent directories must exist |
+| Linux | 276 checks including full Git/rg adapters; independent MCP client 44/44 across ext4/tmpfs/9p and 60 rounds over 600 seconds | Native rg and Codex CLI are installed; model-backed Linux Codex calls still need authentication. Other distributions and longer soak are separate |
 | Windows/Linux portable packages | ZIP/tar.gz, checksums, embedded build revision/dirty readback, official SPDX schema validation | Unsigned packages; build metadata is not a signed attestation. Published v0.0.1/v0.0.2 remain immutable |
 
 These are local validation results, not performance benchmarks or a zero-error guarantee. See [quality gates](docs/quality-gates.md) for the separate acceptance boundaries.
@@ -98,7 +98,7 @@ Both adapters accept `timeout_ms` (1–60000, default 30000), `output_limit_byte
 
 ## Create a new text file
 
-The unreleased `create_file` operation writes one new file immediately. Supply an absolute literal `path`, a UTF-8 `content` string and optional `encoding` (default `utf-8`). Supported encodings are UTF-8, UTF-8 BOM, UTF-16LE/BE BOM and CP936/GBK; `auto` is rejected. Empty content is valid. NUL, invalid UTF-8 and characters the chosen encoding cannot represent are rejected before writing. The C API caps both input and encoded output at 8 MiB; CLI/MCP requests also obey the existing JSON frame limit.
+The `create_file` operation writes one new file immediately. Supply an absolute literal `path`, a UTF-8 `content` string and optional `encoding` (default `utf-8`). Supported encodings are UTF-8, UTF-8 BOM, UTF-16LE/BE BOM and CP936/GBK; `auto` is rejected. Empty content is valid. NUL, invalid UTF-8 and characters the chosen encoding cannot represent are rejected before writing. The C API caps both input and encoded output at 8 MiB; CLI/MCP requests also obey the existing JSON frame limit.
 
 ```json
 {"operation":"create_file","arguments":{"path":"D:\\project\\new.txt","content":"中文\r\n","encoding":"cp936"}}

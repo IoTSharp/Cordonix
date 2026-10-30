@@ -30,8 +30,8 @@ The process and document agents own disjoint platform sources. The packaging age
 |---|---|---|---|
 | CDX-07A | POSIX process backend and native fixtures | ✅ local gate passed | 16 real process checks; cleanup is limited to the created group and incomplete observations remain explicit |
 | CDX-07B | POSIX documents and shared edit core | ✅ local gate passed | 42 file checks, ASan/UBSan/leak detection, four SHA-256 known vectors |
-| CDX-07C | Linux CLI/MCP, builds and final integration | ✅ local gate passed | Current tree: Linux 264/264 (Git adapter scope, rg NOT_RUN locally) and Windows 284/284; real stdio cancellation/EOF/output blocking/SIGTERM and readable titles |
-| CDX-07D | Independent Linux adoption and filesystem metadata | 🟡 independent client and bounded soak PASS | 44 checks across ext4/tmpfs/9p; 60 rounds over 600 seconds; crash-before-commit discards memory. ACL/xattr NOT_SUPPORTED; native Linux Codex package missing; other distributions NOT_RUN |
+| CDX-07C | Linux CLI/MCP, builds and final integration | ✅ local gate passed | Current tree: Linux 276/276 (full Git/rg) and Windows 284/284; real stdio cancellation/EOF/output blocking/SIGTERM and readable titles |
+| CDX-07D | Independent Linux adoption and filesystem metadata | 🟡 independent client and bounded soak PASS | 44 checks across ext4/tmpfs/9p; 60 rounds over 600 seconds; crash-before-commit discards memory. ACL/xattr NOT_SUPPORTED; native Linux Codex installed, model authentication missing; other distributions NOT_RUN |
 | CDX-08A | Windows/Linux portable packages | ✅ local gate passed | Identical Windows ZIP from two runs plus Linux tar.gz, SHA-256 metadata, install/update docs and runtime readback |
 | CDX-08B | Tagged dual-platform releases | ✅ v0.0.2 full workflow PASS | Windows/Linux gates, GitHub release, original Gitee tag mirror and Gitee release all PASS; ten identical assets downloaded from each source for both versions |
 | CDX-08C | Release signing | 🟡 external identity missing | No configured Git signing key or Windows code-signing certificate was found. Independent signature verification NOT_RUN; checksums, schema and embedded provenance do not close this gate |
@@ -47,9 +47,9 @@ The process and document agents own disjoint platform sources. The packaging age
 
 ## Next item
 
-CDX-09B2 (child environments) passes Windows 35 / Linux 39 process checks and 11 shared MCP checks. CDX-09B3 (external adapters) passes Windows 26 / Linux Git 17 native checks; Linux full rg remains a required CI gate. Official Python SDK acceptance passes 12 workflows. Compiler reproducibility and SPDX schema have their own gates; they do not establish a signing identity.
+CDX-09B2 (child environments) passes Windows 35 / Linux 39 process checks and 11 shared MCP checks. CDX-09B3 (external adapters) passes Windows 26 / Linux Git 17 native checks; Linux full rg passes 29 checks locally and in required CI. Official Python SDK acceptance passes 12 workflows. Compiler reproducibility and SPDX schema have their own gates; they do not establish a signing identity.
 
-CDX-09B source gates are complete. Finish exact-commit remote CI, new-version release/readback and installed Codex adoption. Both isolated schedulers have naturally completed their first invocation; true hourly recurrence is still observed under finite bounds. The Linux observation records a host suspend that delays monotonic time. Signing identity, native Linux Codex installation, UI title rendering and other distributions retain separate gates. See [the complete acceptance ledger](docs/successor-acceptance.md). Published v0.0.1/v0.0.2 tags and assets are immutable.
+CDX-09B source gates are complete. Finish exact-commit remote CI, new-version release/readback and installed Codex adoption. Both isolated schedulers have naturally completed hourly recurrence and task cleanup. The Linux observation records a host suspend that delays monotonic time. Signing identity, Linux Codex model authentication, UI title rendering and other distributions retain separate gates. See [the complete acceptance ledger](docs/successor-acceptance.md). Published v0.0.1/v0.0.2 tags and assets are immutable.
 
 ## Capability gaps
 
