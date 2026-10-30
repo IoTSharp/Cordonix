@@ -61,12 +61,17 @@ function Invoke-PackageProgram {
     $started = $false
     $record = $null
     try {
+        $requestedUtc = [DateTime]::UtcNow
         $started = $process.Start()
         if (-not $started) { throw "Could not start '$Executable'." }
+        $childStarted = $process.StartTime
+        $parentStarted = (Get-Process -Id $PID).StartTime
         $record = [ordered]@{
-            pid = $process.Id; started_utc = $process.StartTime.ToUniversalTime().ToString('o')
+            pid = $process.Id; requested_utc = $requestedUtc.ToString('o')
+            started_utc = if ($null -ne $childStarted) { $childStarted.ToUniversalTime().ToString('o') } else { $null }
+            creation_time_observed = ($null -ne $childStarted)
             program = $Executable; args = $Arguments; cwd = $WorkingDirectory
-            parent_pid = $PID; parent_started_utc = (Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o')
+            parent_pid = $PID; parent_started_utc = if ($null -ne $parentStarted) { $parentStarted.ToUniversalTime().ToString('o') } else { $null }
             state = 'running'; cleanup_complete = $false
         }
         [IO.File]::AppendAllText($AuditPath, (($record | ConvertTo-Json -Depth 5 -Compress) + "`n"))
