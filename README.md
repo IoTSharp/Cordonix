@@ -1,5 +1,8 @@
 # Cordonix
 
+Verified release: [v0.0.4](https://github.com/IoTSharp/Cordonix/releases/tag/v0.0.4) includes signed artifact provenance. Both release hosts expose identical assets, independent signature/tamper checks pass, and actual Windows/Linux Codex clients exercise all 17 released tools after installation and upgrade. See the [acceptance ledger](docs/successor-acceptance.md) for exact gates and remaining limits; later local process-query work is a separate development boundary.
+
+
 **A native execution and memory workspace for AI coding agents.**
 
 [![Windows checks](https://github.com/IoTSharp/Cordonix/actions/workflows/ci.yml/badge.svg)](https://github.com/IoTSharp/Cordonix/actions/workflows/ci.yml)

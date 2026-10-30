@@ -1,5 +1,8 @@
 # Cordonix
 
+已验收发行版：[v0.0.4](https://github.com/IoTSharp/Cordonix/releases/tag/v0.0.4)。两端附件一致，签名与篡改负例验证通过；Windows/Linux 实际安装升级后，原生 Codex 客户端均调用了全部 17 个已发布工具。各门禁与未覆盖边界见[验收清单](docs/successor-acceptance.md)；后续本地进程查询开发另行记录。
+
+
 **面向 AI 编程代理的原生执行与内存工作区。**
 
 [![Windows 检查](https://github.com/IoTSharp/Cordonix/actions/workflows/ci.yml/badge.svg)](https://github.com/IoTSharp/Cordonix/actions/workflows/ci.yml)

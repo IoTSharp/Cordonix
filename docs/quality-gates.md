@@ -1,5 +1,7 @@
 # Cordonix Quality Gates
 
+Final released boundary: **v0.0.4**, source `34115ba52cf15c465a92516e9cc9aa284840c65a`. Release CI `41002515571` passed all steps, including OIDC attestation and both publishers. Twelve product assets are SHA-identical between hosts. Four independent positive signature checks and four tampered-copy rejections PASS. Actual Windows/Linux 0.0.3-to-0.0.4 upgrades preserve old connections and binaries; each fresh native Codex client passes 12 workflows and calls all 17 released tools. Both real natural hourly scheduler recurrences and cleanup PASS. These final results supersede earlier pending observations below; [the ledger](successor-acceptance.md) retains each remaining limit.
+
 ## Successor evidence, 2026-10-30
 
 Latest update: exact-head CI `40998386056` on `35350ce` is **PASS in every step**. Windows is **284** and complete Linux is **276**, including Linux rg 29/29. Pinned rg 15.2.0 is installed in CI/WSL with reviewed upstream hashes. Both natural hourly schedulers and their cleanup are PASS (Windows 3601 seconds; Linux monotonic 3641.826 seconds, with host suspend recorded). Native Linux Codex 0.162.0 starts; model authentication is still absent. Earlier NOT_RUN statements below describe the preceding observations.

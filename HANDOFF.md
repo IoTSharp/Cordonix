@@ -1,5 +1,8 @@
 # Handoff
 
+Verified delivery closure (2026-10-30): v0.0.4 source `34115ba52cf15c465a92516e9cc9aa284840c65a`, signed release CI [41002515571](https://github.com/IoTSharp/Cordonix/actions/runs/41002515571), all jobs/steps PASS. Twelve assets match across GitHub/Gitee; four originals pass independent signature policy and four tampered copies fail. Windows/Linux actual upgrades preserve old 0.0.3 connections/binaries, and fresh native Codex clients pass 12/12 workflows calling all 17 released tools. Both natural hourly tasks and task cleanup PASS. Preserve the other chat's 18-tool `native-20261030` default configuration and uncommitted process-query changes; this delivery installs the signed release alongside it. See [the complete ledger](docs/successor-acceptance.md).
+
+
 Date: 2026-10-30 Asia/Shanghai
 
 ## Successor implementation and current evidence

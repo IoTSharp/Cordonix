@@ -1,5 +1,8 @@
 # Cordonix Roadmap
 
+Latest accepted release: **v0.0.4**. CDX-09B adapters, independent Linux/client and finite-soak gates, natural hourly scheduling, official SPDX, same-environment compiler reproducibility, signed release/readback and actual 0.0.3-to-0.0.4 upgrades have evidence. The [per-item acceptance ledger](docs/successor-acceptance.md) is the authoritative closure map. GAP-03 remains a deliberate transaction limit; GAP-04 discard is tested; physical IO/model tokens, GUI rendering, Authenticode and broader environments are not promoted beyond their evidence. New uncommitted process-query work has separate ownership.
+
+
 Baseline: 2026-10-30, Asia/Shanghai. IDs below are project planning IDs, not GitHub issues or pull requests.
 
 ## Completion standard

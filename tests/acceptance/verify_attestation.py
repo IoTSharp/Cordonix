@@ -171,11 +171,11 @@ def verification_arguments(artifact, bundle, sha, tag):
             "--cert-oidc-issuer", ISSUER, "--predicate-type", PREDICATE]
 
 
-def verify_command(gh, arguments, log_root, label, proxy, deadline, audits):
+def verify_command(gh, arguments, log_root, label, proxy, deadline, audits, proxy_first=False):
     result = None
     for attempt in range(2):
         result = invoke(gh, arguments, log_root, label + f"-{attempt + 1}",
-                        None if attempt == 0 else proxy, deadline, audits)
+                        proxy if proxy_first or attempt else None, deadline, audits)
         network_failure = result["timed_out"] or any(token in result["stderr"].lower() for token in NETWORK_ERRORS)
         if not network_failure or not proxy or attempt == 1:
             return result
@@ -219,7 +219,7 @@ def inspect_verified_output(output, artifact_name, sha256, source_sha, tag):
     return identities
 
 
-def verify_case(gh, assets, host, suffix, source_sha, tag, logs, temporary, proxy, deadline, audits):
+def verify_case(gh, assets, host, suffix, source_sha, tag, logs, temporary, proxy, deadline, audits, proxy_first=False):
     name = f"cordonix-{tag[1:]}-{suffix}"
     artifact = (assets / name).resolve(strict=True)
     bundle = (assets / (name + ".sigstore.json")).resolve(strict=True)
@@ -229,7 +229,7 @@ def verify_case(gh, assets, host, suffix, source_sha, tag, logs, temporary, prox
     bundle_sha = digest(bundle, deadline, 4 * 1024 * 1024)
     label = host + "-" + suffix.replace(".", "-")
     result = verify_command(gh, verification_arguments(artifact, bundle, source_sha, tag), logs,
-                            label + "-original", proxy, deadline, audits)
+                            label + "-original", proxy, deadline, audits, proxy_first)
     if result["exit_code"] != 0 or result["timed_out"]:
         raise ValueError(f"Original archive did not verify: {label}; see its verifier stderr")
     identities = inspect_verified_output(result["stdout"], name, archive_sha, source_sha, tag)
@@ -245,10 +245,13 @@ def verify_case(gh, assets, host, suffix, source_sha, tag, logs, temporary, prox
     if tampered_sha == archive_sha:
         raise AssertionError("Tampered copy unexpectedly has the original SHA")
     negative = verify_command(gh, verification_arguments(modified, bundle, source_sha, tag), logs,
-                              label + "-tampered", proxy, deadline, audits)
-    diagnostic = negative["stderr"].lower()
+                              label + "-tampered", proxy, deadline, audits, proxy_first)
+    diagnostic = (negative["stderr"] + negative["stdout"]).lower()
     mismatch = re.search(r"(digest.*(match|mismatch)|(match|mismatch).*digest|no matching subject|no subject found)", diagnostic)
-    if negative["exit_code"] in (None, 0) or negative["timed_out"] or not mismatch or any(token in diagnostic for token in NETWORK_ERRORS):
+    # gh 2.95's Sigstore wrapper drops the underlying Verify error. The bundle and
+    # exact policy have passed above; only the independently hashed artifact differs.
+    sigstore_rejection = diagnostic.strip() == 'error: verifying with issuer "sigstore.dev"'
+    if negative["exit_code"] in (None, 0) or negative["timed_out"] or not (mismatch or sigstore_rejection) or any(token in diagnostic for token in NETWORK_ERRORS):
         raise ValueError("Tamper fixture lacks a conclusive artifact-digest rejection")
     if digest(artifact, deadline) != archive_sha or digest(bundle, deadline, 4 * 1024 * 1024) != bundle_sha:
         raise AssertionError("Public readback asset changed during verification")
@@ -256,6 +259,7 @@ def verify_case(gh, assets, host, suffix, source_sha, tag, logs, temporary, prox
             "archive_sha256": archive_sha, "bundle_sha256": bundle_sha,
             "verified_identities": identities, "signature_verification": "PASS",
             "tamper_rejection": "PASS", "tampered_sha256": tampered_sha,
+            "tamper_diagnostic": "artifact_digest_mismatch" if mismatch else "sigstore_verifier_rejection_with_changed_artifact_digest",
             "tamper_exit_code": negative["exit_code"], "original_assets_unchanged": True}
 
 
@@ -272,6 +276,7 @@ def main():
     parser.add_argument("--source-sha")
     parser.add_argument("--tag", default="v0.0.4")
     parser.add_argument("--proxy", default="http://127.0.0.1:7890")
+    parser.add_argument("--proxy-first", action="store_true", help="Reuse an already required per-process network proxy")
     parser.add_argument("--check-tools", action="store_true")
     parser.add_argument("--pilot", action="store_true", help="Verify only the GitHub Windows archive and its tampered copy")
     args = parser.parse_args()
@@ -318,7 +323,7 @@ def main():
                 suffixes = ("win-x64.zip",) if args.pilot else ("win-x64.zip", "linux-x64.tar.gz")
                 for suffix in suffixes:
                     case = verify_case(gh, assets, host, suffix, args.source_sha, args.tag, logs,
-                                       temporary, args.proxy, deadline, receipt["processes"])
+                                       temporary, args.proxy, deadline, receipt["processes"], args.proxy_first)
                     receipt["cases"].append(case)
                     print(json.dumps({"status": case["status"], "host": host, "platform": suffix,
                                       "archive_sha256": case["archive_sha256"]}), flush=True)
