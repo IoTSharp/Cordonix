@@ -15,12 +15,15 @@ timeout --kill-after=2s 30s "$cc" $cflags "$version_define" tests/process/test_p
 timeout --kill-after=2s 30s "$cc" $cflags "$version_define" tests/protocol/test_json.c src/cdx-protocol/json.c -lm -o "$tests/cdx-json-tests"
 timeout --kill-after=2s 30s "$cc" $cflags "$version_define" tests/protocol/test_stdio.c src/cdx-protocol/json.c -lm -o "$tests/cdx-stdio-tests"
 timeout --kill-after=2s 30s "$cc" $cflags "$version_define" tests/workspace/test_document_posix.c src/cdx-workspace/document_common.c src/cdx-workspace/document_posix.c src/cdx-workspace/encoding_posix.c -o "$tests/cdx-document-tests"
+timeout --kill-after=2s 30s "$cc" $cflags "$version_define" tests/workspace/test_create_file.c src/cdx-workspace/create_file.c src/cdx-workspace/create_file_posix.c src/cdx-workspace/document_common.c src/cdx-workspace/document_posix.c src/cdx-workspace/encoding_posix.c src/cdx-core/filesystem.c src/cdx-core/filesystem_posix.c -o "$tests/cdx-create-file-tests"
 cd "$tests"
 timeout --kill-after=3s 60s ./cdx-process-tests "$tests/cdx-process-fixture" --pilot
 CDX_PILOT=1 timeout --kill-after=3s 30s ./cdx-document-tests "$tests"
+timeout --kill-after=3s 30s ./cdx-create-file-tests "$tests" --pilot
 timeout --kill-after=3s 15s ./cdx-json-tests --pilot
 timeout --kill-after=3s 15s ./cdx-stdio-tests "$root/build/linux/bin/cdx" "$tests/cdx-process-fixture" --pilot
 timeout --kill-after=3s 60s ./cdx-process-tests "$tests/cdx-process-fixture"
 timeout --kill-after=3s 60s ./cdx-document-tests "$tests"
+timeout --kill-after=3s 30s ./cdx-create-file-tests "$tests"
 timeout --kill-after=3s 15s ./cdx-json-tests
 timeout --kill-after=3s 75s ./cdx-stdio-tests "$root/build/linux/bin/cdx" "$tests/cdx-process-fixture"

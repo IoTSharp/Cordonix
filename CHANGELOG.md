@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added native `create_file` to CLI/MCP and the public C API: strict declared encoding, same-directory temporary writes, no replacement of existing paths, cancellation and explicit write/cleanup results.
+- Added 20 native create-file checks on each platform and eight shared real MCP checks; current native gates pass 225 Windows and 211 Linux checks.
+- Added a separate real ext4 MCP gate and CI step for invalid UTF-8 directory entries, owner/group/mode and external permission changes. ACL/xattr non-preservation remains explicit.
+- Verified real Windows Task Scheduler registration, one manually triggered hourly-update action, completion and removal in an isolated public-v0.0.2 installation (seven checks). Natural periodic firing and Linux scheduler registration remain separate.
+
 ## 0.0.2 - 2026-10-29
 
 - Published Windows x64 ZIP and Linux x64 tar.gz on GitHub and Gitee from `c41ab22` through a fully passing tagged workflow.

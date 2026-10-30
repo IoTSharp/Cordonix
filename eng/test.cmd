@@ -14,13 +14,19 @@ if errorlevel 1 exit /b %errorlevel%
 if not exist build\protocol mkdir build\protocol
 cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 %CDX_VERSION_DEFINE% /DUNICODE /D_UNICODE /Iinclude /Fobuild\protocol\ /Febuild\protocol\cdx-json-tests.exe tests\protocol\test_json.c src\cdx-protocol\json.c
 if errorlevel 1 exit /b %errorlevel%
-cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 %CDX_VERSION_DEFINE% /DUNICODE /D_UNICODE /Iinclude /Fobuild\protocol\ /Febuild\protocol\cdx-edge-tests.exe tests\workspace\test_edge_cases.c src\cdx-protocol\json.c src\cdx-protocol\operations.c src\cdx-workspace\document_common.c src\cdx-workspace\document_win32.c src\cdx-workspace\encoding_win32.c src\cdx-core\process_win32.c src\cdx-core\result.c src\cdx-core\filesystem.c src\cdx-core\filesystem_win32.c /link bcrypt.lib
+cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 %CDX_VERSION_DEFINE% /DUNICODE /D_UNICODE /Iinclude /Fobuild\workspace\ /Febuild\workspace\create-file-tests.exe tests\workspace\test_create_file.c src\cdx-workspace\create_file.c src\cdx-workspace\create_file_win32.c src\cdx-workspace\document_common.c src\cdx-workspace\document_win32.c src\cdx-workspace\encoding_win32.c src\cdx-core\filesystem.c src\cdx-core\filesystem_win32.c /link bcrypt.lib
+if errorlevel 1 exit /b %errorlevel%
+cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 %CDX_VERSION_DEFINE% /DUNICODE /D_UNICODE /Iinclude /Fobuild\protocol\ /Febuild\protocol\cdx-edge-tests.exe tests\workspace\test_edge_cases.c src\cdx-protocol\json.c src\cdx-protocol\operations.c src\cdx-workspace\document_common.c src\cdx-workspace\document_win32.c src\cdx-workspace\encoding_win32.c src\cdx-workspace\create_file.c src\cdx-workspace\create_file_win32.c src\cdx-core\process_win32.c src\cdx-core\result.c src\cdx-core\filesystem.c src\cdx-core\filesystem_win32.c /link bcrypt.lib
 if errorlevel 1 exit /b %errorlevel%
 cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 %CDX_VERSION_DEFINE% /DUNICODE /D_UNICODE /Iinclude /Fobuild\protocol\ /Febuild\protocol\cdx-stdio-tests.exe tests\protocol\test_stdio.c src\cdx-protocol\json.c
 if errorlevel 1 exit /b %errorlevel%
 build\process\cdx-process-tests.exe
 if errorlevel 1 exit /b %errorlevel%
 build\workspace\workspace-tests.exe "%cd%\build\workspace"
+if errorlevel 1 exit /b %errorlevel%
+build\workspace\create-file-tests.exe "%cd%\build\workspace" --pilot
+if errorlevel 1 exit /b %errorlevel%
+build\workspace\create-file-tests.exe "%cd%\build\workspace"
 if errorlevel 1 exit /b %errorlevel%
 build\protocol\cdx-json-tests.exe
 if errorlevel 1 exit /b %errorlevel%

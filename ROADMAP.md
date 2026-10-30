@@ -1,6 +1,6 @@
 # Cordonix Roadmap
 
-Baseline: 2026-10-29, Asia/Shanghai. IDs below are project planning IDs, not GitHub issues or pull requests.
+Baseline: 2026-10-30, Asia/Shanghai. IDs below are project planning IDs, not GitHub issues or pull requests.
 
 ## Completion standard
 
@@ -30,14 +30,15 @@ The process and document agents own disjoint platform sources. The packaging age
 |---|---|---|---|
 | CDX-07A | POSIX process backend and native fixtures | ✅ local gate passed | 16 real process checks; cleanup is limited to the created group and incomplete observations remain explicit |
 | CDX-07B | POSIX documents and shared edit core | ✅ local gate passed | 42 file checks, ASan/UBSan/leak detection, four SHA-256 known vectors |
-| CDX-07C | Linux CLI/MCP, builds and final integration | ✅ local gate passed | Linux 183/183 and Windows 197/197; real stdio cancellation/EOF/output blocking/SIGTERM and readable titles |
-| CDX-07D | Independent Linux adoption and filesystem metadata | ⬜ planned | Fresh Codex session, ext4 acceptance, ACL/xattr policy and broader workloads |
+| CDX-07C | Linux CLI/MCP, builds and final integration | ✅ local gate passed | Current tree: Linux 211/211 and Windows 225/225; real stdio cancellation/EOF/output blocking/SIGTERM and readable titles |
+| CDX-07D | Independent Linux adoption and filesystem metadata | 🟡 ext4 gate passed | Real ext4: 14 MCP checks and 42 document checks; ACL/xattr non-preservation observed explicitly. Fresh Linux Codex, preservation support and broader workloads remain open |
 | CDX-08A | Windows/Linux portable packages | ✅ local gate passed | Identical Windows ZIP from two runs plus Linux tar.gz, SHA-256 metadata, install/update docs and runtime readback |
 | CDX-08B | Tagged dual-platform releases | ✅ v0.0.2 full workflow PASS | Windows/Linux gates, GitHub release, original Gitee tag mirror and Gitee release all PASS; ten identical assets downloaded from each source for both versions |
 | CDX-08C | Release signing | ⬜ planned | Signing identity and independent signature verification; checksum verification does not close this gate |
-| CDX-08D | Installers and hourly user updates | ✅ implementation and upgrade gates PASS | Windows 12 and Linux 14 installer checks; real public Windows upgrade and 11 Linux published-package replay checks; persistent user scheduler registration remains separate |
+| CDX-08D | Installers and hourly user updates | ✅ implementation and isolated Windows scheduler PASS | Windows 12 and Linux 14 installer checks; published upgrade gates; seven real Windows register/run/disable checks. Natural hourly triggering and Linux user scheduling remain separate |
 | CDX-09A | Local execution and encoding-aware edit migration | ✅ local policy updated | Retired PowerShell execution skill; known GBK opens explicitly as CP936 before editing |
-| CDX-09B | Remaining Native Tools adapters | ⬜ planned | Evaluate create-file, environment overrides and parsed rg/Git adapters before retirement |
+| CDX-09B | Remaining Native Tools adapters | 🟡 file creation implemented locally | Environment overrides and parsed rg/Git remain; installed clients still need release/adoption before predecessor retirement |
+| CDX-09B1 | Native new-file creation | ✅ local gate passed, unreleased | Strict encoding, no overwrite, bounded cancellation, 20 native checks per platform plus eight shared MCP checks; Windows /analyze and Linux ASan/UBSan/leaks PASS |
 | CDX-09C | Native line-range reading | ✅ local gate passed | One-shot read_file and memory workspace_read line mode; 16 shared real MCP checks; unchanged-SHA comparisons for TableStore.cs Skip 950 / First 245 and encoding_posix.c First 100 |
 | CDX-09D | Native tail and complete-text reading | ✅ local gate passed | 14 shared MCP checks; real Tail 55 and Raw examples match PowerShell with unchanged source SHAs; over-budget complete reads fail explicitly |
 | CDX-09E | Native directory listing and path resolution | ✅ local gate passed | 12 shared MCP checks; hidden/system entries, limits, normalization and explicit missing paths; existing-directory comparison matches PowerShell |
@@ -45,7 +46,7 @@ The process and document agents own disjoint platform sources. The packaging age
 
 ## Next item
 
-Verify the published runtime in a fresh Codex app session, including whether the client displays MCP titles, and validate actual recurring user scheduling when enabling it on a target machine. CDX-07D, CDX-08C and CDX-09B retain their own acceptance evidence. Published v0.0.1/v0.0.2 tags and assets are immutable.
+Continue CDX-09B with per-child environment overrides, then evaluate parsed rg/Git adapters. The new-file slice is local and unreleased; fresh Codex adoption still uses the installed runtime and requires a separate check. Windows scheduling has isolated registration and manually triggered execution evidence, while natural hourly firing and Linux scheduling remain open. CDX-07D and signing retain separate gates. Published v0.0.1/v0.0.2 tags and assets are immutable.
 
 ## Capability gaps
 
@@ -56,5 +57,5 @@ Verify the published runtime in a fresh Codex app session, including whether the
 | GAP-03 | External writer during final replacement | Hash/identity checks prior changes; no filesystem compare-and-swap | maintainers | stronger transaction guarantees | 🟡 documented limitation; no speculative locking |
 | GAP-04 | Crash before memory commit | Uncommitted session data is discarded | maintainers | crash recovery | ⬜ no journal or implicit writes |
 | GAP-05 | Performance/token/physical-I/O claims | Measure fixed workloads first | maintainers | public performance claims | ⬜ not measured; logical counters only |
-| GAP-06 | File creation and execution environment overrides | Existing tools cover memory edits and inherited environments | maintainers | retirement of remaining adapters | ⬜ retain predecessors until each gap has a real gate |
+| GAP-06 | File creation and execution environment overrides | New-file creation passes locally; environment is still inherited | maintainers | retirement of remaining adapters | 🟡 create_file source gate closed; release/adoption and environment override gaps remain |
 | GAP-07 | Readable tool titles in Codex | tools/list includes title; UI selection belongs to the client | maintainers/client | dynamic per-call labels | 🟡 protocol title readback passes; fresh Codex rendering and dynamic labels UNKNOWN |

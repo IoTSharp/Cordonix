@@ -1,6 +1,6 @@
 # Handoff
 
-Date: 2026-10-29 Asia/Shanghai
+Date: 2026-10-30 Asia/Shanghai
 
 ## Current state
 
@@ -11,7 +11,32 @@ Date: 2026-10-29 Asia/Shanghai
 - The user authorized code/CI, both organization repositories, pushes and publication. GitHub origin and the Gitee remote both use `IoTSharp/Cordonix`; the public Gitee repository and GitHub `GITEE_TOKEN` Actions secret are configured. Do not print or persist the token.
 - The checkout was clean at intake. The process, document and packaging agents used disjoint source ownership; the supervising agent integrated shared protocol, gates and documentation.
 
-## Completed in this session
+## Current supervised continuation (2026-10-30)
+
+- Intake was clean at `1829a60` on `main`. Three workers covered Linux ext4 acceptance, remaining adapter gaps and actual Windows user scheduling; the supervisor owns protocol/build integration and documents. This batch is local and unreleased; no tag, release asset, installed runtime or Codex configuration was changed.
+- CDX-09B1 adds `create_file(path, content, encoding)` with UTF-8 default and explicit UTF-8/BOM, UTF-16LE/BE and CP936/GBK. Empty files work; parents must exist; existing files/directories/links are not overwritten. Shared strict encoding, SHA and path validation run before a same-directory temporary file is published. Memory document counters/slots are unchanged.
+- Creation returns separate `written_to_disk` and `cleanup_complete` flags. A publication followed by a cleanup/fsync failure can return `io_error` with `written_to_disk=true`; do not automatically retry. Linux new files use mode `0600`. Async MCP creation uses the existing worker and cancellation mechanism.
+- Final native gates: Windows `eng\test.cmd` **225/225 PASS** (15 process + 36 document + 20 create + 46 JSON + 25 edges + 83 stdio); Linux `eng/test-linux.sh` **211/211 PASS** (16 + 42 + 20 + 46 + 87). Pilot results are separate. Receipts: `build/supervision-20261030/windows-1.json`, `linux-1.json` and their logs.
+- Current `0.1.0-dev` portable packages also pass their existing gates: Windows deterministic ZIP/Unicode extraction/manifest/SPDX, Linux 115 checks. They are local development artifacts, not a new release. Combined invocation evidence: `build/supervision-20261030/package-receipts.json`; final main Linux binary also passes the ext4 gate (`ext4-final.json`).
+- Create-file-specific MSVC `/analyze` and Linux ASan/UBSan/leak detection passed; 20 native checks per platform and eight shared MCP checks exercise real bytes and no-overwrite behavior. Receipts: `build/supervision-20261030-adapters/`. Independent core review found no additional confirmed issue. Two test-only compile errors (C surrogate escaping, cancellation handle type) were fixed before the passing gates; initial evidence is retained.
+- CDX-07D: `eng/test-filesystem-linux.sh` passes 14 real MCP checks on actual ext4; existing document tests also pass all 42 checks on ext4. Invalid `0xff` names remain actual OS bytes and return `encoding_error`; owner/group/mode persist, mtime changes, external chmod causes `file_changed`. ACL/xattr are observed as **NOT_SUPPORTED**, not preservation PASS. The script has a pilot, finite request/read budgets, cancellation and cleanup; non-ext4 returns `NOT_RUN` / exit 77. It is wired into ordinary Linux CI; remote execution of this changed CI is NOT_RUN.
+- CDX-08D: seven checks registered the isolated task `CordonixUpdate-85951619F241` against public Gitee v0.0.2, verified PS7/current-user/least-privilege/PT1H/PT3M, manually triggered it at 2026-10-30 00:26:22 +08:00 and observed `LastTaskResult=0`. Product disable removed the task; independent checks found zero matching processes and no installation root. Evidence: `build/supervision-20261030-scheduler/`. Natural one-hour firing, persistent default installation and Linux real scheduler registration remain NOT_RUN. An initial XML assertion mistook omitted default `LeastPrivilege` for failure; COM `Principal.RunLevel=0` confirmed the setting, with the initial FAIL retained.
+- This Codex chat's connected MCP reports `0.1.0-dev` from the older installed tool surface. It does not establish new `create_file` adoption or v0.0.2 title rendering. Keep the predecessor adapters until the corresponding installed capability passes its own acceptance.
+- All three workers completed and closed their document sessions. Final Windows and Linux snapshots found no matching build/test processes; the ext4 fixture and isolated Windows scheduled task/install root were absent. Temporary supervisor scripts were deleted, with logs, receipts, analysis reports and development packages retained under ignored `build/`. Final audit: `build/supervision-20261030/cleanup.json`. At implementation close, this batch was uncommitted on `main` at `1829a60`; the user subsequently requested its commit/push and a new supervising conversation. Use current Git refs and the successor's initial prompt for the delivered revision.
+
+## Successor mandate (2026-10-30)
+
+The user requested: commit and push the verified batch, then create a new conversation that supervises multiple agents to finish all remaining items one by one. Continue from the delivered `main` in the canonical checkout. The new supervisor owns shared protocol/build/docs, Git integration and final gates; workers receive disjoint file ownership and bounded tasks. Do not stop after dispatch or equate a worker report with acceptance.
+
+1. Verify the handed-off commit, both remotes, working tree and exact-commit CI. Preserve all existing ignored receipts and unrelated state.
+2. Finish CDX-09B: per-child environment overrides, then structured rg/Git adapters. Each capability needs native and real CLI/MCP evidence before installed-client migration or predecessor retirement.
+3. Finish the remaining CDX-07D/CDX-08D acceptance: independent Linux/client use, declared metadata policy, wider bounded workloads, Linux user scheduler registration and natural recurring triggers. Preserve the distinction between ext4 PASS and ACL/xattr NOT_SUPPORTED, and between manually triggered execution and natural hourly firing.
+4. Work through CDX-08C signing, independent signature verification, package/provenance/SPDX gaps, new-version adoption and readable Codex titles. Reuse existing authorized tools and identities; a missing external identity, environment or client observation stays explicitly blocked/NOT_RUN while independent work continues. Never move published v0.0.1/v0.0.2 tags or replace their assets.
+5. Reconcile every remaining ROADMAP/GAP row with actual evidence. Deliberate limits such as lack of filesystem compare-and-swap or crash recovery must not be silently converted into speculative new designs. Keep local, remote CI, package, installed runtime and release completion separate; update bilingual docs and handoff as each supported item closes.
+
+Every delegated prompt must repeat finite iteration/item limits plus wall-clock deadlines, cancellation/backoff, PID/creation-time/argv/parent ownership and task-only cleanup. Use PowerShell 7 and typed execution; no broad compiler discovery, guessed PCCT, Graphify or process-name termination. The preceding agents have finished; the successor must start and supervise its own workers.
+
+## Previous release implementation (2026-10-29)
 
 - CDX-07A: Linux literal-argv execution, process groups, bounded streams, timeout/cancellation, closed-stdin handling and cleanup observation; 16 real process checks.
 - CDX-07B: shared document editing algorithm, Linux strict encoding/SHA implementation and explicit single-file commits; 42 real file checks, including sanitizer validation.
@@ -31,7 +56,7 @@ Date: 2026-10-29 Asia/Shanghai
 - Windows/Linux installers implement bootstrap, SHA and native version checks, stable launch entries, preserved previous versions, no downgrade and optional hourly user scheduling. Windows uses Task Scheduler COM and PowerShell 7; Linux uses Python 3.9+ standard library, GNU timeout and a user systemd timer.
 - v0.0.2 is published at `c41ab22295f0ffa6ee3b4365fe78ad09ebcecfb0`, annotated tag object `5c2d15affcb89d888f67ba5baeeeba3d9e6d77a3`. Both platforms expose identical original assets; do not move or rebuild either published tag.
 
-## Validation
+## Previous release validation (2026-10-29)
 
 - Final `eng\test.cmd`: PASS, exit 0, Windows 197/197 (15 process + 36 document + 46 JSON + 25 encoding/integration + 75 stdio).
 - Final `sh eng/test-linux.sh`: PASS, exit 0, Linux 183/183 (16 process + 42 document + 46 JSON + 79 stdio), WSL Ubuntu 24.04 / GCC 13.3.0.
@@ -49,7 +74,7 @@ Date: 2026-10-29 Asia/Shanghai
 ## Next order
 
 1. Published-release scope is complete. Preserve v0.0.1/v0.0.2 tags and assets; use a new SemVer tag for source/package changes.
-2. Verify the runtime in a fresh Codex app session, including whether the client displays MCP titles, and record recurring scheduler registration when installed on a target user machine. Keep CDX-07D, signing and CDX-09B adapter gaps separate.
+2. Continue CDX-09B with per-child environment overrides and then parsed rg/Git evaluation. Package/release/adopt the new-file capability before retiring its predecessor adapter. Fresh Codex title rendering, Linux scheduler registration, natural periodic triggers, wider Linux workloads and signing remain separate.
 3. Declare file encoding before editing. Known GBK uses explicit CP936; AUTO is BOM/strict UTF-8 interpretation, not GBK detection. Commit memory edits before external builds.
 
 ## Local integration changes and boundaries

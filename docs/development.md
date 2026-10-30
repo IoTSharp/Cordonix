@@ -22,7 +22,7 @@ This procedure is also the maintenance team's adoption gate. Production sources 
 
 ## Evidence and limits
 
-The current Windows gate passes 197 native checks (15 process, 36 document, 46 JSON, 25 document/protocol edges, 75 stdio). The Linux gate passes 183 (16 process, 42 document, 46 JSON, 79 stdio). Linux document tests also passed ASan/UBSan/leak detection. The earlier Windows baseline's 14 official-SDK workflows and fresh Codex usage are separate historical evidence; rerun independent client acceptance for the changed executable.
+The current Windows gate passes 225 native checks (15 process, 36 document, 20 create-file, 46 JSON, 25 document/protocol edges, 83 stdio). The Linux gate passes 211 (16 process, 42 document, 20 create-file, 46 JSON, 87 stdio). Create-file checks also passed MSVC static analysis and Linux ASan/UBSan/leak detection. A separate `sh eng/test-filesystem-linux.sh "$PWD/build/linux/bin/cdx"` gate passes 14 checks on actual ext4 and reports NOT_RUN/77 on other filesystems; it requires the existing Python 3 test runtime and `findmnt`. The earlier Windows baseline's 14 official-SDK workflows and fresh Codex usage are separate historical evidence; rerun independent client acceptance for the changed executable.
 
 Logical document loads and commits are counted in memory. They do not measure physical disk traffic: the OS has its own cache, commit validation rereads disk, and external tools perform their own IO. Measure physical IO, time and token usage before publishing percentage improvements.
 
@@ -42,7 +42,7 @@ The initial CLI request mode handles one operation. Persistent documents require
 
 MCP `tools/list` includes a human-readable `title` for every tool, following the [MCP tools specification](https://modelcontextprotocol.io/specification/2025-06-18/server/tools). The interface keeps stable machine identifiers and does not claim dynamic per-call titles. [Progress messages](https://modelcontextprotocol.io/specification/2025-06-18/basic/utilities/progress) are optional client-requested protocol notifications; Cordonix does not currently emit them.
 
-Prefer cdx for literal native execution and existing encoding-aware document edits. A saved PowerShell 7 script may be passed using `-File` and a literal argument array on Windows. Choose encoding before opening: known CP936/GBK must be explicit, and edits preserve BOM/EOL/encoding unless a conversion is requested. Keep existing adapters for capabilities that are still missing, such as file creation, environment overrides and parsed rg/Git views. Generic execution of a script is not proof that its work is a remote API call or a file creation.
+Prefer cdx for literal native execution and existing encoding-aware document edits. A saved PowerShell 7 script may be passed using `-File` and a literal argument array on Windows. Choose encoding before opening: known CP936/GBK must be explicit, and edits preserve BOM/EOL/encoding unless a conversion is requested. The unreleased `create_file` directly creates new text files with declared encoding and no overwrite. Keep predecessors where installed clients lack that operation, and for the remaining environment overrides and parsed rg/Git gaps. Generic execution of a script is not proof that its work is a remote API call or a native file creation.
 
 Windows portable packaging is described in [packaging.md](packaging.md). Its provenance records the checkout at packaging time and deliberately keeps binary build provenance UNKNOWN; identical ZIP inputs do not establish compiler reproducibility.
 

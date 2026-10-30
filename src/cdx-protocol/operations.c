@@ -1,6 +1,7 @@
 #include "cdx/operations.h"
 #include "cdx/process.h"
 #include "cdx/document.h"
+#include "cdx/create_file.h"
 #include "cdx/filesystem.h"
 #include "cdx/version.h"
 #include <math.h>
@@ -598,6 +599,33 @@ done:
     for (i = 0; i < count; ++i) free(normalized[i]);
 }
 
+static void create_file(const cdx_json *json, int arguments,
+                        cdx_cancel_handle cancellation, cdx_json_output *output) {
+    int valid = 1;
+    const char *path = string_arg(json, arguments, "path", NULL, &valid);
+    const char *content = string_arg(json, arguments, "content", NULL, &valid);
+    const char *name = string_arg(json, arguments, "encoding", "utf-8", &valid);
+    cdx_encoding encoding = encoding_arg(name, &valid);
+    cdx_path_char *native_path;
+    cdx_create_result result;
+    const char *status;
+    if (!valid || encoding == CDX_ENCODING_AUTO || !(native_path = native_text(path))) {
+        error_result(output, "validation_error", "Use path and content strings with an explicit encoding; auto is not supported");
+        return;
+    }
+    (void)cdx_create_file(native_path, content, strlen(content), encoding, cancellation, &result);
+    free(native_path);
+    status = cdx_create_status_name(result.status);
+    cdx_json_raw(output, "{\"status\":"); cdx_json_quote(output, status, strlen(status));
+    cdx_json_raw(output, ",\"written_to_disk\":"); cdx_json_raw(output, result.written_to_disk ? "true" : "false");
+    cdx_json_raw(output, ",\"cleanup_complete\":"); cdx_json_raw(output, result.cleanup_complete ? "true" : "false");
+    cdx_json_raw(output, ",\"bytes\":"); cdx_json_uint(output, result.bytes);
+    name = cdx_encoding_name(result.encoding);
+    cdx_json_raw(output, ",\"encoding\":"); cdx_json_quote(output, name, strlen(name));
+    cdx_json_raw(output, ",\"disk_sha256\":"); cdx_json_quote(output, result.disk_sha256, strlen(result.disk_sha256));
+    cdx_json_raw(output, "}");
+}
+
 static void query_filesystem(const cdx_json *json, int arguments, int list,
                              cdx_cancel_handle cancellation, cdx_json_output *output) {
     int valid = 1;
@@ -675,6 +703,7 @@ void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx
     }
     if (arguments < 0) { error_result(output, "validation_error", "arguments must be an object"); return; }
     if (!strcmp(operation, "execute_program")) { execute_program(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "create_file")) { create_file(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "workspace_open")) { open_document(request, arguments, output); return; }
     if (!strcmp(operation, "read_file")) { read_file(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "verify_encoding")) { verify_encoding(request, arguments, cancellation, output); return; }

@@ -35,6 +35,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Compile C11 and exercise POSIX processes, encodings and MCP
         run: timeout --kill-after=5s 300s sh eng/test-linux.sh
+      - name: Verify ext4 filenames and the documented metadata policy
+        run: timeout --kill-after=10s 75s sh eng/test-filesystem-linux.sh "$PWD/build/linux/bin/cdx" --receipt "$PWD/build/linux/filesystem.json"
       - name: Verify Linux package metadata and extracted executable
         run: sh eng/test-package-linux.sh
       - name: Verify installation, mirror fallback and update rollback

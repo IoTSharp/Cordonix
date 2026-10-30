@@ -34,8 +34,9 @@ Cordonix is a development MVP. Windows has first-party Codex usage evidence; Lin
 |---|---|---|
 | Windows process core | 15 checks passed locally | Broader application and long-running workload coverage continues |
 | Encoding and memory document core | 36 core checks plus 25 integration/encoding edge checks passed locally | External tools read disk; they do not see uncommitted memory revisions |
-| CLI and MCP | Fourteen native tools with readable titles; 75 Windows and 79 Linux real stdio checks | The earlier Windows SDK/Codex evidence is separate from this changed tree; new title rendering in Codex is unverified |
-| Linux | 16 process, 42 document, 46 JSON and 79 stdio checks passed in WSL Ubuntu | Independent Linux Codex use, ext4 semantics, ACL/xattr preservation and soak remain separate |
+| CLI and MCP | Fifteen native tools with readable titles; 83 Windows and 87 Linux real stdio checks | The earlier Windows SDK/Codex evidence is separate from this changed tree; new title rendering in Codex is unverified |
+| New text files | 20 native checks on each platform plus eight shared MCP checks | Unreleased; existing paths are never overwritten and parent directories must exist |
+| Linux | 211 native checks in WSL Ubuntu; 14 real ext4 MCP checks and 42 document checks on ext4 | Independent Linux Codex use, ACL/xattr preservation, other distributions and soak remain separate |
 | Windows/Linux portable packages | ZIP/tar.gz, checksums, checkout provenance, SPDX inventory and extracted runtime gates; v0.0.1 published on both hosts with identical assets | Unsigned packages; compiler reproducibility, official SPDX schema and wider Linux environments remain separate gates |
 
 These are local validation results, not performance benchmarks or a zero-error guarantee. See [quality gates](docs/quality-gates.md) for the separate acceptance boundaries.
@@ -61,6 +62,7 @@ The memory workspace belongs to one running session. MCP keeps that process aliv
 |---|---|
 | `tool_info` | Version, platform and document-load/commit counters |
 | `execute_program` | Literal argv execution with bounded output, timeout and owned-process cleanup |
+| `create_file` | Create a new text file with strict encoding and no overwrite; parent directory must exist |
 | `list_directory` | List immediate directory entries, with hidden-item and result-count controls |
 | `resolve_path` | Normalize an existing absolute filesystem path and report its type |
 | `verify_encoding` | Verify a bounded batch of disk files with a declared encoding, count and optional root constraint |
@@ -75,6 +77,18 @@ The memory workspace belongs to one running session. MCP keeps that process aliv
 | `workspace_close` | Release a document, with explicit handling of dirty memory |
 
 MCP tool definitions include a human-readable `title`, such as `执行本地程序`, `编辑文本（仅内存）` and `提交文件到磁盘`. Tool identifiers stay unchanged. The client decides whether to display these titles; the server cannot assign a dynamic title to each invocation. Cordonix executes local programs and does not infer that an arbitrary script is a remote method or a file creation operation.
+
+## Create a new text file
+
+The unreleased `create_file` operation writes one new file immediately. Supply an absolute literal `path`, a UTF-8 `content` string and optional `encoding` (default `utf-8`). Supported encodings are UTF-8, UTF-8 BOM, UTF-16LE/BE BOM and CP936/GBK; `auto` is rejected. Empty content is valid. NUL, invalid UTF-8 and characters the chosen encoding cannot represent are rejected before writing. The C API caps both input and encoded output at 8 MiB; CLI/MCP requests also obey the existing JSON frame limit.
+
+```json
+{"operation":"create_file","arguments":{"path":"D:\\project\\new.txt","content":"中文\r\n","encoding":"cp936"}}
+```
+
+The parent directory must already exist. An existing file, directory or link returns `already_exists`. The implementation flushes a same-directory temporary file and publishes it without replacing the destination. It preserves the supplied text and line endings, uses a new file's inherited Windows permissions or Linux mode `0600`, and does not open a memory workspace document.
+
+Results report `written_to_disk`, `cleanup_complete`, encoded `bytes`, `encoding` and, on success, `disk_sha256`. Cancellation and a 15-second write deadline are checked between bounded I/O operations; a stalled synchronous OS call is not forcibly preempted. A failure after publication can retain `written_to_disk=true`; read back that path before retrying. The `document_commits` counter remains specific to memory document commits.
 
 ## Read a line range
 
@@ -156,7 +170,7 @@ sh eng/test-linux.sh
 build/linux/bin/cdx --version
 ```
 
-Both platforms use the same JSON requests and fourteen MCP tools. Linux paths are absolute UTF-8 paths, and execution errors report `posix_error`; Windows keeps `win32_error`. The Linux executable is dynamically linked to system libraries. Build a local Windows ZIP with PowerShell 7 using `./eng/test-package.ps1` after `eng\test.cmd`; see [packaging](docs/packaging.md).
+Both platforms use the same JSON requests and fifteen MCP tools. Linux paths are absolute UTF-8 paths, and execution errors report `posix_error`; Windows keeps `win32_error`. The Linux executable is dynamically linked to system libraries. Build a local Windows ZIP with PowerShell 7 using `./eng/test-package.ps1` after `eng\test.cmd`; see [packaging](docs/packaging.md).
 
 The CLI exposes these forms:
 

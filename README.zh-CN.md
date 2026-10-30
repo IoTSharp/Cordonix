@@ -34,8 +34,9 @@ Git、ripgrep、编译器和 Codex 的 `apply_patch` 仍是配套工具。Cordon
 |---|---|---|
 | Windows 进程核心 | 本地 15 项检查通过 | 更广泛应用和长时间负载仍需验证 |
 | 编码与内存文档核心 | 36 项核心检查与 25 项编码/接线边界检查通过 | 外部工具读取磁盘，看不到未提交的内存修改 |
-| CLI 与 MCP | 14 个带可读标题的原生工具；Windows 75 项、Linux 79 项真实 stdio 检查 | 先前 Windows SDK/Codex 证据与本次修改树分开；Codex 是否显示新标题待验证 |
-| Linux | WSL Ubuntu 下 16 项进程、42 项文件、46 项 JSON、79 项 stdio 检查通过 | 独立 Linux Codex、ext4 语义、ACL/xattr 保留及长稳为独立门禁 |
+| CLI 与 MCP | 15 个带可读标题的原生工具；Windows 83 项、Linux 87 项真实 stdio 检查 | 先前 Windows SDK/Codex 证据与本次修改树分开；Codex 是否显示新标题待验证 |
+| 新文本文件 | 两平台各 20 项原生检查，以及 8 项共享 MCP 检查 | 尚未发布；已有路径不覆盖，父目录必须存在 |
+| Linux | WSL Ubuntu 下 211 项原生检查；真实 ext4 上 14 项 MCP 与 42 项文档检查通过 | 独立 Linux Codex、ACL/xattr 保留、多发行版及长稳仍为独立门禁 |
 | Windows/Linux 便携包 | ZIP/tar.gz、校验和、checkout 来源、SPDX 文件清单与解压运行门禁；v0.0.1 已在两端发布并核对全部附件 | 包未签名；编译可复现、官方 SPDX schema 校验和更广泛 Linux 环境为独立门禁 |
 
 上述结果是本地验证，不是性能基准，也不代表不会发生错误。各项验收边界见[质量门禁](docs/quality-gates.md)。
@@ -61,6 +62,7 @@ workspace_open -> workspace_read / workspace_search
 |---|---|
 | `tool_info` | 查询版本、平台及文档加载/提交计数 |
 | `execute_program` | 原样传递 argv，限制输出和超时，回收任务所属进程 |
+| `create_file` | 按严格编码创建新文本文件，不覆盖已有路径，父目录须存在 |
 | `list_directory` | 列出目录的直接子项，可包含隐藏项并限制结果数 |
 | `resolve_path` | 规范化已存在的绝对文件系统路径，返回路径及类型 |
 | `verify_encoding` | 按声明编码批量验证磁盘文件，可约束数量和目录范围 |
@@ -75,6 +77,18 @@ workspace_open -> workspace_read / workspace_search
 | `workspace_close` | 释放文档，显式处理未提交内容 |
 
 工具定义现在提供中文 `title`，例如“执行本地程序”“编辑文本（仅内存）”“提交文件到磁盘”，原来的工具标识保持不变。客户端决定是否采用标题；服务端不能为每次调用指定动态标题。Cordonix 执行本地程序，不会仅凭脚本名称把操作标成“远程方法”或“新增文件”。
+
+## 创建新文本文件
+
+尚未发布的 `create_file` 会立即创建一个新文件。传入绝对字面路径 `path`、UTF-8 文本 `content` 和可选 `encoding`（默认 `utf-8`）。支持 UTF-8、UTF-8 BOM、带 BOM 的 UTF-16LE/BE，以及 CP936/GBK；拒绝 `auto`。允许空文件；NUL、非法 UTF-8 或目标编码无法表示的字符在写入前拒绝。C API 的输入 UTF-8 与编码后字节均最多 8 MiB，CLI/MCP 还受现有 JSON 帧大小限制。
+
+```json
+{"operation":"create_file","arguments":{"path":"D:\\project\\new.txt","content":"中文\r\n","encoding":"cp936"}}
+```
+
+父目录必须已经存在，已有文件、目录或链接返回 `already_exists`。实现先写入并刷新同目录临时文件，再以不覆盖目标的方式发布；正文和换行原样保留。新文件使用 Windows 目录继承权限或 Linux `0600` 权限，不创建持久内存文档。
+
+结果包含 `written_to_disk`、`cleanup_complete`、编码后 `bytes`、`encoding`，成功时附带 `disk_sha256`。有界 I/O 操作之间检查取消和 15 秒写入期限，不能强制抢占阻塞的同步系统调用。发布后发生错误时仍可能返回 `written_to_disk=true`，应先回读再决定是否重试。`document_commits` 仍只统计内存文档提交。
 
 ## 按行读取
 
@@ -160,7 +174,7 @@ sh eng/test-linux.sh
 build/linux/bin/cdx --version
 ```
 
-两平台使用相同的 JSON 请求和十四个 MCP 工具。Linux 使用绝对 UTF-8 路径，执行错误字段为 `posix_error`；Windows 保留 `win32_error`。Linux 程序动态链接系统库。Windows 完成 `eng\test.cmd` 后，在 PowerShell 7 运行 `./eng/test-package.ps1` 构建和验证本地便携 ZIP，详见[打包说明](docs/packaging.md)。
+两平台使用相同的 JSON 请求和十五个 MCP 工具。Linux 使用绝对 UTF-8 路径，执行错误字段为 `posix_error`；Windows 保留 `win32_error`。Linux 程序动态链接系统库。Windows 完成 `eng\test.cmd` 后，在 PowerShell 7 运行 `./eng/test-package.ps1` 构建和验证本地便携 ZIP，详见[打包说明](docs/packaging.md)。
 
 CLI 入口为：
 

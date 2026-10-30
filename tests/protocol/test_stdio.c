@@ -507,6 +507,74 @@ static int bool_is(const cdx_json *json, const char *key, int expected) {
     return node >= 0 && json->nodes[node].type == CDX_JSON_BOOL && json->nodes[node].boolean == expected;
 }
 
+static void create_file_cases(wire_client *client) {
+    static const char content[] = "new \xe4\xb8\xad \"$(literal)\"\r\n";
+    static const char encoded[] = "\xd6\xd0\r\n";
+    static const char bom[] = "\xef\xbb\xbf" "new\n";
+    line_fixture *fixtures = (line_fixture *)calloc(2, sizeof(*fixtures));
+    cdx_json data;
+    char hash[65] = {0};
+    unsigned id = 740;
+    int valid, node, all;
+    if (!fixtures) { record("create_file fixture allocation", 0); return; }
+    if (!create_line_fixture(&fixtures[0], 740, "", 0) ||
+        !create_line_fixture(&fixtures[1], 741, "", 0)) {
+        record("create_file fixture setup", 0); goto done;
+    }
+    remove_line_fixture(&fixtures[0]); remove_line_fixture(&fixtures[1]);
+    valid = call_file_tool(client, "create_file", &fixtures[0], ",\"content\":\"\"", id++, &data);
+    fixtures[0].owned = valid && bool_is(&data, "written_to_disk", 1);
+    record("create_file empty UTF8 file is written", fixtures[0].owned && string_is(&data, 0, "status", "ok") &&
+           number_is(&data, "bytes", 0) && bool_is(&data, "cleanup_complete", 1) && file_equals(fixtures[0].path, ""));
+    cdx_json_free(&data);
+    valid = call_file_tool(client, "create_file", &fixtures[0], ",\"content\":\"replacement\"", id++, &data);
+    record("create_file never overwrites an existing file", valid && string_is(&data, 0, "status", "already_exists") &&
+           bool_is(&data, "written_to_disk", 0) && bool_is(&data, "cleanup_complete", 1) && file_equals(fixtures[0].path, ""));
+    cdx_json_free(&data); remove_line_fixture(&fixtures[0]);
+
+    valid = call_file_tool(client, "create_file", &fixtures[0],
+                           ",\"content\":\"new \u4e2d \\\"$(literal)\\\"\\r\\n\"", id++, &data);
+    fixtures[0].owned = valid && bool_is(&data, "written_to_disk", 1);
+    node = valid ? cdx_json_get(&data, 0, "disk_sha256") : -1;
+    all = node >= 0 && data.nodes[node].type == CDX_JSON_STRING && strlen(data.nodes[node].string) == 64;
+    if (all) memcpy(hash, data.nodes[node].string, sizeof(hash));
+    record("create_file preserves Unicode quotes literals and CRLF", fixtures[0].owned && all &&
+           string_is(&data, 0, "status", "ok") && string_is(&data, 0, "encoding", "utf-8") &&
+           number_is(&data, "bytes", sizeof(content) - 1u) && file_equals(fixtures[0].path, content));
+    cdx_json_free(&data);
+    valid = call_file_tool(client, "read_file", &fixtures[0], ",\"raw\":true", id++, &data);
+    record("created file reads through native disk API with matching hash", valid && string_is(&data, 0, "status", "ok") &&
+           string_is(&data, 0, "text", content) && string_is(&data, 0, "memory_sha256", hash));
+    cdx_json_free(&data);
+
+    valid = call_file_tool(client, "create_file", &fixtures[1], ",\"content\":\"\\ud83d\\ude00\",\"encoding\":\"cp936\"", id++, &data);
+    all = valid && string_is(&data, 0, "status", "encoding_error") && bool_is(&data, "written_to_disk", 0);
+    cdx_json_free(&data);
+    valid = call_file_tool(client, "read_file", &fixtures[1], "", id++, &data);
+    record("create_file rejects lossy encoding before file creation", all && valid && string_is(&data, 0, "status", "not_found"));
+    cdx_json_free(&data);
+    valid = call_file_tool(client, "create_file", &fixtures[1], ",\"content\":\"\u4e2d\\r\\n\",\"encoding\":\"gbk\"", id++, &data);
+    fixtures[1].owned = valid && bool_is(&data, "written_to_disk", 1);
+    record("create_file GBK alias writes exact CP936 bytes", fixtures[1].owned && string_is(&data, 0, "status", "ok") &&
+           number_is(&data, "bytes", sizeof(encoded) - 1u) && file_equals(fixtures[1].path, encoded));
+    cdx_json_free(&data); remove_line_fixture(&fixtures[1]);
+    valid = call_file_tool(client, "create_file", &fixtures[1], ",\"content\":\"new\\n\",\"encoding\":\"utf-8-bom\"", id++, &data);
+    fixtures[1].owned = valid && bool_is(&data, "written_to_disk", 1);
+    record("create_file UTF8 BOM uses declared bytes", fixtures[1].owned && string_is(&data, 0, "status", "ok") &&
+           number_is(&data, "bytes", sizeof(bom) - 1u) && file_equals(fixtures[1].path, bom));
+    cdx_json_free(&data);
+    valid = call_file_tool(client, "create_file", &fixtures[1], ",\"content\":\"new\",\"encoding\":\"auto\"", id++, &data);
+    all = valid && string_is(&data, 0, "status", "validation_error"); cdx_json_free(&data);
+    valid = call_file_tool(client, "create_file", &fixtures[1], ",\"content\":42", id++, &data);
+    all = all && valid && string_is(&data, 0, "status", "validation_error"); cdx_json_free(&data);
+    valid = call_file_tool(client, "create_file", &fixtures[1], "", id++, &data);
+    record("create_file validates content and explicit encoding at boundary", all && valid &&
+           string_is(&data, 0, "status", "validation_error") && file_equals(fixtures[1].path, bom));
+    cdx_json_free(&data);
+done:
+    remove_line_fixture(&fixtures[0]); remove_line_fixture(&fixtures[1]); free(fixtures);
+}
+
 static int page_is(const cdx_json *json, const char *text, unsigned start, unsigned lines,
                    unsigned next, int eof, int truncated, const char *source) {
     int node = cdx_json_get(json, 0, "next_line");
@@ -1442,12 +1510,12 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
         int tool = node >= 0 ? response.nodes[node].first : -1;
         unsigned count = 0;
         int titles_valid = 1, execution_title = 0;
-        for (; tool >= 0 && count < 15; tool = response.nodes[tool].next, ++count) {
+        for (; tool >= 0 && count < 16; tool = response.nodes[tool].next, ++count) {
             int title = cdx_json_get(&response, tool, "title");
             if (title < 0 || response.nodes[title].type != CDX_JSON_STRING || !*response.nodes[title].string) titles_valid = 0;
             if (string_is(&response, tool, "name", "execute_program")) execution_title = string_is(&response, tool, "title", "执行本地程序");
         }
-        record("MCP fourteen tools expose human-readable titles", count == 14 && titles_valid && execution_title);
+        record("MCP fifteen tools expose human-readable titles", count == 15 && titles_valid && execution_title);
     }
     cdx_json_free(&response);
     valid = wire_send(&client, malformed, sizeof(malformed) - 1) && wire_read(&client, &response);
@@ -1464,6 +1532,7 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
     node = valid ? cdx_json_get(&response, cdx_json_get(&response, 0, "error"), "code") : -1;
     record("MCP rejects raw NUL without truncation", node >= 0 && response.nodes[node].number == -32700); cdx_json_free(&response);
     workspace_cases(&client);
+    create_file_cases(&client);
     line_read_cases(&client);
     tail_raw_cases(&client);
     filesystem_cases(&client);
