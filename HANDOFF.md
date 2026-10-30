@@ -4,6 +4,8 @@ Date: 2026-10-30 Asia/Shanghai
 
 ## Successor implementation and current evidence
 
+The user additionally approved the reviewed GitHub OIDC signing flow. v0.0.4 uses the official attestation action pinned to `977bb373ede98d70efdf65b84cb5f73e068dcc2a`, one signed archive per platform, with separate bundles on both release hosts. Its actual issuance and independent positive/tamper-negative verification must be recorded after publication. This does not provide Authenticode. v0.0.3 was already published successfully; both Windows and Linux installed packages passed 12 actual native Codex app-server workflows covering all 17 tools.
+
 Latest delivery update: implementation `8ee549a`, CI provisioning `ea91bb0` and fast-exit audit fix `35350ce` are pushed to GitHub/Gitee. Every step of exact-head CI [40998386056](https://github.com/IoTSharp/Cordonix/actions/runs/40998386056) passed, including both complete rg/Git gates, packaging, official SPDX, compiler reproducibility and installers. Linux full native total is **276**; Windows **284**.
 
 Both real hourly schedulers are now PASS and removed. Windows actual interval was 3601 seconds. Linux naturally ran again at 11:17:49 Asia/Shanghai; its monotonic interval was 3641.826 seconds, with host suspend recorded separately from the longer wall-clock interval. Product disable and task/install cleanup passed. No default persistent update task was enabled.

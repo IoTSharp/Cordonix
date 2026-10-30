@@ -42,6 +42,10 @@ jobs:
     needs: version
     runs-on: windows-2022
     timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     env:
       CDX_VERSION: ${{ needs.version.outputs.version }}
       SOURCE_DATE_EPOCH: '0'
@@ -68,6 +72,16 @@ jobs:
       - name: Verify Windows installation and updates
         shell: pwsh
         run: ./eng/test-install-windows.ps1
+      - name: Attest Windows release archive
+        id: attest-windows
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: build/packaging/cordonix-${{ needs.version.outputs.version }}-win-x64.zip
+      - name: Preserve Windows attestation bundle
+        shell: pwsh
+        env:
+          BUNDLE_PATH: ${{ steps.attest-windows.outputs.bundle-path }}
+        run: Copy-Item -LiteralPath $env:BUNDLE_PATH -Destination "build/packaging/cordonix-$env:CDX_VERSION-win-x64.zip.sigstore.json"
       - name: Upload Windows release assets
         uses: actions/upload-artifact@v4
         with:
@@ -79,11 +93,16 @@ jobs:
             build/packaging/cordonix-${{ needs.version.outputs.version }}-win-x64.manifest.json
             build/packaging/cordonix-${{ needs.version.outputs.version }}-win-x64.provenance.json
             build/packaging/cordonix-${{ needs.version.outputs.version }}-win-x64.spdx.json
+            build/packaging/cordonix-${{ needs.version.outputs.version }}-win-x64.zip.sigstore.json
 
   linux:
     needs: version
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     env:
       CDX_VERSION: ${{ needs.version.outputs.version }}
       SOURCE_DATE_EPOCH: '0'
@@ -123,6 +142,16 @@ jobs:
             sha256sum --check "$archive.sha256"
             timeout --kill-after=5s 30s tar -tzf "$archive" > /dev/null
           )
+      - name: Attest Linux release archive
+        id: attest-linux
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: build/packaging/cordonix-${{ needs.version.outputs.version }}-linux-x64.tar.gz
+      - name: Preserve Linux attestation bundle
+        shell: bash
+        env:
+          BUNDLE_PATH: ${{ steps.attest-linux.outputs.bundle-path }}
+        run: cp -- "$BUNDLE_PATH" "build/packaging/cordonix-$CDX_VERSION-linux-x64.tar.gz.sigstore.json"
       - name: Upload Linux release assets
         uses: actions/upload-artifact@v4
         with:
@@ -134,6 +163,7 @@ jobs:
             build/packaging/cordonix-${{ needs.version.outputs.version }}-linux-x64.manifest.json
             build/packaging/cordonix-${{ needs.version.outputs.version }}-linux-x64.provenance.json
             build/packaging/cordonix-${{ needs.version.outputs.version }}-linux-x64.sbom.spdx.json
+            build/packaging/cordonix-${{ needs.version.outputs.version }}-linux-x64.tar.gz.sigstore.json
 
   github-release:
     needs: [version, windows, linux]

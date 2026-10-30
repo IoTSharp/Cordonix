@@ -1,5 +1,15 @@
 # Cordonix Changelog
 
+## Unreleased
+
+- Added native read-only Windows `query_processes` to the C API, CLI and asynchronous MCP worker, preserving original command lines and exact creation times with explicit partial/timeout/cancellation/output-limit states. Linux returns `not_supported` without an interpreter fallback.
+- Added 19 real native checks and three Windows/two Linux MCP checks for the new operation, plus MSVC static analysis and AddressSanitizer coverage.
+
+## 0.0.4 - 2026-10-30
+
+- Added GitHub Actions OIDC artifact provenance for both release archives through the official, commit-pinned attestation action. Sigstore bundles accompany the immutable archive assets on GitHub and Gitee.
+- Independent verification binds the artifact digest, repository, workflow, source commit and release tag. This is artifact provenance signing, not Windows Authenticode.
+
 ## 0.0.3 - 2026-10-30
 
 - Added per-child environment overrides, including deletion and empty values, without mutating the parent. Real process checks cover Unicode, platform name matching and simultaneous child isolation.

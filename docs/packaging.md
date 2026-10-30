@@ -1,5 +1,7 @@
 # Windows / Linux 便携包与双平台发布
 
+v0.0.4 开始，发布工作流为两个归档提供 GitHub OIDC 签名 provenance 和独立 `.sigstore.json` bundle。按[签名验证说明](https://github.com/IoTSharp/Cordonix/blob/main/docs/release-signing.md)核对仓库、workflow、源码 SHA、tag 和归档摘要；这不提供 Windows Authenticode。打包内部的 `signature: NOT_RUN` 表示打包步骤本身尚未执行后续独立签名，最终签名证据来自 bundle。
+
 先运行 `eng\test.cmd`，然后在 PowerShell 7 中执行：
 
 ```powershell
