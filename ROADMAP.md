@@ -2,6 +2,8 @@
 
 Release 0.0.5 (2026-11-02) includes the current process-query, native-phone and PowerShell compatibility work. Tagged CI, dual-host publication and this machine's natural hourly update remain separately observed release gates in HANDOFF.md; earlier acceptance below describes v0.0.4.
 
+WinGet follow-up: `IoTSharp.Cordonix` uses the existing Windows portable archive. Source templates and verified manifest generation are implemented; the follow-up workflow prepares community repository PRs after dual publication. Community review, source indexing and the bootstrap installation's existing hourly task remain separate gates. See [WinGet distribution](docs/winget.md).
+
 Latest accepted release: **v0.0.4**. CDX-09B adapters, independent Linux/client and finite-soak gates, natural hourly scheduling, official SPDX, same-environment compiler reproducibility, signed release/readback and actual 0.0.3-to-0.0.4 upgrades have evidence. The [per-item acceptance ledger](docs/successor-acceptance.md) is the authoritative closure map. GAP-03 remains a deliberate transaction limit; GAP-04 discard is tested; physical IO/model tokens, GUI rendering, Authenticode and broader environments are not promoted beyond their evidence. The current checkout also contains unreleased process-query work.
 
 

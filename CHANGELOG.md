@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added WinGet manifest templates for `IoTSharp.Cordonix`, generation from verified published Windows archives, and a follow-up workflow that submits community repository update PRs when `WINGET_TOKEN` is configured. Microsoft validation, review and source indexing remain separate from GitHub/Gitee release publication.
+
 ## 0.0.5 - 2026-11-02
 
 - Added user-requested bounded ANCS link retries: initial uncached service discovery retries an unreachable connection at most five times after the first attempt, with a cancellable 500 ms interval and the original request deadline. Results report attempt/retry counts and exhaustion; the GUI displays them and permits 60 seconds for a notification request.
