@@ -119,6 +119,8 @@ MCP tool definitions include a human-readable `title`, such as `执行本地程�
 
 Windows saved PowerShell scripts can use the installed PowerShell 7 `pwsh.exe` at any absolute path, including Microsoft Store and portable installations. Use `-NoProfile -File` with an existing absolute script path; command strings, encoded commands and Windows PowerShell 5.1 remain rejected. The caller selects the PowerShell version. This compatibility fix is included in v0.0.5; v0.0.4 restricts the executable to the MSI path.
 
+Check `tool_info` on the actual connection after updating: existing MCP processes keep their earlier version. The child `timeout_ms` (up to 30 minutes) is separate from the client's tool-call deadline. For analyses longer than that deadline, use a pollable terminal session or configure the client deadline before starting. A transport timeout without a result leaves the outcome unknown; inspect original processes and artifacts before retrying. See the [failure diagnosis and long-task guidance](docs/execution-boundaries.md#child-deadlines-and-mcp-client-deadlines).
+
 `query_processes` uses Windows process enumeration and native process metadata APIs. Its `name` and `command_contains` filters are literal ASCII case-insensitive comparisons. Protected or already-exited processes can have `null` path, command line or creation time and contribute to `partial`/`inaccessible` results. The original command line is a best-effort observation through the Windows process environment block; it is not a security boundary and is not implemented on the POSIX backend. `max_entries`, `timeout_ms` and `output_limit_bytes` are bounded, and a capped result is reported as `output_limit` with `truncated=true`.
 
 ## Child environment and external adapters

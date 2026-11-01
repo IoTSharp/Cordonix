@@ -12,13 +12,16 @@ $owned = Join-Path $root ('build\pwsh-' + [guid]::NewGuid().ToString('N'))
 $audit = Join-Path $owned 'processes.jsonl'
 $scriptPath = Join-Path $owned '中文 saved script.ps1'
 Write-PackageText $scriptPath @'
-param([string]$Value)
+param([string]$Value, [int]$ExitCode = 0, [int]$DelayMs = 0)
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 [Console]::Write(($PSVersionTable.PSVersion.Major.ToString() + '|' + $Value))
+if ($DelayMs -gt 0) { Start-Sleep -Milliseconds $DelayMs }
+exit $ExitCode
 '@
 $literal = '中文 $(literal) a"b'
 $requestPath = Join-Path $owned 'request.json'
-$hosts = @(@((Join-Path $PSHOME 'pwsh.exe'), (Get-Command pwsh.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source) | Select-Object -Unique)
+$hosts = @(@((Join-Path $PSHOME 'pwsh.exe'); (Get-Command pwsh.exe -All -CommandType Application -ErrorAction Stop).Source) | Select-Object -Unique)
+if ($hosts.Count -gt 8) { throw 'PowerShell host discovery exceeds the eight-host test budget.' }
 $passed = 0
 
 function Assert-Execution($Result, [string]$Label) {
@@ -74,6 +77,27 @@ try {
         $reply = Invoke-Rpc $id 'tools/call' @{name='execute_program';arguments=$arguments}
         if ($reply.isError) { throw ('MCP tool returned an error: ' + ($reply | ConvertTo-Json -Compress -Depth 8)) }
         Assert-Execution ($reply.content[0].text | ConvertFrom-Json) ('MCP saved script: ' + $pwsh)
+        $id++
+
+        $arguments.args = @('-NoLogo','-NoProfile','-File',$scriptPath,$literal,'-ExitCode','7')
+        $reply = Invoke-Rpc $id 'tools/call' @{name='execute_program';arguments=$arguments}
+        $result = $reply.content[0].text | ConvertFrom-Json
+        if ($result.status -cne 'failed' -or $result.process_status -cne 'failed' -or $result.exit_code -ne 7 -or $result.pid -le 0 -or -not $result.cleanup_complete -or $result.stdout -cne ('7|' + $literal)) {
+            throw ('PowerShell script failure was not preserved: ' + ($result | ConvertTo-Json -Compress))
+        }
+        $passed++
+        Write-Output ('MCP script exit code: PASS: ' + $pwsh)
+        $id++
+
+        $arguments.args = @('-NoLogo','-NoProfile','-File',$scriptPath,$literal,'-DelayMs','30000')
+        $arguments.timeout_ms = 2000
+        $reply = Invoke-Rpc $id 'tools/call' @{name='execute_program';arguments=$arguments}
+        $result = $reply.content[0].text | ConvertFrom-Json
+        if ($result.status -cne 'timed_out' -or $result.process_status -cne 'timed_out' -or $result.pid -le 0 -or -not $result.cleanup_complete -or $result.active_processes_after_cleanup -ne 0) {
+            throw ('PowerShell timeout cleanup failed: ' + ($result | ConvertTo-Json -Compress))
+        }
+        $passed++
+        Write-Output ('MCP timeout cleanup: PASS: ' + $pwsh)
         $id++
     }
     foreach ($forbidden in @(@('-NoProfile','-Command','Write-Output forbidden'), @('-NoProfile','-EncodedCommand','QQA='), @('-NoProfile'), @('-NoProfile','-File','relative.ps1'))) {

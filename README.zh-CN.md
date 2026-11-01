@@ -117,6 +117,8 @@ workspace_open -> workspace_read / workspace_search
 
 Windows 已保存脚本可使用实际安装的 PowerShell 7 `pwsh.exe` 绝对路径，包括 Microsoft Store 和便携版。使用 `-NoProfile -File` 及已存在的绝对脚本路径；命令字符串、编码命令和 Windows PowerShell 5.1 仍在启动前拒绝。PowerShell 版本由调用方选择。这项兼容修复包含在 v0.0.5 中；v0.0.4 仍限定 MSI 安装路径。
 
+更新后应在实际连接上检查 `tool_info`，已有 MCP 进程会继续使用旧版本。子任务的 `timeout_ms`（最长 30 分钟）与客户端工具调用期限是两层限制；预计超过客户端期限的分析应使用可轮询的终端会话，或在启动前配置足够的客户端期限。通道超时且未收到结果时，执行结果仍未知，应先检查原进程及产物再决定是否重试。详见[失败诊断与长任务处理](docs/execution-boundaries.md#child-deadlines-and-mcp-client-deadlines)。
+
 `query_processes` 使用 Windows 进程枚举和原生进程元数据 API。`name` 与 `command_contains` 是字面 ASCII 不区分大小写匹配。受保护或已经退出的进程可能返回 `null` 路径、命令行或创建时间，并计入 `partial`/`inaccessible` 结果。原始命令行通过 Windows 进程环境块尽力读取，不构成安全边界；POSIX 后端不实现它。`max_entries`、`timeout_ms` 和 `output_limit_bytes` 都有上限，触及上限时返回 `output_limit` 和 `truncated=true`。
 
 ## 子进程环境与外部工具适配器

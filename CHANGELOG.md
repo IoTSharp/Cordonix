@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Clarified Windows executable/script routing and child-versus-client deadlines in the MCP execution schema and bilingual guidance. Expanded the PowerShell gate to all discovered application paths (at most eight), including both Store aliases, with real script-failure and timeout-cleanup checks. The existing 0.0.5 path fix remains unchanged.
+
 - Added WinGet manifest templates for `IoTSharp.Cordonix`, generation from verified published Windows archives, and a follow-up workflow that submits community repository update PRs when `WINGET_TOKEN` is configured. Microsoft validation, review and source indexing remain separate from GitHub/Gitee release publication.
 
 ## 0.0.5 - 2026-11-02

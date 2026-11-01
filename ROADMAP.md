@@ -1,5 +1,7 @@
 # Cordonix Roadmap
 
+Execution follow-up (2026-11-02): reproduced the same Store PowerShell request failing before spawn on retained 0.0.4 and succeeding on 0.0.5. The reported Ghidra interruption was a 300-second client deadline, distinct from the 30-minute child limit. Caller guidance and broader Store-path coverage pass the Windows final gate, including 16/16 PowerShell and 106/106 real MCP checks; the separate Git/rg adapter run passes 26/26. Built MCP schema readback passes. These follow-up changes are local and unreleased; see [execution boundaries](docs/execution-boundaries.md). No asynchronous job API or new process-launch mechanism is introduced.
+
 Release 0.0.5 (2026-11-02) includes the current process-query, native-phone and PowerShell compatibility work. Tagged CI, dual-host publication and this machine's natural hourly update remain separately observed release gates in HANDOFF.md; earlier acceptance below describes v0.0.4.
 
 The tagged release and dual publication pass. On 2026-11-02 the existing Windows hourly task naturally upgraded 0.0.4 to 0.0.5 at 03:27:03 Asia/Shanghai with exit 0 and the published archive hash. Fresh MCP through the existing stable launcher passes initialization, the 19-tool listing and clean release metadata readback. Existing connections retain their earlier processes; broader installed-client acceptance remains separate.
