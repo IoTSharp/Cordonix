@@ -9,6 +9,8 @@ Initial 0.0.5 submission (2026-11-02):
 [microsoft/winget-pkgs#468155](https://github.com/microsoft/winget-pkgs/pull/468155).
 The published archive's SHA-256 and the three generated manifests passed the
 local WinGet validator. Catalog availability is pending upstream completion.
+The repository's automatic submission is enabled; workflow `41340981155`
+successfully verified 0.0.5 and reused that PR without creating a duplicate.
 
 Once the initial submission is merged and indexed:
 
