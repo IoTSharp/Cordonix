@@ -113,6 +113,28 @@ static void test_validation(void) {
     cdx_result_free(&result);
 }
 
+static void test_pwsh_validation(void) {
+    const wchar_t *invalid[][4] = {
+        { L"-NoProfile", L"-Command", L"Write-Output forbidden", NULL },
+        { L"-NoProfile", L"-EncodedCommand", L"QQA=", NULL },
+        { L"-NoProfile", NULL, NULL, NULL },
+        { L"-NoProfile", L"-File", NULL, NULL },
+        { L"-NoProfile", L"-File", L"relative.ps1", NULL }
+    };
+    size_t index;
+    for (index = 0; index < _countof(invalid) && GetTickCount64() < suite_deadline; ++index) {
+        size_t count = 0;
+        cdx_exec_request request;
+        cdx_exec_result result;
+        while (count < _countof(invalid[index]) && invalid[index][count]) ++count;
+        request = request_for(invalid[index], count);
+        request.program = L"C:\\portable\\PowerShell 7\\pwsh.exe";
+        record("PowerShell command/missing-file/relative-file rejects before spawn",
+            cdx_execute(&request, &result) == CDX_VALIDATION_ERROR && result.pid == 0);
+        cdx_result_free(&result);
+    }
+}
+
 static void test_descendant(int timeout) {
     const wchar_t *args[] = { timeout ? L"tree-wait" : L"tree" };
     cdx_exec_request request = request_for(args, 1);
@@ -268,7 +290,7 @@ int wmain(int argc, wchar_t **argv) {
     test_echo(1);
     test_environment(pilot);
     if (!pilot && GetTickCount64() < suite_deadline) {
-        test_echo(0); test_exit_codes(); test_stdin(); test_streams(); test_limits(); test_cancel(); test_validation(); test_descendant(0); test_descendant(1); test_parallel_pipes(); test_environment_validation(); test_parallel_environment();
+        test_echo(0); test_exit_codes(); test_stdin(); test_streams(); test_limits(); test_cancel(); test_validation(); test_pwsh_validation(); test_descendant(0); test_descendant(1); test_parallel_pipes(); test_environment_validation(); test_parallel_environment();
     }
     printf("{\"status\":\"%s\",\"passed\":%u,\"total\":%u}\n", passed == total ? "PASS" : "FAIL", passed, total);
     return passed == total ? 0 : 1;

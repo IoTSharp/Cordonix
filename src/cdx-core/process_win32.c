@@ -134,7 +134,6 @@ static DWORD cdx_validate_request(const cdx_exec_request *request) {
     }
     if (_wcsicmp(name, L"pwsh.exe") == 0) {
         int found_file = 0;
-        if (_wcsicmp(request->program, L"C:\\Program Files\\PowerShell\\7\\pwsh.exe") != 0) return ERROR_ACCESS_DENIED;
         for (index = 0; index < request->arg_count; ++index) {
             const wchar_t *arg = request->args[index];
             if (_wcsicmp(arg, L"-File") == 0) {

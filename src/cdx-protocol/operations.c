@@ -3,6 +3,8 @@
 #include "cdx/document.h"
 #include "cdx/create_file.h"
 #include "cdx/filesystem.h"
+#include "cdx/process_query.h"
+#include "cdx/phone.h"
 #include "cdx/version.h"
 #include <math.h>
 #include <stdio.h>
@@ -726,6 +728,8 @@ void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx
     }
     if (arguments < 0) { error_result(output, "validation_error", "arguments must be an object"); return; }
     if (!strcmp(operation, "execute_program")) { execute_program(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "query_processes")) { cdx_query_processes_call(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "phone")) { cdx_phone_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "search_text") || !strcmp(operation, "git_status")) {
         cdx_adapter_call(operation, request, arguments, cancellation, output); return;
     }

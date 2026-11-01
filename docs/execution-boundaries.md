@@ -2,6 +2,14 @@
 
 `execute_program` provides a flat argument vector, bounded execution and cleanup of its owned processes. The invoked program still defines how it interprets its arguments. This distinction matters for PowerShell wrappers and browser CLIs.
 
+## Windows PowerShell executable paths
+
+Supply the absolute path to the installed PowerShell 7 `pwsh.exe`. MSI, Microsoft Store execution aliases/package paths and portable installations do not need to match `C:\Program Files\PowerShell\7\pwsh.exe`. Cordonix uses the supplied executable; it does not discover PowerShell or verify its distribution/version for the caller.
+
+Saved scripts use `-NoProfile -File <absolute-script-path>`. The options accepted before `-File` remain `-NoProfile`, `-NoLogo` and `-NonInteractive`; the script must exist. Command strings, encoded commands and Windows PowerShell 5.1 remain rejected before spawn. Arguments after the script path belong to that script and are passed literally.
+
+`eng\test-pwsh-windows.ps1` exercises the real PowerShell host and its available command path through both CLI requests and MCP `tools/call`. It checks Unicode/space-containing script paths, literal arguments, cleanup and rejection before spawn. These checks run from `eng\test.cmd` and retain fixtures and receipts under `build/`.
+
 ## PowerShell array parameters
 
 This request shape does not construct a PowerShell array for a named script parameter:

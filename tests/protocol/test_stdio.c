@@ -507,6 +507,60 @@ static int bool_is(const cdx_json *json, const char *key, int expected) {
     return node >= 0 && json->nodes[node].type == CDX_JSON_BOOL && json->nodes[node].boolean == expected;
 }
 
+static void process_query_cases(wire_client *client) {
+    cdx_json data;
+    int valid;
+#ifdef _WIN32
+    int entries;
+#endif
+    valid = tool_call(client, "query_processes", "{\"max_entries\":8,\"timeout_ms\":10000,\"output_limit_bytes\":262144}", 5, &data);
+#ifdef _WIN32
+    entries = valid ? cdx_json_get(&data, 0, "entries") : -1;
+    record("MCP process query returns a bounded Windows snapshot", valid &&
+        (string_is(&data, 0, "status", "ok") || string_is(&data, 0, "status", "partial") || string_is(&data, 0, "status", "output_limit")) &&
+        entries >= 0 && data.nodes[entries].type == CDX_JSON_ARRAY);
+#else
+    record("MCP process query is explicit on POSIX", valid && string_is(&data, 0, "status", "not_supported"));
+#endif
+    if (valid) cdx_json_free(&data);
+    valid = tool_call(client, "query_processes", "{\"max_entries\":0}", 6, &data);
+    record("MCP process query rejects zero max_entries", valid && string_is(&data, 0, "status", "validation_error"));
+    if (valid) cdx_json_free(&data);
+}
+
+static void phone_cases(wire_client *client) {
+    cdx_json data;
+    int valid;
+    valid = tool_call(client, "phone", "{\"action\":\"dial\",\"device_address\":\"001122334455\",\"recipient\":\"+15555550123\"}", 7, &data);
+    record("MCP phone dial defaults to preview without Bluetooth IO", valid && string_is(&data, 0, "status", "preview") && bool_is(&data, "submitted", 0));
+    if (valid) cdx_json_free(&data);
+    valid = tool_call(client, "phone", "{\"action\":\"sms_send\",\"device_address\":\"001122334455\",\"recipient\":\"123;ATA\",\"body\":\"test\"}", 8, &data);
+    record("MCP phone rejects injected recipient before IO", valid && string_is(&data, 0, "status", "validation_error"));
+    if (valid) cdx_json_free(&data);
+    valid = tool_call(client, "phone", "{\"action\":\"read_code\",\"device_address\":\"001122334455\",\"message_handle\":\"0000000000000001\"}", 9, &data);
+    record("MCP verification code read requires inbox snapshot", valid && string_is(&data, 0, "status", "validation_error"));
+    if (valid) cdx_json_free(&data);
+    valid = tool_call(client, "phone", "{\"action\":\"call_history\",\"device_address\":\"001122334455\",\"offset\":65536}", 704, &data);
+    record("MCP call history rejects out-of-range pages before Bluetooth IO", valid && string_is(&data, 0, "status", "validation_error"));
+    if (valid) cdx_json_free(&data);
+    valid = tool_call(client, "phone", "{\"action\":\"app_notifications\",\"device_address\":\"001122334455\",\"timeout_ms\":0}", 705, &data);
+    record("MCP application notification timeout is validated before BLE", valid && string_is(&data, 0, "status", "validation_error"));
+    if (valid) cdx_json_free(&data);
+    valid = tool_call(client, "phone", "{\"action\":\"pair\",\"device_address\":\"001122334455\"}", 701, &data);
+    record("MCP pairing requires explicit submission before UI", valid && string_is(&data, 0, "status", "preview") && bool_is(&data, "submitted", 0));
+    if (valid) cdx_json_free(&data);
+    valid = tool_call(client, "phone", "{\"action\":\"connect\",\"device_address\":\"001122334455\",\"connection_ttl_ms\":0}", 702, &data);
+    record("MCP connection lease is validated before Bluetooth IO", valid && string_is(&data, 0, "status", "validation_error"));
+    if (valid) cdx_json_free(&data);
+    valid = tool_call(client, "phone", "{\"action\":\"connection_status\"}", 703, &data);
+#ifdef _WIN32
+    record("MCP owns an initially disconnected phone session", valid && string_is(&data, 0, "connection_state", "disconnected") && bool_is(&data, "connection_retained", 0));
+#else
+    record("MCP Linux connection status is explicitly unsupported", valid && string_is(&data, 0, "status", "not_supported"));
+#endif
+    if (valid) cdx_json_free(&data);
+}
+
 static void create_file_cases(wire_client *client) {
     static const char content[] = "new \xe4\xb8\xad \"$(literal)\"\r\n";
     static const char encoded[] = "\xd6\xd0\r\n";
@@ -1555,14 +1609,16 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
         int tool = node >= 0 ? response.nodes[node].first : -1;
         unsigned count = 0;
         int titles_valid = 1, execution_title = 0;
-        for (; tool >= 0 && count < 18; tool = response.nodes[tool].next, ++count) {
+        for (; tool >= 0 && count < 19; tool = response.nodes[tool].next, ++count) {
             int title = cdx_json_get(&response, tool, "title");
             if (title < 0 || response.nodes[title].type != CDX_JSON_STRING || !*response.nodes[title].string) titles_valid = 0;
             if (string_is(&response, tool, "name", "execute_program")) execution_title = string_is(&response, tool, "title", "执行本地程序");
         }
-        record("MCP seventeen tools expose human-readable titles", count == 17 && titles_valid && execution_title);
+        record("MCP nineteen tools expose human-readable titles", count == 19 && tool < 0 && titles_valid && execution_title);
     }
     cdx_json_free(&response);
+    process_query_cases(&client);
+    phone_cases(&client);
     valid = wire_send(&client, malformed, sizeof(malformed) - 1) && wire_read(&client, &response);
     node = valid ? cdx_json_get(&response, cdx_json_get(&response, 0, "error"), "code") : -1;
     record("MCP malformed JSON reports parse error", node >= 0 && response.nodes[node].number == -32700); cdx_json_free(&response);

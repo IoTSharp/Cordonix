@@ -1,5 +1,7 @@
 # Cordonix
 
+0.0.5 增加 Windows 进程查询、实验性原生手机能力及 Microsoft Store/便携版 PowerShell 7 兼容修复。新版本发布与本地定时自动更新的结果单独记录在 HANDOFF.md；下方 v0.0.4 的完整验收是历史证据。
+
 已验收发行版：[v0.0.4](https://github.com/IoTSharp/Cordonix/releases/tag/v0.0.4)。两端附件一致，签名与篡改负例验证通过；Windows/Linux 实际安装升级后，原生 Codex 客户端均调用了全部 17 个已发布工具。各门禁与未覆盖边界见[验收清单](docs/successor-acceptance.md)；后续本地进程查询开发另行记录。
 
 
@@ -37,12 +39,32 @@ Git、ripgrep、编译器和 Codex 的 `apply_patch` 仍是配套工具。Cordon
 |---|---|---|
 | Windows 进程核心 | 本地 35 项检查通过，包含子进程环境隔离 | 更广泛应用和长时间负载仍需验证 |
 | 编码与内存文档核心 | 36 项核心检查与 25 项编码/接线边界检查通过 | 外部工具读取磁盘，看不到未提交的内存修改 |
-| CLI 与 MCP | 17 个带可读标题的原生工具；Windows 96 项、Linux 100 项真实 stdio 检查，以及 12 项当前官方 Python SDK 检查 | 先前 Windows SDK/Codex 证据与本次修改树分开；Codex 是否显示新标题待验证 |
+| CLI 与 MCP | v0.0.5 有 19 个工具，包含 `query_processes` 和实验性 `phone`；本次 stdio 套件执行了 Windows 106 项、Linux 109 项检查 | 新工具的已安装客户端接入与 Codex 标题显示仍需单独验收 |
 | 新文本文件 | 两平台各 20 项原生检查，以及 8 项共享 MCP 检查 | 已有路径不覆盖，父目录必须存在 |
-| Linux | WSL Ubuntu 下 276 项完整检查（含 Git/rg 适配器）；独立客户端 44/44，覆盖 ext4/tmpfs/9p 以及 60 轮、600 秒有限长稳 | 原生 rg 与 Codex CLI 已安装；Linux Codex 模型调用仍需认证。ACL/xattr 不支持，多发行版和更长时段仍单独验收 |
+| Linux | 既有 CI 证据包含 276 项完整检查（含 Git/rg 适配器）；10 月 31 日 WSL 重跑通过 102 项 MCP、17/17 项 Git 适配器，因本机没有原生 rg 将 rg 标记为 `NOT_RUN` | Linux Codex 模型调用仍需认证。ACL/xattr 不支持，多发行版和更长时段仍单独验收 |
 | Windows/Linux 便携包 | ZIP/tar.gz、校验和、checkout 来源、SPDX 文件清单与解压运行门禁；v0.0.1 已在两端发布并核对全部附件 | 包未签名；官方 SPDX schema 已验证，构建 revision/dirty 从实际二进制回读；这些不是签名构建证明 |
 
 上述结果是本地验证，不是性能基准，也不代表不会发生错误。各项验收边界见[质量门禁](docs/quality-gates.md)。
+
+## 本机 Codex 会话审计带来的改动
+
+2026 年 10 月 31 日审计本机 Codex 历史，共得到 109 个会话。记录中有 11,568 次外部命令调用、983 条失败记录、192 次明确的 `.ps1` 文件变更和 179 次明确的 `.py` 文件变更。反复出现的工作主要是进程及浏览器/任务状态盘点、JSON 状态回读、Git/ripgrep 检查和有界文件批处理。这些数字用于确定重复点，不表示所有脚本都应被 C 实现替代。
+
+当前吸收的第一个缺口是 `query_processes`。它是只读的 Windows C11 操作，返回有界进程快照，可按可执行文件名和命令行字面片段筛选，并报告 PID、父 PID、路径、尽力读取的原始命令行和精确创建 `FILETIME`。权限不足、取消、超时、输出上限和部分枚举都会保留为明确状态。Linux 返回 `not_supported`，不会退回 Shell、Python 或 PowerShell。这个操作包含在 v0.0.5 中；安装升级后加载新运行时即可使用对应 MCP 工具。
+
+## 原生手机能力（实验中）
+
+新增 `phone` 工具，使用 C11 和 Windows 系统蓝牙接口实现 MAP 短信、PBAP 联系人/最近通话分页、HFP 电话控制，以及实验性的 Apple Notification Center Service（ANCS）应用通知接收，不依赖原来的 .NET 桥接程序。接口包含短信列表/正文、验证码提取、联系人读取、发短信、拨号、接听、挂断，以及有时限的收件箱变化、来电和应用通知等待。发送和电话操作默认预览；Linux 的设备操作明确返回 `not_supported`。
+
+2026 年 11 月 1 日的后续构建已在 ANCS 服务发现前打开有界原生 `GattSession` 并请求保持连接；当天较早检查返回 `connection_failed`（`0x8007048F`，阶段为 `ancs_service_discovery`）。这记录的是 Windows BLE 链路当时未建立，不能据此判断手机权限已关闭。下述重试验收已在保留配对的情况下恢复访问。此前重新配对后的真机运行仍成功读取过新的微信事件，日期和边界见[原生手机接口](docs/phone-native.md)。
+
+ANCS 首次服务发现遇到链路不可达时，现会在首次尝试后最多重试 5 次，每次间隔 500 毫秒，支持取消并共用请求总时限。结果返回尝试次数、重试次数和是否耗尽重试次数。窗口中的应用通知请求总时限为 60 秒，并显示实际次数。
+
+2026 年 11 月 1 日后续真机检查在重试 1 次后、第 2 次尝试成功，两个 ANCS 订阅均已建立，并读到 3 条已有的 Apple 电话通知。本次没有收到新的微信事件。
+
+用户删除配对并重新配对后，ANCS 订阅和通知内容读取已成功，实际读到已有的 Apple 电话通知；之前的服务不可达（`0x8007048F`）在那次窗口检查中未再复现。现已改为在同一次订阅和总时限内接收最多 `max_entries` 条；已有通知过多时丢弃最旧的已有事件，为新事件保留返回槽位，中途失败也保留已完成的事件。后续真机窗口检查捕获到新的微信事件（`com.tencent.xin`、`preexisting=false`），并丢弃了 511 条已有事件。界面每次监听最多 60 秒或 20 条，区分已有、新增、更新和移除通知，并显示监听结束。
+
+真机测试复用了 Windows 已有的 iPhone 配对。经用户授权发送了一条短信并拨打一次短电话后挂断，用户确认两者都已收到；电话状态回读为通话中、挂断后空闲。后续联系人请求返回一个含电话号码字段的完整 vCard，短信列表返回五条元数据。来信/来电检测、接听和短信正文/验证码仍待实测，电脑端双向通话音频未实现。Windows 的 `--phone-ui` 原生窗口现已提供电脑蓝牙名称、搜索、置顶配对确认、删除配对，以及带期限和状态显示的 HFP 持续连接。Windows 配对记录删除已回读验证，确认框置前已获用户确认。改用 Windows 设备配对接口的原生 C ABI 后，第二台 iPhone 重新配对并保持 HFP 连接成功，用户也确认手机端显示电脑已连接。窗口已使用 Windows 视觉样式、系统字体、随显示器调整的 DPI 缩放和浅色/深色/高对比度配色，并支持调整大小。配对后可分别检测来电状态、短信、联系人、最近通话和 ANCS 应用通知的实际访问能力，查看 iPhone 授权说明和分页同步预览；短信变化等待为 30 秒，可取消；应用通知只保留当前等待窗口，不同步历史。检测不会读取或替用户开启 iPhone 的授权开关。完整参数、使用示例和验收边界见[原生手机接口](docs/phone-native.md)。
 
 ## 内存工作区如何使用
 
@@ -64,6 +86,8 @@ workspace_open -> workspace_read / workspace_search
 | 工具 | 用途 |
 |---|---|
 | `tool_info` | 查询版本、平台及文档加载/提交计数 |
+| `phone` | 实验性的 Windows 原生配对/删除配对、持续连接、短信、联系人分页、电话控制与有时限等待 |
+| `query_processes` | 读取有界的 Windows 进程快照，可按可执行文件名和命令行字面片段筛选 |
 | `execute_program` | 原样传递 argv，限制输出和超时，回收任务所属进程 |
 | `create_file` | 按严格编码创建新文本文件，不覆盖已有路径，父目录须存在 |
 | `list_directory` | 列出目录的直接子项，可包含隐藏项并限制结果数 |
@@ -86,6 +110,10 @@ workspace_open -> workspace_read / workspace_search
 `execute_program` 管理一次有界调用。主进程退出后，即使退出码为 0，仍会回收本次所属的剩余进程。需要持续运行的浏览器、守护进程和服务应由现有的生命周期管理入口启动。`completed` 表示命令退出状态符合预期，并不保证它启动的浏览器继续存在。结果同时提供 `active_processes_before_cleanup`、`active_processes_after_cleanup` 和 `cleanup_complete`。
 
 `args` 是扁平的原生 argv 数组。PowerShell 7 的 `-File` 不会把后续 argv 自动重组为脚本的命名 `[string[]]` 参数；应在保存的脚本中构造数组，或使用目标脚本明确支持的数据接口。`output_encoding` 只指定捕获字节的解码方式，不改变子程序的输出编码。遇到 `encoding_error`，先查看 `process_status`、`exit_code` 和保留的 Base64 字节，再决定是否重试。详见[执行边界与示例](docs/execution-boundaries.md)。
+
+Windows 已保存脚本可使用实际安装的 PowerShell 7 `pwsh.exe` 绝对路径，包括 Microsoft Store 和便携版。使用 `-NoProfile -File` 及已存在的绝对脚本路径；命令字符串、编码命令和 Windows PowerShell 5.1 仍在启动前拒绝。PowerShell 版本由调用方选择。这项兼容修复包含在 v0.0.5 中；v0.0.4 仍限定 MSI 安装路径。
+
+`query_processes` 使用 Windows 进程枚举和原生进程元数据 API。`name` 与 `command_contains` 是字面 ASCII 不区分大小写匹配。受保护或已经退出的进程可能返回 `null` 路径、命令行或创建时间，并计入 `partial`/`inaccessible` 结果。原始命令行通过 Windows 进程环境块尽力读取，不构成安全边界；POSIX 后端不实现它。`max_entries`、`timeout_ms` 和 `output_limit_bytes` 都有上限，触及上限时返回 `output_limit` 和 `truncated=true`。
 
 ## 子进程环境与外部工具适配器
 

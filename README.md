@@ -1,5 +1,7 @@
 # Cordonix
 
+Version 0.0.5 adds Windows process queries, experimental native phone access and Microsoft Store/portable PowerShell 7 compatibility. Its release and natural installed-update checks are recorded separately in HANDOFF.md; the completed v0.0.4 acceptance below is historical evidence.
+
 Verified release: [v0.0.4](https://github.com/IoTSharp/Cordonix/releases/tag/v0.0.4) includes signed artifact provenance. Both release hosts expose identical assets, independent signature/tamper checks pass, and actual Windows/Linux Codex clients exercise all 17 released tools after installation and upgrade. See the [acceptance ledger](docs/successor-acceptance.md) for exact gates and remaining limits; later local process-query work is a separate development boundary.
 
 
@@ -37,12 +39,32 @@ Cordonix is a development MVP. Windows has first-party Codex usage evidence; Lin
 |---|---|---|
 | Windows process core | 35 checks passed locally, including isolated child environments | Broader application and long-running workload coverage continues |
 | Encoding and memory document core | 36 core checks plus 25 integration/encoding edge checks passed locally | External tools read disk; they do not see uncommitted memory revisions |
-| CLI and MCP | Seventeen native tools; 96 Windows and 100 Linux real stdio checks; 12 current official Python SDK checks | Actual installed-client adoption and Codex UI title rendering have separate gates |
+| CLI and MCP | v0.0.5 has 19 tools, including `query_processes` and experimental `phone`; the current stdio suites exercise 106 Windows and 109 Linux checks | Installed-client adoption for the new tools and Codex UI title rendering have separate gates |
 | New text files | 20 native checks on each platform plus eight shared MCP checks | Existing paths are never overwritten and parent directories must exist |
-| Linux | 276 checks including full Git/rg adapters; independent MCP client 44/44 across ext4/tmpfs/9p and 60 rounds over 600 seconds | Native rg and Codex CLI are installed; model-backed Linux Codex calls still need authentication. Other distributions and longer soak are separate |
+| Linux | Earlier CI evidence includes 276 checks with full Git/rg adapters; the October 31 WSL rerun passed 102 MCP checks and 17/17 Git adapter checks while marking rg `NOT_RUN` because native rg is absent | Model-backed Linux Codex calls still need authentication. Other distributions and longer soak are separate |
 | Windows/Linux portable packages | ZIP/tar.gz, checksums, embedded build revision/dirty readback, official SPDX schema validation | Unsigned packages; build metadata is not a signed attestation. Published v0.0.1/v0.0.2 remain immutable |
 
 These are local validation results, not performance benchmarks or a zero-error guarantee. See [quality gates](docs/quality-gates.md) for the separate acceptance boundaries.
+
+## What the local Codex session audit changed
+
+On October 31, 2026, the local Codex history contained 109 sessions. Their recorded tool activity included 11,568 external command calls, 983 failure records, 192 explicit `.ps1` file changes and 179 explicit `.py` file changes. The repeated work was process and browser/task observation, JSON state readback, Git/ripgrep checks and bounded file batches. These counts identify repetition; they do not prove that every script should be replaced.
+
+The first adopted gap is `query_processes`. It is a read-only Windows C11 operation that returns a bounded process snapshot with PID, parent PID, executable path, best-effort original command line and exact creation `FILETIME`. It keeps inaccessible metadata, cancellation, timeout, output limits and partial enumeration explicit. Linux returns `not_supported` and never falls back to a shell, Python or PowerShell script. The operation is included in v0.0.5; load the updated runtime after installation to use its MCP surface.
+
+## Native phone access (experimental)
+
+The new `phone` tool implements Windows Bluetooth MAP SMS, PBAP contact/recent-call pages and HFP call control in C11, using Windows system libraries. It includes bounded waits for inbox changes, incoming calls and Apple Notification Center Service (ANCS) application events, snapshot-checked SMS/verification-code reads, and preview-by-default send/dial/answer/hangup operations. It does not require the earlier .NET phone bridge. Linux device operations return `not_supported`.
+
+The 2026-11-01 follow-up opens a bounded native `GattSession` before ANCS discovery. An earlier check returned `connection_failed` (`0x8007048F`) at `ancs_service_discovery`, recording a Windows BLE link failure rather than a permission verdict. The retry acceptance below restored access without changing the pairing. A previous fresh-pairing run did read a new WeChat event; see the dated acceptance record in [the phone contract](docs/phone-native.md).
+
+ANCS initial service discovery now retries an unreachable link up to five times after the first attempt, with a cancellable 500 ms interval and one shared request deadline. Results expose attempt/retry counts and whether the retry limit was exhausted. The GUI allows up to 60 seconds for the complete notification request and displays the counts.
+
+The subsequent 2026-11-01 live check succeeded on attempt 2 after one retry, subscribed to both ANCS characteristics and read three existing Apple Phone notifications. No new WeChat event was observed during that request.
+
+After the user removed and recreated the pairing, ANCS subscription and content retrieval succeeded for existing Apple Phone notifications. The earlier `0x8007048F` service failure was not reproduced in that GUI run. The receiver now collects up to `max_entries` events under one deadline without resubscribing, discards the oldest replayed events when the bounded source queue is full, reserves a result slot for a new event and preserves completed events on a later failure. A live GUI run captured a new WeChat event (`com.tencent.xin`, `preexisting=false`) after discarding 511 preexisting events. The GUI waits up to 60 seconds or 20 events and labels existing/new/updated/removed notifications.
+
+On an already paired iPhone, one authorized SMS and short outgoing call were confirmed received by the user; call state was read back as active and then idle after hangup. A later PBAP page returned one contact with a telephone field, and MAP returned five metadata entries. Incoming events, answering, private message/code reads and computer telephone audio remain unverified or unsupported. The Windows `--phone-ui` window now supports adapter display, discovery, topmost human pairing confirmation, deleting pairing and an owner-scoped HFP connection with a lease/status display. Actual Windows pairing removal and foreground confirmation passed. After switching pairing to the Windows device-pairing C ABI, the second iPhone paired successfully and retained an HFP connection; the user confirmed the computer appeared connected on the phone. The resizable native window now uses Windows visual styles, the system font, per-monitor DPI, application light/dark mode and high-contrast colors. It separates pairing from five actual access checks (call state, SMS, contacts, recent calls and ANCS application notifications), includes iPhone authorization guidance and paged readable previews, and offers a cancellable 30-second SMS-list wait. Access checks do not read or change iOS permission switches; ANCS application notifications are current-window events and do not provide history. See [the phone contract and acceptance matrix](docs/phone-native.md).
 
 ## The workspace lifecycle
 
@@ -64,6 +86,8 @@ The memory workspace belongs to one running session. MCP keeps that process aliv
 | Tool | Purpose |
 |---|---|
 | `tool_info` | Version, platform and document-load/commit counters |
+| `phone` | Experimental native Windows pairing/removal, retained connection, SMS, contact pages, call control and bounded waits |
+| `query_processes` | Read a bounded Windows process snapshot with optional executable-name and literal command-line filters |
 | `execute_program` | Literal argv execution with bounded output, timeout and owned-process cleanup |
 | `search_text` | Parse JSON results from an explicitly supplied ripgrep executable |
 | `git_status` | Parse Git porcelain v2 NUL records, including both rename paths |
@@ -88,6 +112,10 @@ MCP tool definitions include a human-readable `title`, such as `执行本地程�
 `execute_program` owns one bounded invocation. When its root process exits, Cordonix cleans up remaining owned processes even after exit code 0. Start persistent browsers, daemons and services through their existing lifecycle owner. `completed` confirms the command's exit status; it does not promise that a launched browser remains open. Results expose `active_processes_before_cleanup` and `active_processes_after_cleanup` alongside `cleanup_complete`.
 
 `args` is a flat native argv array. PowerShell 7 `-File` does not reconstruct a named `[string[]]` script parameter from subsequent argv entries; construct that array inside a saved script or use a data interface the target script explicitly supports. `output_encoding` selects how Cordonix decodes captured bytes, without changing the child program. On `encoding_error`, inspect `process_status`/`exit_code` and the preserved Base64 bytes before any retry. See [execution boundaries and examples](docs/execution-boundaries.md).
+
+Windows saved PowerShell scripts can use the installed PowerShell 7 `pwsh.exe` at any absolute path, including Microsoft Store and portable installations. Use `-NoProfile -File` with an existing absolute script path; command strings, encoded commands and Windows PowerShell 5.1 remain rejected. The caller selects the PowerShell version. This compatibility fix is included in v0.0.5; v0.0.4 restricts the executable to the MSI path.
+
+`query_processes` uses Windows process enumeration and native process metadata APIs. Its `name` and `command_contains` filters are literal ASCII case-insensitive comparisons. Protected or already-exited processes can have `null` path, command line or creation time and contribute to `partial`/`inaccessible` results. The original command line is a best-effort observation through the Windows process environment block; it is not a security boundary and is not implemented on the POSIX backend. `max_entries`, `timeout_ms` and `output_limit_bytes` are bounded, and a capped result is reported as `output_limit` with `truncated=true`.
 
 ## Child environment and external adapters
 
