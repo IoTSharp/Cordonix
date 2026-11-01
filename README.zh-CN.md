@@ -2,6 +2,8 @@
 
 0.0.5 增加 Windows 进程查询、实验性原生手机能力及 Microsoft Store/便携版 PowerShell 7 兼容修复。新版本发布与本地定时自动更新的结果单独记录在 HANDOFF.md；下方 v0.0.4 的完整验收是历史证据。
 
+2026-11-02，本机原有每小时任务已通过 Gitee 自然完成 0.0.4 → 0.0.5 升级。稳定启动器建立的新 MCP 连接提供全部 19 个工具，回读的源码 revision 与干净发行构建一致；已有连接继续使用原来的程序。
+
 WinGet 发行正在以 `IoTSharp.Cordonix` 提交收录；安装边界、入库状态和新版本自动提交 PR 的流程见 [WinGet 说明](docs/winget.md)。
 
 已验收发行版：[v0.0.4](https://github.com/IoTSharp/Cordonix/releases/tag/v0.0.4)。两端附件一致，签名与篡改负例验证通过；Windows/Linux 实际安装升级后，原生 Codex 客户端均调用了全部 17 个已发布工具。各门禁与未覆盖边界见[验收清单](docs/successor-acceptance.md)；后续本地进程查询开发另行记录。

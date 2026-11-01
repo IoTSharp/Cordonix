@@ -2,6 +2,8 @@
 
 Version 0.0.5 adds Windows process queries, experimental native phone access and Microsoft Store/portable PowerShell 7 compatibility. Its release and natural installed-update checks are recorded separately in HANDOFF.md; the completed v0.0.4 acceptance below is historical evidence.
 
+On 2026-11-02 this machine's existing hourly task naturally upgraded 0.0.4 to 0.0.5 through Gitee. A fresh MCP connection through the stable launcher exposes all 19 tools and the clean release revision; existing connections retain their earlier executable.
+
 WinGet distribution is being submitted as `IoTSharp.Cordonix`. See [the WinGet guide](docs/winget.md) for catalog availability, installation boundaries and automatic release PRs.
 
 Verified release: [v0.0.4](https://github.com/IoTSharp/Cordonix/releases/tag/v0.0.4) includes signed artifact provenance. Both release hosts expose identical assets, independent signature/tamper checks pass, and actual Windows/Linux Codex clients exercise all 17 released tools after installation and upgrade. See the [acceptance ledger](docs/successor-acceptance.md) for exact gates and remaining limits; later local process-query work is a separate development boundary.

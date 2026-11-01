@@ -6,6 +6,8 @@
 
 ## 0.0.5 - 2026-11-02
 
+- Published signed Windows/Linux archives on GitHub/Gitee after all tagged gates passed. This machine's existing hourly task naturally upgraded 0.0.4 to 0.0.5 from Gitee at 03:27:03 Asia/Shanghai, with exit 0 and matching release SHA-256. A fresh MCP connection through the unchanged stable launcher returns all 19 tools and the clean release revision; existing connections keep their earlier processes.
+
 - Added user-requested bounded ANCS link retries: initial uncached service discovery retries an unreachable connection at most five times after the first attempt, with a cancellable 500 ms interval and the original request deadline. Results report attempt/retry counts and exhaustion; the GUI displays them and permits 60 seconds for a notification request.
 - Live retry acceptance on 2026-11-01 succeeded on attempt 2 after one retry: both ANCS subscriptions opened and three existing Apple Phone notifications were read. No new WeChat event was observed during that request.
 - Added a bounded native Windows `GattSession` keep-alive before ANCS service discovery. The 2026-11-01 live check still reports `connection_failed`/`0x8007048F` at `ancs_service_discovery` for the current paired iPhone, so the result remains a BLE link diagnostic rather than a permission verdict; no automatic reconnect was added.
