@@ -12,6 +12,12 @@ local WinGet validator. Catalog availability is pending upstream completion.
 The repository's automatic submission is enabled; workflow `41340981155`
 successfully verified 0.0.5 and reused that PR without creating a duplicate.
 
+As of 2026-11-02 04:16 Asia/Shanghai, all ten upstream validation checks
+(`01. Pull Request Validation` through `10. Validation Completed`) and
+`license/cla` report success, including installation and installer metadata
+validation. PR #468155 remains open with `REVIEW_REQUIRED`; it has not merged,
+so official WinGet catalog lookup remains pending.
+
 Once the initial submission is merged and indexed:
 
 ```powershell
