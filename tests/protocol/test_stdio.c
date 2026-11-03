@@ -507,6 +507,78 @@ static int bool_is(const cdx_json *json, const char *key, int expected) {
     return node >= 0 && json->nodes[node].type == CDX_JSON_BOOL && json->nodes[node].boolean == expected;
 }
 
+static int presentation_call(wire_client *client, const char *name, const char *arguments,
+                             const char *token, int progress, const char *fragment, unsigned id, cdx_json *data) {
+    cdx_json_output request;
+    cdx_json response = {0};
+    char message[512] = "";
+    int valid, node, meta, result, content;
+    memset(data, 0, sizeof(*data)); cdx_json_output_init(&request);
+    cdx_json_raw(&request, "{\"jsonrpc\":\"2.0\",\"id\":"); cdx_json_uint(&request, id);
+    cdx_json_raw(&request, ",\"method\":\"tools/call\",\"params\":{\"name\":"); cdx_json_quote(&request, name, strlen(name));
+    cdx_json_raw(&request, ",\"arguments\":"); cdx_json_raw(&request, arguments);
+    if (token) { cdx_json_raw(&request, ",\"_meta\":{\"progressToken\":"); cdx_json_raw(&request, token); cdx_json_raw(&request, "}"); }
+    cdx_json_raw(&request, "}}\n");
+    valid = !request.failed && wire_send(client, request.data, request.size) && wire_read(client, &response);
+    if (progress) {
+        int params = valid ? cdx_json_get(&response, 0, "params") : -1;
+        node = cdx_json_get(&response, params, "message");
+        valid = valid && string_is(&response, 0, "method", "notifications/progress") && node >= 0 &&
+            response.nodes[node].type == CDX_JSON_STRING && strlen(response.nodes[node].string) < sizeof(message);
+        if (valid) memcpy(message, response.nodes[node].string, strlen(response.nodes[node].string) + 1u);
+        node = cdx_json_get(&response, params, "progressToken");
+        valid = valid && node >= 0 && (token[0] == '"' ? string_is(&response, params, "progressToken", "slice-token") :
+            response.nodes[node].type == CDX_JSON_NUMBER && response.nodes[node].number_length == strlen(token) &&
+            !memcmp(response.nodes[node].number_text, token, strlen(token)));
+        cdx_json_free(&response);
+        valid = wire_read(client, &response) && valid;
+    }
+    result = valid ? cdx_json_get(&response, 0, "result") : -1;
+    meta = cdx_json_get(&response, result, "_meta"); node = cdx_json_get(&response, meta, "cordonix/summary");
+    content = cdx_json_get(&response, result, "content");
+    valid = valid && node >= 0 && response.nodes[node].type == CDX_JSON_STRING &&
+        strlen(response.nodes[node].string) < 512 && strstr(response.nodes[node].string, fragment) &&
+        (!progress || !strcmp(message, response.nodes[node].string)) &&
+        number_is(&response, "id", id) && content >= 0 && response.nodes[content].type == CDX_JSON_ARRAY &&
+        response.nodes[content].first >= 0 && response.nodes[response.nodes[content].first].next < 0 && wire_tool_data(&response, data) &&
+        cdx_json_get(data, 0, "summary") < 0 && cdx_json_get(data, 0, "_meta") < 0;
+    cdx_json_free(&response); cdx_json_output_free(&request); return valid;
+}
+
+static void presentation_cases(wire_client *client, const char *program) {
+    line_fixture *fixture = (line_fixture *)calloc(1, sizeof(*fixture));
+    cdx_json data;
+    cdx_json_output arguments;
+    int valid;
+    if (!fixture || !create_line_fixture(fixture, 2200, "one\ntwo\n", 8)) {
+        record("presentation real fixture setup", 0); if (fixture) { remove_line_fixture(fixture); free(fixture); } return;
+    }
+    cdx_json_output_init(&arguments); cdx_json_raw(&arguments, "{\"path\":");
+    cdx_json_quote(&arguments, fixture->utf8_path, strlen(fixture->utf8_path)); cdx_json_raw(&arguments, ",\"start_line\":2,\"line_count\":1}");
+    valid = presentation_call(client, "read_file", arguments.data, "\"slice-token\"", 1, "第 2～2 行", 2200, &data);
+    record("MCP file summary and progress retain exact read content", valid && string_is(&data, 0, "text", "two\n") && number_is(&data, "lines_returned", 1));
+    cdx_json_free(&data); cdx_json_output_free(&arguments);
+    valid = presentation_call(client, "tool_info", "{}", "9007199254740993", 1, "Cordonix", 2201, &data);
+    record("MCP summary progress preserves exact numeric token", valid && string_is(&data, 0, "status", "ok")); cdx_json_free(&data);
+    valid = presentation_call(client, "tool_info", "{}", "true", 0, "Cordonix", 2202, &data);
+    record("MCP invalid progress token adds no notification", valid && string_is(&data, 0, "status", "ok")); cdx_json_free(&data);
+    cdx_json_output_init(&arguments); cdx_json_raw(&arguments, "{\"program\":"); cdx_json_quote(&arguments, program, strlen(program));
+    cdx_json_raw(&arguments, ",\"cwd\":");
+#ifdef _WIN32
+    cdx_json_raw(&arguments, "\"C:/Windows\"");
+#else
+    cdx_json_raw(&arguments, "\"/tmp\"");
+#endif
+    cdx_json_raw(&arguments, ",\"args\":[\"streams\"],\"timeout_ms\":2000,\"output_limit_bytes\":8192}");
+    valid = presentation_call(client, "execute_program", arguments.data, "\"slice-token\"", 1, "运行程序", 2203, &data);
+    record("MCP execution summary leaves process result unchanged", valid && string_is(&data, 0, "status", "completed") &&
+        string_is(&data, 0, "stdout", "stdout\r\n\n") && bool_is(&data, "cleanup_complete", 1));
+    cdx_json_free(&data); cdx_json_output_free(&arguments);
+    valid = presentation_call(client, "read_file", "{\"path\":false}", NULL, 0, "读取文件", 2204, &data);
+    record("MCP presentation preserves validation errors", valid && string_is(&data, 0, "status", "validation_error")); cdx_json_free(&data);
+    remove_line_fixture(fixture); free(fixture);
+}
+
 static void create_file_cases(wire_client *client) {
     static const char content[] = "new \xe4\xb8\xad \"$(literal)\"\r\n";
     static const char encoded[] = "\xd6\xd0\r\n";
@@ -1577,6 +1649,7 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
     node = valid ? cdx_json_get(&response, cdx_json_get(&response, 0, "error"), "code") : -1;
     record("MCP rejects raw NUL without truncation", node >= 0 && response.nodes[node].number == -32700); cdx_json_free(&response);
     workspace_cases(&client);
+    presentation_cases(&client, fixture);
     create_file_cases(&client);
     line_read_cases(&client);
     tail_raw_cases(&client);

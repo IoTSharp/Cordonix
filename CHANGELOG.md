@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added deterministic C11 per-call summaries in MCP result `_meta["cordonix/summary"]` and opt-in standard progress messages. Existing program/argv/path/range fields describe program purpose and operation targets without extra model calls, input fields or summary text in model-visible content. Client rendering remains a separate gate.
+- Clarified the existing native `Get-Content -LiteralPath | Select-Object -Skip M -First N` equivalent in MCP read-tool descriptions, parameter guidance and bilingual examples: `start_line=M+1`, `line_count=N`.
+
 - Added native read-only Windows `query_processes` to the C API, CLI and asynchronous MCP worker, preserving original command lines and exact creation times with explicit partial/timeout/cancellation/output-limit states. Linux returns `not_supported` without an interpreter fallback.
 - Added 19 real native checks and three Windows/two Linux MCP checks for the new operation, plus MSVC static analysis and AddressSanitizer coverage.
 

@@ -37,7 +37,7 @@ Cordonix is a development MVP. Windows has first-party Codex usage evidence; Lin
 |---|---|---|
 | Windows process core | 35 checks passed locally, including isolated child environments | Broader application and long-running workload coverage continues |
 | Encoding and memory document core | 36 core checks plus 25 integration/encoding edge checks passed locally | External tools read disk; they do not see uncommitted memory revisions |
-| CLI and MCP | Seventeen native tools; 96 Windows and 100 Linux real stdio checks; 12 current official Python SDK checks | Actual installed-client adoption and Codex UI title rendering have separate gates |
+| CLI and MCP | Seventeen tools; isolated commit gates pass 101 Windows and 105 Linux real stdio checks plus 27 summary checks per platform; earlier SDK checks remain version-specific | Actual installed-client adoption and Codex UI title rendering have separate gates |
 | New text files | 20 native checks on each platform plus eight shared MCP checks | Existing paths are never overwritten and parent directories must exist |
 | Linux | 276 checks including full Git/rg adapters; independent MCP client 44/44 across ext4/tmpfs/9p and 60 rounds over 600 seconds | Native rg and Codex CLI are installed; model-backed Linux Codex calls still need authentication. Other distributions and longer soak are separate |
 | Windows/Linux portable packages | ZIP/tar.gz, checksums, embedded build revision/dirty readback, official SPDX schema validation | Unsigned packages; build metadata is not a signed attestation. Published v0.0.1/v0.0.2 remain immutable |
@@ -81,7 +81,9 @@ The memory workspace belongs to one running session. MCP keeps that process aliv
 | `workspace_search` | Find literal UTF-8 text in the memory revision |
 | `workspace_close` | Release a document, with explicit handling of dirty memory |
 
-MCP tool definitions include a human-readable `title`, such as `执行本地程序`, `编辑文本（仅内存）` and `提交文件到磁盘`. Tool identifiers stay unchanged. The client decides whether to display these titles; the server cannot assign a dynamic title to each invocation. Cordonix executes local programs and does not infer that an arbitrary script is a remote method or a file creation operation.
+MCP tool definitions include a human-readable `title`, such as `执行本地程序`, `编辑文本（仅内存）` and `提交文件到磁盘`. Tool identifiers stay unchanged. Titles are fixed; Cordonix separately derives a short summary from each call's existing arguments, such as `git.exe：查看仓库修改状态 · Cordonix` or `读取文件 · Services/DingTalkOptions.cs · 第 61～90 行`.
+
+The summary is returned in result `_meta["cordonix/summary"]` and sent before execution as a standard progress message when the client supplies `_meta.progressToken`. Formatting is bounded C11 code with no model request, new input field, file inspection or repeated summary in model-visible `content`. The client chooses whether to show it in collapsed rows; desktop adoption remains a separate gate. See [call summaries and the client contract](docs/call-summaries.md).
 
 ## Execution boundaries
 
@@ -114,6 +116,14 @@ Results report `written_to_disk`, `cleanup_complete`, encoded `bytes`, `encoding
 ## Read a line range
 
 `read_file` replaces a disk read followed by a skip/take pipeline. For example, skipping 950 lines and taking 245 means `start_line: 951`, `line_count: 245`. Run the saved [request example](examples/read-lines.json) with `build\bin\cdx.exe --request examples\read-lines.json`, adjusting the absolute path for your checkout. Set the known source encoding explicitly.
+
+For `Get-Content -LiteralPath 'D:/project/file.cs' | Select-Object -Skip 1990 -First 67`, call the MCP `read_file` tool with these arguments:
+
+```json
+{"path":"D:/project/file.cs","encoding":"utf-8","start_line":1991,"line_count":67}
+```
+
+This reads lines 1991 through 2057. The same mapping gives `start_line: 61, line_count: 30` for `-Skip 60 -First 30`, and `start_line: 291, line_count: 27` for `-Skip 290 -First 27`. Supply the literal file path in `path`; the tool accepts structured fields. For CLI use, wrap those arguments as `{"operation":"read_file","arguments":{...}}` in a JSON request file and pass it to `cdx --request`.
 
 For an already-open document, pass the same line fields to `workspace_read` with its `document_id`; this reads the current memory revision, including uncommitted edits. `read_file` instead reads current disk bytes and closes its temporary document.
 

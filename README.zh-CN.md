@@ -37,7 +37,7 @@ Git、ripgrep、编译器和 Codex 的 `apply_patch` 仍是配套工具。Cordon
 |---|---|---|
 | Windows 进程核心 | 本地 35 项检查通过，包含子进程环境隔离 | 更广泛应用和长时间负载仍需验证 |
 | 编码与内存文档核心 | 36 项核心检查与 25 项编码/接线边界检查通过 | 外部工具读取磁盘，看不到未提交的内存修改 |
-| CLI 与 MCP | 17 个带可读标题的原生工具；Windows 96 项、Linux 100 项真实 stdio 检查，以及 12 项当前官方 Python SDK 检查 | 先前 Windows SDK/Codex 证据与本次修改树分开；Codex 是否显示新标题待验证 |
+| CLI 与 MCP | 17 个原生工具；本次独立提交版本通过 Windows 101 项、Linux 105 项真实 stdio 检查，以及每端 27 项概要检查；SDK 历史证据按版本记录 | 已安装客户端采用及 Codex 折叠概要显示单独验收 |
 | 新文本文件 | 两平台各 20 项原生检查，以及 8 项共享 MCP 检查 | 已有路径不覆盖，父目录必须存在 |
 | Linux | WSL Ubuntu 下 276 项完整检查（含 Git/rg 适配器）；独立客户端 44/44，覆盖 ext4/tmpfs/9p 以及 60 轮、600 秒有限长稳 | 原生 rg 与 Codex CLI 已安装；Linux Codex 模型调用仍需认证。ACL/xattr 不支持，多发行版和更长时段仍单独验收 |
 | Windows/Linux 便携包 | ZIP/tar.gz、校验和、checkout 来源、SPDX 文件清单与解压运行门禁；v0.0.1 已在两端发布并核对全部附件 | 包未签名；官方 SPDX schema 已验证，构建 revision/dirty 从实际二进制回读；这些不是签名构建证明 |
@@ -79,7 +79,9 @@ workspace_open -> workspace_read / workspace_search
 | `workspace_search` | 在内存版本中查找 UTF-8 字面文本 |
 | `workspace_close` | 释放文档，显式处理未提交内容 |
 
-工具定义现在提供中文 `title`，例如“执行本地程序”“编辑文本（仅内存）”“提交文件到磁盘”，原来的工具标识保持不变。客户端决定是否采用标题；服务端不能为每次调用指定动态标题。Cordonix 执行本地程序，不会仅凭脚本名称把操作标成“远程方法”或“新增文件”。
+工具定义提供中文 `title`，例如“执行本地程序”“编辑文本（仅内存）”“提交文件到磁盘”，工具标识保持不变。标题是固定的；Cordonix 另从每次调用已有参数生成简短概要，例如 `git.exe：查看仓库修改状态 · Cordonix`、`读取文件 · Services/DingTalkOptions.cs · 第 61～90 行`。
+
+概要放在结果 `_meta["cordonix/summary"]` 中；客户端提供 `_meta.progressToken` 时，还会在执行前通过标准进度消息发送。格式化使用有界 C11 规则，不调用大模型、不增加工具输入字段、不读取脚本推测业务，也不把概要重复写入模型可见的 `content`。折叠条目是否采用概要由客户端决定，桌面显示单独验收。详见[概要与客户端接入约定](docs/call-summaries.md)。
 
 ## 程序执行边界
 
@@ -118,6 +120,14 @@ build\bin\cdx.exe --request examples\read-lines.json
 ```
 
 [请求示例](examples/read-lines.json) 中的路径需对应本地文件；已知 GBK 必须指定 `cp936`。如果文件已经通过 `workspace_open` 打开，将相同行参数传给 `workspace_read` 即可读取当前内存版本，包含尚未提交的修改；`read_file` 则始终读取磁盘并释放临时文档。
+
+例如，`Get-Content -LiteralPath 'D:/project/file.cs' | Select-Object -Skip 1990 -First 67` 对应以下 MCP `read_file` 参数：
+
+```json
+{"path":"D:/project/file.cs","encoding":"utf-8","start_line":1991,"line_count":67}
+```
+
+这会读取第 1991～2057 行。`-Skip 60 -First 30` 对应 `start_line: 61, line_count: 30`；`-Skip 290 -First 27` 对应 `start_line: 291, line_count: 27`。`path` 只填写文件的字面路径，各参数分别传入。CLI 使用时，将参数放入 JSON 请求文件的 `{"operation":"read_file","arguments":{...}}`，再通过 `cdx --request` 调用。
 
 行号从 1 开始。返回文本保留 LF、CRLF、CR；空文件为零行，末尾换行不会多算一行。结果包含实际行数、下一行 `next_line`（到达 EOF 时为 null）、`eof`、编码、换行、SHA 和 `source`。默认最多 200 行、32768 UTF-8 字节；可设置到 1000 行、262144 字节。字节预算不足时只返回完整行并标记 `truncated=true`；首行过长则返回 `line_too_long`，可增加预算或使用原有字节分页。行模式不能与 `offset`/`limit` 混用。
 

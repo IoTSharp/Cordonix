@@ -1,4 +1,5 @@
 #include "cdx/operations.h"
+#include "cdx/presentation.h"
 #include "cdx/version.h"
 #include <io.h>
 #include <fcntl.h>
@@ -47,13 +48,19 @@ static int ids_equal(const cdx_json *a, int ai, const cdx_json *b, int bi) {
 static void tool_response(const cdx_json *json, int params, int id, HANDLE cancellation) {
     int name = cdx_json_get(json, params, "name"), arguments = cdx_json_get(json, params, "arguments");
     cdx_json_output data, output;
+    char summary[CDX_CALL_SUMMARY_BYTES];
     if (name < 0 || json->nodes[name].type != CDX_JSON_STRING) { rpc_error(json, id, -32602, "Tool name must be a string"); return; }
     cdx_json_output_init(&data); cdx_json_output_init(&output);
+    cdx_summarize_call(json->nodes[name].string, json, arguments, summary);
+    if (cdx_summary_progress(json, params, summary, &output)) {
+        send_output(&output); cdx_json_output_free(&output); cdx_json_output_init(&output);
+    }
     cdx_call(json->nodes[name].string, json, arguments, cancellation, &data);
     response_start(&output, json, id); cdx_json_raw(&output, ",\"result\":{\"content\":[{\"type\":\"text\",\"text\":");
     if (data.failed || !data.data) cdx_json_quote(&output, "{\"status\":\"output_limit\"}", strlen("{\"status\":\"output_limit\"}"));
     else cdx_json_quote(&output, data.data, data.size);
-    cdx_json_raw(&output, "}]}}"); send_output(&output);
+    cdx_json_raw(&output, "}]"); cdx_summary_metadata(summary, &output);
+    cdx_json_raw(&output, "}}"); send_output(&output);
     cdx_json_output_free(&data); cdx_json_output_free(&output);
 }
 static DWORD WINAPI execution_worker(void *context) {
