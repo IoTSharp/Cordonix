@@ -4,6 +4,8 @@
 
 ## 0.1.0 - 2026-11-04
 
+- Published signed Windows/Linux archives on GitHub and Gitee from clean source `6bf1e14`. All tagged gates pass; 12 uploaded assets match across hosts, four independent signature checks and four tamper rejections pass, and downloaded binaries expose 24 MCP tools. The public Windows executable passes 108 protocol checks. WinGet update PR #470229 is submitted; community acceptance remains separate.
+
 - Integrated the v0.0.5 phone, PowerShell and process-query contract with the new communication tools and call summaries: 24 tools in total. Kept the separate native C process-query library and its checks, and retained exact original command-line/creation-time protocol regressions without changing the released MCP fields.
 
 - Made `proxy=auto` the default for built-in HTTP/HTTPS, SSH/SFTP and TCP/Telnet/MQTT connections. Direct network connection failures trigger bounded local 7890/1080 probes and actual HTTP CONNECT/SOCKS5 negotiation; explicit direct/proxy selection remains available.

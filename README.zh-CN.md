@@ -8,7 +8,7 @@
 
 WinGet 发行正在以 `IoTSharp.Cordonix` 提交收录；安装边界、入库状态和新版本自动提交 PR 的流程见 [WinGet 说明](docs/winget.md)。
 
-已验收发行版：[v0.0.4](https://github.com/IoTSharp/Cordonix/releases/tag/v0.0.4)。两端附件一致，签名与篡改负例验证通过；Windows/Linux 实际安装升级后，原生 Codex 客户端均调用了全部 17 个已发布工具。各门禁与未覆盖边界见[验收清单](docs/successor-acceptance.md)；后续本地进程查询开发另行记录。
+已验收发行版：[GitHub v0.1.0](https://github.com/IoTSharp/Cordonix/releases/tag/v0.1.0) / [Gitee v0.1.0](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.1.0)。两端 12 个上传附件的 SHA-256 完全一致，精确标签 OIDC 签名及篡改负例验证均通过。下载的两平台程序均报告 0.1.0、干净发行源码及全部 24 个 MCP 工具；公开 Windows 包另通过 108 项真实协议检查。本次证据见 [HANDOFF.md](HANDOFF.md)，早期客户端安装验收保留在[历史清单](docs/successor-acceptance.md)。
 
 
 **面向 AI 编程代理的原生执行与内存工作区。**
@@ -49,7 +49,7 @@ Git、ripgrep、编译器和 Codex 的 `apply_patch` 仍是配套工具。Cordon
 | 原生 SSH 客户端 | Windows 实际回环 SSH 协议 27/27；ASan 客户端再次通过；libssh2 静态链接 CNG | 实际部署跳板验收 NOT_RUN；Linux SSH NOT_SUPPORTED；当前后端不支持 Ed25519 |
 | 新文本文件 | 两平台各 20 项原生检查，以及 8 项共享 MCP 检查 | 已有路径不覆盖，父目录必须存在 |
 | Linux | 既有 CI 证据包含 276 项完整检查（含 Git/rg 适配器）；10 月 31 日 WSL 重跑通过 102 项 MCP、17/17 项 Git 适配器，因本机没有原生 rg 将 rg 标记为 `NOT_RUN` | Linux Codex 模型调用仍需认证。ACL/xattr 不支持，多发行版和更长时段仍单独验收 |
-| Windows/Linux 便携包 | ZIP/tar.gz、校验和、checkout 来源、SPDX 文件清单与解压运行门禁；v0.0.1 已在两端发布并核对全部附件 | 包未签名；官方 SPDX schema 已验证，构建 revision/dirty 从实际二进制回读；这些不是签名构建证明 |
+| Windows/Linux 便携包 | v0.1.0 ZIP/tar.gz、校验和、干净构建 revision、官方 SPDX 验证及独立验签的 OIDC provenance | Windows Authenticode 与更广目标环境另行验收；已发布标签和附件保持不可变 |
 
 上述结果是本地验证，不是性能基准，也不代表不会发生错误。各项验收边界见[质量门禁](docs/quality-gates.md)。
 

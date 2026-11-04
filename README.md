@@ -8,7 +8,7 @@ On 2026-11-02 this machine's existing hourly task naturally upgraded 0.0.4 to 0.
 
 WinGet distribution is being submitted as `IoTSharp.Cordonix`. See [the WinGet guide](docs/winget.md) for catalog availability, installation boundaries and automatic release PRs.
 
-Verified release: [v0.0.4](https://github.com/IoTSharp/Cordonix/releases/tag/v0.0.4) includes signed artifact provenance. Both release hosts expose identical assets, independent signature/tamper checks pass, and actual Windows/Linux Codex clients exercise all 17 released tools after installation and upgrade. See the [acceptance ledger](docs/successor-acceptance.md) for exact gates and remaining limits; later local process-query work is a separate development boundary.
+Verified release: [v0.1.0 on GitHub](https://github.com/IoTSharp/Cordonix/releases/tag/v0.1.0) and [Gitee](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.1.0). The 12 uploaded assets match across both hosts; exact-tag OIDC signatures and tamper rejection pass. Both downloaded platform binaries report 0.1.0, clean release source and all 24 MCP tools; the public Windows binary also passes 108 real protocol checks. Current evidence is in [HANDOFF.md](HANDOFF.md); the [earlier acceptance ledger](docs/successor-acceptance.md) records historical installed-client gates.
 
 
 **A native execution and memory workspace for AI coding agents.**
@@ -49,7 +49,7 @@ Cordonix is a development MVP. Windows has first-party Codex usage evidence; Lin
 | Native SSH client | Windows loopback protocol 27/27; repeated on an AddressSanitizer client; static libssh2 with CNG | Deployed bastions NOT_RUN; Linux SSH NOT_SUPPORTED; current backend excludes Ed25519 |
 | New text files | 20 native checks on each platform plus eight shared MCP checks | Existing paths are never overwritten and parent directories must exist |
 | Linux | Earlier CI evidence includes 276 checks with full Git/rg adapters; the October 31 WSL rerun passed 102 MCP checks and 17/17 Git adapter checks while marking rg `NOT_RUN` because native rg is absent | Model-backed Linux Codex calls still need authentication. Other distributions and longer soak are separate |
-| Windows/Linux portable packages | ZIP/tar.gz, checksums, embedded build revision/dirty readback, official SPDX schema validation | Unsigned packages; build metadata is not a signed attestation. Published v0.0.1/v0.0.2 remain immutable |
+| Windows/Linux portable packages | v0.1.0 ZIP/tar.gz, checksums, clean build revision, official SPDX validation and independently verified OIDC provenance | Windows Authenticode and broader target environments retain separate gates; published tags/assets remain immutable |
 
 These are local validation results, not performance benchmarks or a zero-error guarantee. See [quality gates](docs/quality-gates.md) for the separate acceptance boundaries.
 
