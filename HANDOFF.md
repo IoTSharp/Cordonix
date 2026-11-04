@@ -1,5 +1,11 @@
 # Handoff
 
+## Formal 0.1.0 release (2026-11-04)
+
+The user explicitly authorized the formal v0.1.0 release after the main integration was pushed and exact-source CI [41763704826](https://github.com/IoTSharp/Cordonix/actions/runs/41763704826) passed every Windows/Linux step. This release freezes the existing implementation, dates the changelog and corrects package inventory guidance; no new runtime behavior is added in this preparation commit.
+
+The existing tagged workflow builds clean version 0.1.0 binaries, validates native/MCP/package/SPDX/reproducibility/install gates, issues GitHub OIDC provenance bundles and publishes identical original assets to GitHub/Gitee. Public downloads, digest comparison, exact-tag signature verification and tamper rejection are checked after the workflow. These gates do not establish Windows Authenticode, physical serial, deployed-bastion compatibility or fresh installed-client adoption. WinGet submission runs separately and community acceptance remains external.
+
 ## Main integration and release assessment (2026-11-04)
 
 The user authorized committing and pushing the current work, and asked whether a new release is warranted. The local presentation commit and native communication work are integrated with GitHub main `494f609`, including the released phone/PowerShell behavior and WinGet follow-up. Earlier no-commit/no-push notes below describe their original batches.

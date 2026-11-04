@@ -1,6 +1,6 @@
 # Cordonix
 
-Current development integrates all 19 v0.0.5 tools with native SSH, HTTP, SFTP, TCP/Telnet/MQTT and serial access, automatic local proxy evaluation and per-call summaries: 24 tools total. Windows/Linux native and MCP gates, real protocol fixtures and portable packages pass locally; see [the integration and release assessment](HANDOFF.md). The next recommended release is v0.1.0.
+Release 0.1.0 adds native SSH, HTTP, SFTP, TCP/Telnet/MQTT and serial access, automatic local proxy evaluation and per-call summaries: 24 tools total, retaining all 19 v0.0.5 tools and their published fields. Windows/Linux native and MCP gates, real protocol fixtures and portable packages pass; signed tagged publication and public readback are recorded in [HANDOFF.md](HANDOFF.md).
 
 Version 0.0.5 adds Windows process queries, experimental native phone access and Microsoft Store/portable PowerShell 7 compatibility. Its release and natural installed-update checks are recorded separately in HANDOFF.md; the completed v0.0.4 acceptance below is historical evidence.
 

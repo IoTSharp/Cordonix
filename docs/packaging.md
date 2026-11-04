@@ -16,12 +16,12 @@ v0.0.4 开始，发布工作流为两个归档提供 GitHub OIDC 签名 provenan
 默认输出在 `build\packaging`：
 
 - `cordonix-0.1.0-dev-win-x64.zip`，包含可执行文件、Apache-2.0 许可证、README、打包说明、安装/更新说明、可复制 AI 提示词、配置示例和三份元数据。
-- `*.manifest.json`，记录 17 个输入文件的大小和 SHA-256，包含请求示例、安装/更新说明以及 Windows/Linux 安装脚本。`format_version: 1` 是本脚本的格式版本，不引用不存在的外部 schema。
+- `*.manifest.json`，0.1.0 记录 34 个输入文件的大小和 SHA-256，包含通信示例、安装/更新说明、Windows/Linux 安装脚本、NOTICE 和 libssh2 的原始许可证。`format_version: 1` 是本脚本的格式版本，不引用不存在的外部 schema。
 - `*.provenance.json`，记录打包时 checkout 的 Git revision、dirty 状态、输入二进制 SHA-256 和实际版本。`binary_build_revision` 与 `binary_build_dirty` 从实际程序的 `tool_info` 回读，构建脚本在编译时嵌入 Git revision 和工作树状态。正式 Release 要求编译与打包 revision 相同且二者均干净；这不是签名构建证明。
-- `*.spdx.json`，SPDX 2.3 文件清单，包括 payload、manifest 和 provenance 共 20 个文件、`DESCRIBES`/`CONTAINS` 关系、基于排序后的文件 SHA-1 计算的 package verification code，以及绑定内容 SHA-256 的文档 namespace。SBOM 自身列为 verification code 的排除项，避免自引用哈希。
+- `*.spdx.json`，0.1.0 的 SPDX 2.3 文件清单包括 payload、manifest 和 provenance 共 36 个文件、`DESCRIBES`/`CONTAINS` 关系、基于排序后的文件 SHA-1 计算的 package verification code，以及绑定内容 SHA-256 的文档 namespace。SBOM 自身列为 verification code 的排除项，避免自引用哈希。
 - `*.zip.sha256`，外层 ZIP 的 SHA-256。
 
-ZIP 的 20 个条目使用固定排序、1980-01-01 时间和无压缩存储。同一文件内容、Git 状态及脚本参数可产生相同 ZIP；这不声称重新编译的二进制可复现。`-SourceDateEpoch` 控制元数据日期，默认值为 0。
+0.1.0 ZIP 的 37 个条目使用固定排序、1980-01-01 时间和无压缩存储。同一文件内容、Git 状态及脚本参数可产生相同 ZIP；这不声称重新编译的二进制可复现。`-SourceDateEpoch` 控制元数据日期，默认值为 0。
 
 脚本每次创建独占的临时子目录，成功后只删除本次目录，失败时保留诊断并输出路径。正式 ZIP 和同名外部元数据可被后续运行覆盖。每个输入最多 32 MiB，checkout 状态最多 100 项，整个打包或测试有 120 秒预算；外部进程使用字面参数，记录 PID、时间、程序、参数和父进程，超时清理本次进程树。
 
@@ -29,7 +29,7 @@ ZIP 的 20 个条目使用固定排序、1980-01-01 时间和无压缩存储。�
 
 `test-package.ps1` 连续生成两次并比较 ZIP SHA-256，在包含中文和空格的独占目录中解压，核验清单、大小、许可证、SPDX 文件哈希及关系、verification code、外部元数据一致性，再运行包内 `--version` 和 `--request tool_info`，断言准确版本、`platform=windows`、`runtime=C11`。完整源码门禁仍是 `eng\test.cmd`；SPDX 官方 schema 验证、签名、安装器和正式发布是独立门禁。
 
-便携包可解压后直接执行。使用[安装器](install-update.md)可得到版本目录、稳定 MCP 入口和可选的用户级自动检查；安装器保留旧版本，不改系统 PATH。签名保持 `NOT_RUN`。`v0.0.1` 已在 GitHub/Gitee 发布并独立回读。
+便携包可解压后直接执行。使用[安装器](install-update.md)可得到版本目录、稳定 MCP 入口和可选的用户级自动检查；安装器保留旧版本，不改系统 PATH。打包步骤的签名字段保持 `NOT_RUN`；正式归档由后续 CI 签发 OIDC provenance，独立验证以随包发布的 `.sigstore.json` 为准。
 
 ## Linux x64 包
 
