@@ -2,6 +2,39 @@
 
 `execute_program` provides a flat argument vector, bounded execution and cleanup of its owned processes. The invoked program still defines how it interprets its arguments. This distinction matters for PowerShell wrappers and browser CLIs.
 
+## Windows PowerShell executable paths
+
+Supply the absolute path to the installed PowerShell 7 `pwsh.exe`. MSI, Microsoft Store execution aliases/package paths and portable installations do not need to match `C:\Program Files\PowerShell\7\pwsh.exe`. Cordonix uses the supplied executable; it does not discover PowerShell or verify its distribution/version for the caller.
+
+Saved scripts use `-NoProfile -File <absolute-script-path>`. The options accepted before `-File` remain `-NoProfile`, `-NoLogo` and `-NonInteractive`; the script must exist. Command strings, encoded commands and Windows PowerShell 5.1 remain rejected before spawn. Arguments after the script path belong to that script and are passed literally.
+
+Version 0.0.4 restricted `pwsh.exe` to the MSI path. The same Store alias and saved script return `validation_error`, `win32_error=5`, `pid=0` on the retained 0.0.4 binary and succeed on 0.0.5. This error is the old policy check, not evidence that Windows denied access to the package. Check `tool_info.version` and `build_revision` on the connected server: replacing the installed version does not replace an existing MCP process. Reconnect the client before judging whether the update fixed that connection.
+
+`eng\test-pwsh-windows.ps1` exercises the real PowerShell host and every distinct `Get-Command pwsh.exe -All` application path, bounded to eight hosts. On the investigated Store installation this covers the package executable, package-specific alias and general WindowsApps alias. It checks Unicode/space-containing script paths and literal arguments through CLI and MCP, then script failure and timeout cleanup through MCP, plus rejection before spawn. These checks run from `eng\test.cmd` and retain fixtures and receipts under `build/`. They do not assert compatibility with every Microsoft Store application.
+
+## Child deadlines and MCP client deadlines
+
+`execute_program.timeout_ms` bounds the child task (default 30000 ms, maximum 1800000 ms). The MCP client's tool-call deadline is separate. A larger child timeout does not increase the client's wait. Leave time for bounded cleanup and delivery of the response before the client's deadline.
+
+In the reported REA/Ghidra session, a request with `timeout_ms=600000` failed at the transport after 300008 ms. The recorded client configuration set `tool_timeout_sec=300`; the child deadline had not elapsed. The session subsequently checked that its original analysis processes had exited before moving the work to a terminal. This is evidence about that client configuration, not a universal five-minute Cordonix limit.
+
+For a finite analysis that may exceed the client deadline, choose a terminal session that can remain attached and be polled, or deliberately configure a sufficient client deadline before starting. A terminal may run `cdx --request <absolute-request-json>` to retain Cordonix's bounded process ownership for jobs within the 30-minute core limit. Keep a persistent MCP server with its lifecycle owner. Do not launch a detached analysis beneath `execute_program`: descendants are still owned by that invocation.
+
+If the client times out without a Cordonix result, treat completion and side effects as unknown. Inspect the original process identity and output artifacts before any retry. A returned `timed_out` with cleanup evidence and a transport timeout with no result are different observations.
+
+## Diagnose the result before changing the invocation
+
+| Observation | Meaning and next step |
+|---|---|
+| `validation_error`, `pid=0` | Nothing was launched. Check the connected version, absolute paths, actual tool schema and supported arguments. Win32 error 5 can be an explicit policy rejection. |
+| `spawn_error` | Startup failed. Inspect `win32_error`, `pid` and `cleanup_complete`; startup may have created a suspended process before a later setup failure. |
+| `failed`, known exit code | The program ran and reported failure. Read its captured output; changing the executable path is not a general repair. |
+| `timed_out` result | The child deadline expired. Check cleanup and artifacts; work may already have changed files. |
+| Client/transport timeout without a result | Outcome is unknown; inspect the original invocation before retrying. |
+| `encoding_error` | Inspect the separate `process_status` and retained bytes; decoding failed after execution. |
+
+On Windows, `.cmd`/`.bat` files and command strings are outside this API. Use the underlying native executable and literal argv when the tool provides one; otherwise use the existing terminal/build entry point. PowerShell 5.1, `-Command`, `-EncodedCommand` and unsupported options before `-File` remain explicit rejections. Do not turn a policy rejection into an elevation request or silently route the same command through another interpreter.
+
 ## PowerShell array parameters
 
 This request shape does not construct a PowerShell array for a named script parameter:

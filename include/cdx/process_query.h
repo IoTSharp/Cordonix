@@ -41,4 +41,17 @@ typedef struct cdx_process_query_result {
 void cdx_query_processes(const cdx_process_query_request *request, cdx_process_query_result *result);
 void cdx_process_query_free(cdx_process_query_result *result);
 
+#include "cdx/json.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void cdx_query_processes_call(const cdx_json *request, int arguments,
+                              cdx_cancel_handle cancellation, cdx_json_output *output);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif

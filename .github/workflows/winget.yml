@@ -1,0 +1,49 @@
+name: WinGet publication
+
+on:
+  workflow_run:
+    workflows: ['Cordonix tagged release']
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published stable version without the v prefix
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cordonix-winget-${{ github.event.workflow_run.head_branch || inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  manifest:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate manifests and submit the community repository PR
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.WINGET_TOKEN || github.token }}
+          SUBMIT_ENABLED: ${{ secrets.WINGET_TOKEN != '' }}
+          RELEASE_TAG: ${{ github.event.workflow_run.head_branch }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          $version = if ($env:REQUESTED_VERSION) { $env:REQUESTED_VERSION } else { $env:RELEASE_TAG -replace '^v', '' }
+          $arguments = @{ Version = $version }
+          if ($env:SUBMIT_ENABLED -eq 'true') { $arguments.Submit = $true }
+          ./eng/publish-winget.ps1 @arguments
+          if ($env:SUBMIT_ENABLED -ne 'true') {
+            'Manifests generated. Configure WINGET_TOKEN to enable automatic community repository PRs.' >> $env:GITHUB_STEP_SUMMARY
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cordonix-winget
+          if-no-files-found: error
+          path: |
+            build/winget/*/manifests/*.yaml
+            build/winget/*/receipt.json

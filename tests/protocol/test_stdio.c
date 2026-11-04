@@ -583,6 +583,60 @@ static void presentation_cases(wire_client *client, const char *program) {
     remove_line_fixture(fixture); free(fixture);
 }
 
+static void process_snapshot_cases(wire_client *client) {
+    cdx_json data;
+    int valid;
+#ifdef _WIN32
+    int entries;
+#endif
+    valid = tool_call(client, "query_processes", "{\"max_entries\":8,\"timeout_ms\":10000,\"output_limit_bytes\":262144}", 5, &data);
+#ifdef _WIN32
+    entries = valid ? cdx_json_get(&data, 0, "entries") : -1;
+    record("MCP process query returns a bounded Windows snapshot", valid &&
+        (string_is(&data, 0, "status", "ok") || string_is(&data, 0, "status", "partial") || string_is(&data, 0, "status", "output_limit")) &&
+        entries >= 0 && data.nodes[entries].type == CDX_JSON_ARRAY);
+#else
+    record("MCP process query is explicit on POSIX", valid && string_is(&data, 0, "status", "not_supported"));
+#endif
+    if (valid) cdx_json_free(&data);
+    valid = tool_call(client, "query_processes", "{\"max_entries\":0}", 6, &data);
+    record("MCP process query rejects zero max_entries", valid && string_is(&data, 0, "status", "validation_error"));
+    if (valid) cdx_json_free(&data);
+}
+
+static void phone_cases(wire_client *client) {
+    cdx_json data;
+    int valid;
+    valid = tool_call(client, "phone", "{\"action\":\"dial\",\"device_address\":\"001122334455\",\"recipient\":\"+15555550123\"}", 7, &data);
+    record("MCP phone dial defaults to preview without Bluetooth IO", valid && string_is(&data, 0, "status", "preview") && bool_is(&data, "submitted", 0));
+    if (valid) cdx_json_free(&data);
+    valid = tool_call(client, "phone", "{\"action\":\"sms_send\",\"device_address\":\"001122334455\",\"recipient\":\"123;ATA\",\"body\":\"test\"}", 8, &data);
+    record("MCP phone rejects injected recipient before IO", valid && string_is(&data, 0, "status", "validation_error"));
+    if (valid) cdx_json_free(&data);
+    valid = tool_call(client, "phone", "{\"action\":\"read_code\",\"device_address\":\"001122334455\",\"message_handle\":\"0000000000000001\"}", 9, &data);
+    record("MCP verification code read requires inbox snapshot", valid && string_is(&data, 0, "status", "validation_error"));
+    if (valid) cdx_json_free(&data);
+    valid = tool_call(client, "phone", "{\"action\":\"call_history\",\"device_address\":\"001122334455\",\"offset\":65536}", 704, &data);
+    record("MCP call history rejects out-of-range pages before Bluetooth IO", valid && string_is(&data, 0, "status", "validation_error"));
+    if (valid) cdx_json_free(&data);
+    valid = tool_call(client, "phone", "{\"action\":\"app_notifications\",\"device_address\":\"001122334455\",\"timeout_ms\":0}", 705, &data);
+    record("MCP application notification timeout is validated before BLE", valid && string_is(&data, 0, "status", "validation_error"));
+    if (valid) cdx_json_free(&data);
+    valid = tool_call(client, "phone", "{\"action\":\"pair\",\"device_address\":\"001122334455\"}", 701, &data);
+    record("MCP pairing requires explicit submission before UI", valid && string_is(&data, 0, "status", "preview") && bool_is(&data, "submitted", 0));
+    if (valid) cdx_json_free(&data);
+    valid = tool_call(client, "phone", "{\"action\":\"connect\",\"device_address\":\"001122334455\",\"connection_ttl_ms\":0}", 702, &data);
+    record("MCP connection lease is validated before Bluetooth IO", valid && string_is(&data, 0, "status", "validation_error"));
+    if (valid) cdx_json_free(&data);
+    valid = tool_call(client, "phone", "{\"action\":\"connection_status\"}", 703, &data);
+#ifdef _WIN32
+    record("MCP owns an initially disconnected phone session", valid && string_is(&data, 0, "connection_state", "disconnected") && bool_is(&data, "connection_retained", 0));
+#else
+    record("MCP Linux connection status is explicitly unsupported", valid && string_is(&data, 0, "status", "not_supported"));
+#endif
+    if (valid) cdx_json_free(&data);
+}
+
 static void create_file_cases(wire_client *client) {
     static const char content[] = "new \xe4\xb8\xad \"$(literal)\"\r\n";
     static const char encoded[] = "\xd6\xd0\r\n";
@@ -1631,14 +1685,16 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
         int tool = node >= 0 ? response.nodes[node].first : -1;
         unsigned count = 0;
         int titles_valid = 1, execution_title = 0;
-        for (; tool >= 0 && count < 24; tool = response.nodes[tool].next, ++count) {
+        for (; tool >= 0 && count < 25; tool = response.nodes[tool].next, ++count) {
             int title = cdx_json_get(&response, tool, "title");
             if (title < 0 || response.nodes[title].type != CDX_JSON_STRING || !*response.nodes[title].string) titles_valid = 0;
             if (string_is(&response, tool, "name", "execute_program")) execution_title = string_is(&response, tool, "title", "执行本地程序");
         }
-        record("MCP twenty-three tools expose human-readable titles", count == 23 && titles_valid && execution_title);
+        record("MCP twenty-four tools expose human-readable titles", count == 24 && tool < 0 && titles_valid && execution_title);
     }
     cdx_json_free(&response);
+    process_snapshot_cases(&client);
+    phone_cases(&client);
     valid = wire_send(&client, malformed, sizeof(malformed) - 1) && wire_read(&client, &response);
     node = valid ? cdx_json_get(&response, cdx_json_get(&response, 0, "error"), "code") : -1;
     record("MCP malformed JSON reports parse error", node >= 0 && response.nodes[node].number == -32700); cdx_json_free(&response);
@@ -1755,37 +1811,44 @@ static void process_query_cases(wire_client *client) {
     int valid;
 #ifdef _WIN32
     char arguments[256];
-    int array, entry, command;
+    int array, entry, command, creation;
+    unsigned inspected = 0;
     wchar_t actual[32768];
     FILETIME created, exited, kernel, user;
     ULARGE_INTEGER ticks;
     char exact_ticks[32];
-    (void)snprintf(arguments, sizeof(arguments), "{\"contains\":[\"cdx-stdio-tests\"],\"pids\":[%lu]}",
-        (unsigned long)GetCurrentProcessId());
+    (void)snprintf(arguments, sizeof(arguments), "{\"name\":\"cdx-stdio-tests.exe\",\"max_entries\":8}");
     valid = tool_call(client, "query_processes", arguments, 1910, &data);
-    array = valid ? cdx_json_get(&data, 0, "matches") : -1;
+    array = valid ? cdx_json_get(&data, 0, "entries") : -1;
     entry = array >= 0 ? data.nodes[array].first : -1;
+    for (; entry >= 0 && inspected < 8; entry = data.nodes[entry].next, ++inspected) {
+        int pid = cdx_json_get(&data, entry, "pid");
+        if (pid >= 0 && data.nodes[pid].type == CDX_JSON_NUMBER &&
+            data.nodes[pid].number == (double)GetCurrentProcessId()) break;
+    }
     command = entry >= 0 ? cdx_json_get(&data, entry, "command_line") : -1;
-    record("MCP native process query finds the live client", valid && string_is(&data, 0, "status", "completed") &&
-        entry >= 0 && data.nodes[entry].next < 0 && number_is(&data, "examined", 1));
+    record("MCP native process query finds the live client", valid &&
+        (string_is(&data, 0, "status", "ok") || string_is(&data, 0, "status", "partial")) && entry >= 0);
     record("MCP native process query preserves original command line", command >= 0 &&
         data.nodes[command].type == CDX_JSON_STRING &&
         MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, data.nodes[command].string, -1, actual, 32768) &&
-        !wcscmp(actual, GetCommandLineW()) && string_is(&data, entry, "command_line_source", "win32_original"));
+        !wcscmp(actual, GetCommandLineW()));
     ticks.QuadPart = 0;
     if (GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user)) {
         ticks.LowPart = created.dwLowDateTime; ticks.HighPart = created.dwHighDateTime;
     }
     (void)snprintf(exact_ticks, sizeof(exact_ticks), "%llu", ticks.QuadPart);
-    record("MCP process creation ticks preserve integer precision as text", entry >= 0 && ticks.QuadPart &&
-        string_is(&data, entry, "creation_filetime", exact_ticks));
+    creation = entry >= 0 ? cdx_json_get(&data, entry, "creation_filetime") : -1;
+    record("MCP process creation ticks preserve the exact JSON integer", creation >= 0 && ticks.QuadPart &&
+        data.nodes[creation].type == CDX_JSON_NUMBER && data.nodes[creation].number_length == strlen(exact_ticks) &&
+        !memcmp(data.nodes[creation].number_text, exact_ticks, strlen(exact_ticks)));
     cdx_json_free(&data);
 #else
-    valid = tool_call(client, "query_processes", "{\"contains\":[\"cdx\"]}", 1910, &data);
+    valid = tool_call(client, "query_processes", "{\"name\":\"cdx\"}", 1910, &data);
     record("MCP Windows process query is explicitly unsupported on Linux", valid && string_is(&data, 0, "status", "not_supported"));
     cdx_json_free(&data);
 #endif
-    valid = tool_call(client, "query_processes", "{\"contains\":[],\"limit\":0}", 1911, &data);
+    valid = tool_call(client, "query_processes", "{\"max_entries\":0}", 1911, &data);
     record("MCP native process query validates before inspection", valid && string_is(&data, 0, "status", "validation_error"));
     cdx_json_free(&data);
 }
