@@ -103,6 +103,9 @@ static cdx_fs_status create_directories(const cdx_fs_create_request *request, wc
         ends[count++] = length;
         for (; length && (path[length - 1] == L'\\' || path[length - 1] == L'/'); --length) { }
         for (; length && path[length - 1] != L'\\' && path[length - 1] != L'/'; --length) { }
+        /* A trailing separator can hide a file ancestor on older Windows. Keep drive roots intact. */
+        if (length > 3u && path[length - 2] != L':' &&
+            (path[length - 1] == L'\\' || path[length - 1] == L'/')) --length;
         if (!length) { SetLastError(ERROR_PATH_NOT_FOUND); return CDX_FS_NOT_FOUND; }
     }
     for (step = count; step > 0; --step) {

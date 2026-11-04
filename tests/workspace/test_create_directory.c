@@ -103,6 +103,9 @@ static void remaining_cases(const cdx_path_char *root, cdx_fs_create_request *re
     cdx_fs_create_result_free(&result);
     (void)join_path(other, file_path, PATH_TEXT("child")); request->path = other;
     cdx_fs_create_directory(request, &result);
+    if (result.status != CDX_FS_NOT_DIRECTORY || result.directories_created)
+        printf("file ancestor result: status=%s native_error=%lu directories_created=%zu\n",
+               cdx_fs_status_name(result.status), result.native_error, result.directories_created);
     check(result.status == CDX_FS_NOT_DIRECTORY && !result.directories_created, "file ancestor is not a directory");
     cdx_fs_create_result_free(&result);
 #ifdef _WIN32

@@ -8,6 +8,8 @@ MSVC `/analyze /W4 /WX` passes for the changed Windows filesystem backend and pr
 
 The user's original ensure-directory request passes on the rebuilt CLI with an existing directory, count zero and absolute-path readback. These are local source/build/MCP gates for the next version. Package validation, remote CI, publication and installed-client adoption for this change are NOT_RUN; the earlier dated release evidence below is unchanged.
 
+After the first push (`158e6a2`), [remote CI 41802155114](https://github.com/IoTSharp/Cordonix/actions/runs/41802155114) passed every Linux step, including native rg, ext4, packaging, SPDX, reproducibility and installation. Windows exposed one file-ancestor classification failure on Server 2022. The repair trims parent-candidate separators before probing and preserves drive roots; the native assertion now reports raw failure metadata. Post-repair local and remote receipts are retained separately from the original failed run.
+
 Final released boundary: **v0.0.4**, source `34115ba52cf15c465a92516e9cc9aa284840c65a`. Release CI `41002515571` passed all steps, including OIDC attestation and both publishers. Twelve product assets are SHA-identical between hosts. Four independent positive signature checks and four tampered-copy rejections PASS. Actual Windows/Linux 0.0.3-to-0.0.4 upgrades preserve old connections and binaries; each fresh native Codex client passes 12 workflows and calls all 17 released tools. Both real natural hourly scheduler recurrences and cleanup PASS. These final results supersede earlier pending observations below; [the ledger](successor-acceptance.md) retains each remaining limit.
 
 ## Successor evidence, 2026-10-30

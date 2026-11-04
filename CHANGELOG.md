@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Added native Windows/POSIX `create_directory` to the C API, CLI and cancellable MCP worker. Explicit `parents`/`exist_ok` options replace ensure-directory plus absolute-path readback; results retain leaf creation and total created counts on failure. Existing files are preserved, recursive creation has a 256-directory preflight bound, and deadline/cancellation states remain explicit.
+- Normalized Windows parent candidates before probing their directory entries, preserving drive roots. This fixes the file-ancestor classification exposed by the first Windows Server 2022 CI run; native fixture failures now include the status, native error and created count.
 - Added native filesystem and real MCP regression coverage, including Unicode/spaces, existing directories, missing parents, file collisions, lexical normalization, invalid inputs, pre-cancellation and fixture cleanup. The development surface has 25 tools; publication and installed-client adoption are deferred to the next release.
 
 ## 0.1.0 - 2026-11-04
