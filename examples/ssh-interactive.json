@@ -1,0 +1,27 @@
+{
+  "operation": "ssh",
+  "arguments": {
+    "action": "execute",
+    "route": "interactive",
+    "bastion": {
+      "host": "192.0.2.1",
+      "port": 22,
+      "credential": "my-bastion",
+      "host_key_sha256": "REPLACE_WITH_64_VERIFIED_HEX_CHARACTERS"
+    },
+    "target": { "host": "192.0.2.10", "port": 22, "credential": "my-target" },
+    "interaction": {
+      "ready_prompt": "menu> ",
+      "selection_prefix": ":",
+      "selection": "connect {user}@{host}:{port}",
+      "password_prompt": "Password:",
+      "shell_prompt": "user@asset$ ",
+      "su_credential": "my-root",
+      "su_password_prompt": "Password:",
+      "root_prompt": "root@asset# "
+    },
+    "require_root": true,
+    "script": "id -un\nhostname\n",
+    "timeout_ms": 30000
+  }
+}

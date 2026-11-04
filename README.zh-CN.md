@@ -37,7 +37,8 @@ Git、ripgrep、编译器和 Codex 的 `apply_patch` 仍是配套工具。Cordon
 |---|---|---|
 | Windows 进程核心 | 本地 35 项检查通过，包含子进程环境隔离 | 更广泛应用和长时间负载仍需验证 |
 | 编码与内存文档核心 | 36 项核心检查与 25 项编码/接线边界检查通过 | 外部工具读取磁盘，看不到未提交的内存修改 |
-| CLI 与 MCP | 17 个原生工具；本次独立提交版本通过 Windows 101 项、Linux 105 项真实 stdio 检查，以及每端 27 项概要检查；SDK 历史证据按版本记录 | 已安装客户端采用及 Codex 折叠概要显示单独验收 |
+| CLI 与 MCP | 开发版 23 个带可读标题的工具；本轮 Windows 115 项、Linux 118 项真实 stdio 检查；先前 SDK 证据仍按版本记录 | Windows 进程查询和新增通信工具在 Linux 返回 not_supported；新客户端采用和界面显示另行验收 |
+| 原生 SSH 客户端 | Windows 实际回环 SSH 协议 27/27；ASan 客户端再次通过；libssh2 静态链接 CNG | 实际部署跳板验收 NOT_RUN；Linux SSH NOT_SUPPORTED；当前后端不支持 Ed25519 |
 | 新文本文件 | 两平台各 20 项原生检查，以及 8 项共享 MCP 检查 | 已有路径不覆盖，父目录必须存在 |
 | Linux | WSL Ubuntu 下 276 项完整检查（含 Git/rg 适配器）；独立客户端 44/44，覆盖 ext4/tmpfs/9p 以及 60 轮、600 秒有限长稳 | 原生 rg 与 Codex CLI 已安装；Linux Codex 模型调用仍需认证。ACL/xattr 不支持，多发行版和更长时段仍单独验收 |
 | Windows/Linux 便携包 | ZIP/tar.gz、校验和、checkout 来源、SPDX 文件清单与解压运行门禁；v0.0.1 已在两端发布并核对全部附件 | 包未签名；官方 SPDX schema 已验证，构建 revision/dirty 从实际二进制回读；这些不是签名构建证明 |
@@ -64,7 +65,13 @@ workspace_open -> workspace_read / workspace_search
 | 工具 | 用途 |
 |---|---|
 | `tool_info` | 查询版本、平台及文档加载/提交计数 |
+| `ssh` | 内置纯 C SSH 客户端：按 IP 直连、SSH 通道跳板、可配置的交互式跳板；当前为 Windows CNG 后端 |
+| `http` | WinHTTP 原生 HTTP/HTTPS 请求，支持头、正文、代理、有界输出和取消 |
+| `sftp` | 复用 libssh2：文件信息、有界二进制读取、独占创建上传，支持直连和跳板 |
+| `network` | TCP/Telnet 有界收发，以及 MQTT 3.1.1 连接、QoS0 发布 |
+| `serial` | 被动串口枚举和诊断；显式请求后可主动探测、配置和字节收发 |
 | `execute_program` | 原样传递 argv，限制输出和超时，回收任务所属进程 |
+| `query_processes` | 纯 C 只读查询 Windows PID、父 PID、创建时间和原始命令行；Linux 明确返回 not_supported |
 | `create_file` | 按严格编码创建新文本文件，不覆盖已有路径，父目录须存在 |
 | `list_directory` | 列出目录的直接子项，可包含隐藏项并限制结果数 |
 | `resolve_path` | 规范化已存在的绝对文件系统路径，返回路径及类型 |
@@ -83,7 +90,25 @@ workspace_open -> workspace_read / workspace_search
 
 概要放在结果 `_meta["cordonix/summary"]` 中；客户端提供 `_meta.progressToken` 时，还会在执行前通过标准进度消息发送。格式化使用有界 C11 规则，不调用大模型、不增加工具输入字段、不读取脚本推测业务，也不把概要重复写入模型可见的 `content`。折叠条目是否采用概要由客户端决定，桌面显示单独验收。详见[概要与客户端接入约定](docs/call-summaries.md)。
 
+## Windows 只读进程查询
+
+`query_processes` 用 C11 直接替代 CIM、过滤和字段选择，不启动 Python、PowerShell、WMI 或其它查询辅助进程。`contains` 为 1–16 个非空 UTF-8 字面关键字，总计最多 4096 字节，按不区分大小写的 OR 匹配。可用 `pids` 限定 1–32 个进程；默认排除运行时自身。
+
+```json
+{"contains":["Publish-QueuedBlogs","Publish-PendingTweets","OsChinaPublisher","invoke-image-once"],"limit":10,"timeout_ms":5000}
+```
+
+默认最多返回 10 条、遍历 4096 个进程项、耗时 5000 毫秒、进程记录输出 65536 字节；最大分别为 100 条、4096 项、10000 毫秒和 262144 字节，诊断 metadata 另计。结果包含 `pid`、`parent_pid`、精确的 `creation_filetime`、UTC 时间 `created_utc` 以及原始 `command_line`，标记 `command_line_source=win32_original`，不从 argv 重建引号。
+
+`creation_filetime` 在 C API 中为 64 位整数，JSON 中使用十进制字符串，避免 JavaScript 数字舍入。权限不足、不可读命令行、编码失败及数量上限保留 `partial`；超时、取消、输出上限分别报告。结合 `scan_complete` 与 `stop_reason` 判断，部分扫描零匹配仍是 UNKNOWN。快照不是跨时刻原子身份凭证，也不授权结束进程。每个有界系统调用之间检查取消和期限，单次系统调用不被强行中断。Linux 当前返回 `not_supported`，不以解释器回退冒充纯 C 支持。
+
 ## 程序执行边界
+
+新增通信工具使用 Windows 系统 API 和已有静态 libssh2，不安装外部客户端。具体范围与取舍见[通信协议评估](docs/communication-protocols.md)。MQTT 当前不含 TLS、认证、订阅；串口实物验收另记。FTP/FTPS 暂待具体兼容场景后决定，Linux 新增通信操作明确返回 `not_supported`。
+
+内置网络连接默认 `proxy="auto"`：先直连，网络连接失败后限时探测本机 7890/1080，并完成 HTTP CONNECT/SOCKS5 握手再选路。`proxy="direct"` 禁用回退，显式代理指定单条线路。目标认证、TLS、主机密钥、HTTP 状态错误及已发送后的不确定结果不触发重放。详见[本机代理选路](docs/local-proxy.md)。串口设备访问仍为本地操作。
+
+开发版 `ssh` 将 libssh2 静态编入 C11 客户端，使用 Windows CNG 加密。支持按指定 IP 直连、经 `direct-tcpip` 通道建立第二层 SSH，以及配置终端提示与选择模板后连接交互式跳板资产。认证读取 Windows 凭据管理器别名或支持的私钥，不运行技能脚本或外部 SSH 客户端。主机密钥校验、超时后的远端 UNKNOWN、示例与平台边界见[原生 SSH 说明](docs/native-ssh.md)。这项开发能力与文首已发布版本分开验收。
 
 `execute_program` 管理一次有界调用。主进程退出后，即使退出码为 0，仍会回收本次所属的剩余进程。需要持续运行的浏览器、守护进程和服务应由现有的生命周期管理入口启动。`completed` 表示命令退出状态符合预期，并不保证它启动的浏览器继续存在。结果同时提供 `active_processes_before_cleanup`、`active_processes_after_cleanup` 和 `cleanup_complete`。
 

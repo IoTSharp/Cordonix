@@ -1,0 +1,1 @@
+{"operation":"sftp","arguments":{"action":"stat","target":{"host":"192.0.2.10","credential":"my-target","host_key_sha256":"REPLACE_WITH_64_VERIFIED_HEX_CHARACTERS"},"path":"/var/log/example.log","timeout_ms":10000}}

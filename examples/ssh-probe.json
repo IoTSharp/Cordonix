@@ -1,0 +1,8 @@
+{
+  "operation": "ssh",
+  "arguments": {
+    "action": "probe",
+    "target": { "host": "192.0.2.10", "port": 22 },
+    "timeout_ms": 10000
+  }
+}

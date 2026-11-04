@@ -12,6 +12,13 @@ if errorlevel 1 exit /b %errorlevel%
 call eng\build-workspace.cmd
 if errorlevel 1 exit /b %errorlevel%
 if not exist build\protocol mkdir build\protocol
+if not exist build\serial-tests mkdir build\serial-tests
+cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 /Iinclude /Fobuild\protocol\ /Febuild\protocol\cdx-serial-tests.exe tests\protocol\test_serial.c src\cdx-protocol\serial.c src\cdx-core\serial_win32.c src\cdx-protocol\json.c /link advapi32.lib
+if errorlevel 1 exit /b %errorlevel%
+build\protocol\cdx-serial-tests.exe "%cd%\build\serial-tests" --pilot
+if errorlevel 1 exit /b %errorlevel%
+build\protocol\cdx-serial-tests.exe "%cd%\build\serial-tests"
+if errorlevel 1 exit /b %errorlevel%
 cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 /Iinclude /Fobuild\protocol\ /Febuild\protocol\cdx-presentation-tests.exe tests\protocol\test_presentation.c src\cdx-protocol\presentation.c src\cdx-protocol\json.c
 if errorlevel 1 exit /b %errorlevel%
 build\protocol\cdx-presentation-tests.exe --pilot
@@ -22,9 +29,15 @@ cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 %CDX_VERSION_DEFINE% /DUNICOD
 if errorlevel 1 exit /b %errorlevel%
 cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 %CDX_VERSION_DEFINE% /DUNICODE /D_UNICODE /Iinclude /Fobuild\workspace\ /Febuild\workspace\create-file-tests.exe tests\workspace\test_create_file.c src\cdx-workspace\create_file.c src\cdx-workspace\create_file_win32.c src\cdx-workspace\document_common.c src\cdx-workspace\document_win32.c src\cdx-workspace\encoding_win32.c src\cdx-core\filesystem.c src\cdx-core\filesystem_win32.c /link bcrypt.lib
 if errorlevel 1 exit /b %errorlevel%
-cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 %CDX_VERSION_DEFINE% /DUNICODE /D_UNICODE /Iinclude /Fobuild\protocol\ /Febuild\protocol\cdx-edge-tests.exe tests\workspace\test_edge_cases.c src\cdx-protocol\json.c src\cdx-protocol\operations.c src\cdx-protocol\adapters.c src\cdx-workspace\document_common.c src\cdx-workspace\document_win32.c src\cdx-workspace\encoding_win32.c src\cdx-workspace\create_file.c src\cdx-workspace\create_file_win32.c src\cdx-core\process_win32.c src\cdx-core\result.c src\cdx-core\filesystem.c src\cdx-core\filesystem_win32.c /link bcrypt.lib
+cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 %CDX_VERSION_DEFINE% /DUNICODE /D_UNICODE /DLIBSSH2_STATIC /Iinclude /Ithird_party\libssh2\include /Fobuild\protocol\ /Febuild\protocol\cdx-edge-tests.exe tests\workspace\test_edge_cases.c src\cdx-protocol\json.c src\cdx-protocol\operations.c src\cdx-protocol\adapters.c src\cdx-protocol\process_query.c src\cdx-protocol\ssh.c src\cdx-protocol\http.c src\cdx-protocol\serial.c src\cdx-protocol\network.c src\cdx-core\ssh_win32.c src\cdx-core\proxy_win32.c src\cdx-core\http_win32.c src\cdx-core\http_proxy_win32.c src\cdx-core\serial_win32.c src\cdx-core\network_win32.c src\cdx-core\process_query_win32.c src\cdx-workspace\document_common.c src\cdx-workspace\document_win32.c src\cdx-workspace\encoding_win32.c src\cdx-workspace\create_file.c src\cdx-workspace\create_file_win32.c src\cdx-core\process_win32.c src\cdx-core\result.c src\cdx-core\filesystem.c src\cdx-core\filesystem_win32.c /link build\ssh\libssh2.lib bcrypt.lib crypt32.lib ws2_32.lib advapi32.lib winhttp.lib
 if errorlevel 1 exit /b %errorlevel%
 cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 %CDX_VERSION_DEFINE% /DUNICODE /D_UNICODE /Iinclude /Fobuild\protocol\ /Febuild\protocol\cdx-stdio-tests.exe tests\protocol\test_stdio.c src\cdx-protocol\json.c
+if errorlevel 1 exit /b %errorlevel%
+cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 /DUNICODE /D_UNICODE /Iinclude /Fobuild\protocol\ /Febuild\protocol\cdx-process-query-tests.exe tests\process\test_process_query.c src\cdx-protocol\process_query.c src\cdx-protocol\json.c /link build\process\cdx-core.lib
+if errorlevel 1 exit /b %errorlevel%
+build\protocol\cdx-process-query-tests.exe --pilot
+if errorlevel 1 exit /b %errorlevel%
+build\protocol\cdx-process-query-tests.exe "$(literal)" "two words"
 if errorlevel 1 exit /b %errorlevel%
 build\process\cdx-process-tests.exe
 if errorlevel 1 exit /b %errorlevel%

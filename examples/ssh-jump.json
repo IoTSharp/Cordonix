@@ -1,0 +1,22 @@
+{
+  "operation": "ssh",
+  "arguments": {
+    "action": "execute",
+    "route": "jump",
+    "bastion": {
+      "host": "192.0.2.1",
+      "port": 22,
+      "credential": "my-bastion",
+      "host_key_sha256": "REPLACE_WITH_64_VERIFIED_HEX_CHARACTERS"
+    },
+    "target": {
+      "host": "192.0.2.10",
+      "port": 22,
+      "credential": "my-target",
+      "host_key_sha256": "REPLACE_WITH_64_VERIFIED_HEX_CHARACTERS"
+    },
+    "script": "id -un\nhostname\n",
+    "timeout_ms": 30000,
+    "output_limit_bytes": 16384
+  }
+}

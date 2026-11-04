@@ -22,6 +22,7 @@ typedef struct active_request {
     atomic_int cancel, done;
     int running, params, id;
     cdx_json json;
+    cdx_json_output reply;
 } active_request;
 
 static pthread_mutex_t output_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -99,7 +100,7 @@ static int ids_equal(const cdx_json *a, int ai, const cdx_json *b, int bi) {
         !memcmp(a->nodes[ai].number_text, b->nodes[bi].number_text, a->nodes[ai].number_length);
 }
 
-static void tool_response(const cdx_json *json, int params, int id, cdx_cancel_handle cancellation) {
+static void tool_response(const cdx_json *json, int params, int id, cdx_cancel_handle cancellation, cdx_json_output *reply) {
     int name = cdx_json_get(json, params, "name"), arguments = cdx_json_get(json, params, "arguments");
     cdx_json_output data, output;
     char summary[CDX_CALL_SUMMARY_BYTES];
@@ -120,14 +121,14 @@ static void tool_response(const cdx_json *json, int params, int id, cdx_cancel_h
     cdx_json_raw(&output, "}]");
     cdx_summary_metadata(summary, &output);
     cdx_json_raw(&output, "}}");
-    send_output(&output);
     cdx_json_output_free(&data);
-    cdx_json_output_free(&output);
+    if (reply) *reply = output;
+    else { send_output(&output); cdx_json_output_free(&output); }
 }
 
 static void *execution_worker(void *context) {
     active_request *active = (active_request *)context;
-    tool_response(&active->json, active->params, active->id, &active->cancel);
+    tool_response(&active->json, active->params, active->id, &active->cancel, &active->reply);
     atomic_store(&active->done, 1);
     return NULL;
 }
@@ -142,6 +143,8 @@ static int finish_active(active_request *active, int cancel) {
         (void)nanosleep(&delay, NULL);
     if (!atomic_load(&active->done)) return 0;
     (void)pthread_join(active->thread, NULL);
+    send_output(&active->reply);
+    cdx_json_output_free(&active->reply);
     cdx_json_free(&active->json);
     active->running = 0;
     return 1;
@@ -195,6 +198,12 @@ static void dispatch(const char *line, size_t length, int *initialized, active_r
         else if (string_node(&json, cdx_json_get(&json, params, "name"), "execute_program") ||
                  string_node(&json, cdx_json_get(&json, params, "name"), "search_text") ||
                  string_node(&json, cdx_json_get(&json, params, "name"), "git_status") ||
+                 string_node(&json, cdx_json_get(&json, params, "name"), "query_processes") ||
+                 string_node(&json, cdx_json_get(&json, params, "name"), "ssh") ||
+                 string_node(&json, cdx_json_get(&json, params, "name"), "sftp") ||
+                 string_node(&json, cdx_json_get(&json, params, "name"), "http") ||
+                 string_node(&json, cdx_json_get(&json, params, "name"), "serial") ||
+                 string_node(&json, cdx_json_get(&json, params, "name"), "network") ||
                  string_node(&json, cdx_json_get(&json, params, "name"), "verify_encoding") ||
                  string_node(&json, cdx_json_get(&json, params, "name"), "create_file")) {
             active->json = json;
@@ -204,7 +213,7 @@ static void dispatch(const char *line, size_t length, int *initialized, active_r
             atomic_store(&active->done, 0);
             if (!pthread_create(&active->thread, NULL, execution_worker, active)) { active->running = 1; return; }
             rpc_error(&json, id, -32603, "Cannot start execution worker");
-        } else tool_response(&json, params, id, NULL);
+        } else tool_response(&json, params, id, NULL, NULL);
     } else rpc_error(&json, id, -32601, "Unknown MCP method");
     cdx_json_free(&json);
 }

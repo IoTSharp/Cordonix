@@ -1,0 +1,1 @@
+{"operation":"http","arguments":{"url":"https://example.com/","method":"GET","timeout_ms":10000,"response_limit_bytes":16384}}

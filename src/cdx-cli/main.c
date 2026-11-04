@@ -12,7 +12,7 @@
 #define SESSION_MAX_MS (24ull * 60ull * 60ull * 1000ull)
 #define SESSION_MAX_REQUESTS 100000u
 typedef struct input_reader { HANDLE available, consumed, stop; char *line; size_t line_length; int eof, oversized; } input_reader;
-typedef struct active_request { HANDLE thread, cancel; cdx_json json; int params, id; } active_request;
+typedef struct active_request { HANDLE thread, cancel; cdx_json json; cdx_json_output reply; int params, id; } active_request;
 static CRITICAL_SECTION output_lock;
 
 static void send_output(cdx_json_output *output) {
@@ -45,7 +45,7 @@ static int ids_equal(const cdx_json *a, int ai, const cdx_json *b, int bi) {
     return a->nodes[ai].type == CDX_JSON_NUMBER && a->nodes[ai].number_length == b->nodes[bi].number_length &&
         !memcmp(a->nodes[ai].number_text, b->nodes[bi].number_text, a->nodes[ai].number_length);
 }
-static void tool_response(const cdx_json *json, int params, int id, HANDLE cancellation) {
+static void tool_response(const cdx_json *json, int params, int id, HANDLE cancellation, cdx_json_output *reply) {
     int name = cdx_json_get(json, params, "name"), arguments = cdx_json_get(json, params, "arguments");
     cdx_json_output data, output;
     char summary[CDX_CALL_SUMMARY_BYTES];
@@ -60,18 +60,21 @@ static void tool_response(const cdx_json *json, int params, int id, HANDLE cance
     if (data.failed || !data.data) cdx_json_quote(&output, "{\"status\":\"output_limit\"}", strlen("{\"status\":\"output_limit\"}"));
     else cdx_json_quote(&output, data.data, data.size);
     cdx_json_raw(&output, "}]"); cdx_summary_metadata(summary, &output);
-    cdx_json_raw(&output, "}}"); send_output(&output);
-    cdx_json_output_free(&data); cdx_json_output_free(&output);
+    cdx_json_raw(&output, "}}");
+    cdx_json_output_free(&data);
+    if (reply) *reply = output;
+    else { send_output(&output); cdx_json_output_free(&output); }
 }
 static DWORD WINAPI execution_worker(void *context) {
     active_request *active = (active_request *)context;
-    tool_response(&active->json, active->params, active->id, active->cancel);
+    tool_response(&active->json, active->params, active->id, active->cancel, &active->reply);
     return 0;
 }
 static int finish_active(active_request *active, int cancel) {
     if (!active->thread) return 1;
     if (cancel) (void)SetEvent(active->cancel);
     if (WaitForSingleObject(active->thread, cancel ? 10000u : 0u) != WAIT_OBJECT_0) return 0;
+    send_output(&active->reply); cdx_json_output_free(&active->reply);
     CloseHandle(active->thread); CloseHandle(active->cancel); cdx_json_free(&active->json); memset(active, 0, sizeof(*active));
     return 1;
 }
@@ -122,7 +125,13 @@ static int run_mcp(void) {
         cdx_json_output output;
         int method, id, params;
         DWORD remaining = (DWORD)(deadline - GetTickCount64());
-        if (WaitForSingleObject(reader.available, remaining) != WAIT_OBJECT_0 || reader.eof) break;
+        if (active.thread) {
+            HANDLE waits[2] = {active.thread, reader.available};
+            DWORD ready = WaitForMultipleObjects(2, waits, FALSE, remaining);
+            if (ready == WAIT_OBJECT_0) { (void)finish_active(&active, 0); continue; }
+            if (ready != WAIT_OBJECT_0 + 1u) break;
+        } else if (WaitForSingleObject(reader.available, remaining) != WAIT_OBJECT_0) break;
+        if (reader.eof) break;
         if (!reader.line || !reader.line_length) { SetEvent(reader.consumed); continue; }
         if (!cdx_json_parse(&json, reader.line, reader.line_length)) {
             rpc_error(NULL, -1, -32700, "Invalid UTF-8 JSON request");
@@ -154,6 +163,12 @@ static int run_mcp(void) {
             else if (string_node(&json, cdx_json_get(&json, params, "name"), "execute_program") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "search_text") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "git_status") ||
+                     string_node(&json, cdx_json_get(&json, params, "name"), "query_processes") ||
+                     string_node(&json, cdx_json_get(&json, params, "name"), "ssh") ||
+                     string_node(&json, cdx_json_get(&json, params, "name"), "sftp") ||
+                     string_node(&json, cdx_json_get(&json, params, "name"), "http") ||
+                     string_node(&json, cdx_json_get(&json, params, "name"), "serial") ||
+                     string_node(&json, cdx_json_get(&json, params, "name"), "network") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "verify_encoding") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "create_file")) {
                 active.json = json; active.id = id; active.params = params; active.cancel = CreateEventW(NULL, TRUE, FALSE, NULL);
@@ -161,7 +176,7 @@ static int run_mcp(void) {
                 if (active.thread) continue;
                 if (active.cancel) CloseHandle(active.cancel);
                 memset(&active, 0, sizeof(active)); rpc_error(&json, id, -32603, "Cannot start execution worker");
-            } else tool_response(&json, params, id, NULL);
+            } else tool_response(&json, params, id, NULL, NULL);
         } else rpc_error(&json, id, -32601, "Unknown MCP method");
         cdx_json_free(&json);
     }

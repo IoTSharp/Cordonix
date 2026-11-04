@@ -32,6 +32,7 @@ static void Sleep(unsigned ms) {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 #include "cdx/version.h"
 
 static unsigned passed, total;
@@ -321,6 +322,9 @@ static int string_is(const cdx_json *json, int object, const char *key, const ch
     int node = cdx_json_get(json, object, key);
     return node >= 0 && json->nodes[node].type == CDX_JSON_STRING && strcmp(json->nodes[node].string, value) == 0;
 }
+
+static void process_query_cases(wire_client *client);
+static void ssh_cases(wire_client *client);
 
 static int tool_call(wire_client *client, const char *name, const char *arguments, unsigned id, cdx_json *data) {
     cdx_json_output request;
@@ -1627,12 +1631,12 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
         int tool = node >= 0 ? response.nodes[node].first : -1;
         unsigned count = 0;
         int titles_valid = 1, execution_title = 0;
-        for (; tool >= 0 && count < 18; tool = response.nodes[tool].next, ++count) {
+        for (; tool >= 0 && count < 24; tool = response.nodes[tool].next, ++count) {
             int title = cdx_json_get(&response, tool, "title");
             if (title < 0 || response.nodes[title].type != CDX_JSON_STRING || !*response.nodes[title].string) titles_valid = 0;
             if (string_is(&response, tool, "name", "execute_program")) execution_title = string_is(&response, tool, "title", "执行本地程序");
         }
-        record("MCP seventeen tools expose human-readable titles", count == 17 && titles_valid && execution_title);
+        record("MCP twenty-three tools expose human-readable titles", count == 23 && titles_valid && execution_title);
     }
     cdx_json_free(&response);
     valid = wire_send(&client, malformed, sizeof(malformed) - 1) && wire_read(&client, &response);
@@ -1656,6 +1660,27 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
     filesystem_cases(&client);
     verify_encoding_cases(&client, program);
     environment_cases(&client, fixture);
+    process_query_cases(&client);
+    ssh_cases(&client);
+    {
+        static const char *names[] = {"http", "network", "serial", "sftp", "http", "network", "ssh", "sftp"};
+        static const char *invalid[] = {
+            "{\"url\":\"file:///not-http\",\"timeout_ms\":false}",
+            "{\"protocol\":\"tcp\",\"host\":\"127.0.0.1\",\"port\":false}",
+            "{\"action\":\"list\",\"timeout_ms\":false}",
+            "{\"target\":{\"host\":\"127.0.0.1\",\"password\":\"rejected\"},\"path\":\"/x\"}",
+            "{\"url\":\"https://example.com/\",\"proxy\":false}",
+            "{\"protocol\":\"tcp\",\"host\":\"127.0.0.1\",\"port\":22,\"proxy\":false}",
+            "{\"target\":{\"host\":\"127.0.0.1\"},\"proxy\":false}",
+            "{\"target\":{\"host\":\"127.0.0.1\"},\"path\":\"/x\",\"proxy\":false}"
+        };
+        for (unsigned int i = 0; i < 8u && GetTickCount64() < deadline; ++i) {
+            cdx_json result;
+            int accepted = tool_call(&client, names[i], invalid[i], 1930 + (int)i, &result);
+            record("MCP communication tools reject malformed typed fields before dispatch", accepted && string_is(&result, 0, "status", "validation_error"));
+            cdx_json_free(&result);
+        }
+    }
     wire_execute(&client, fixture, "streams", 10);
     valid = wire_read(&client, &response); memset(&data, 0, sizeof(data));
     valid = valid && wire_tool_data(&response, &data);
@@ -1707,6 +1732,63 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
     return passed == total ? 0 : 1;
 }
 
+
+static void ssh_cases(wire_client *client) {
+    cdx_json data;
+    int valid;
+    memset(&data, 0, sizeof(data));
+    valid = tool_call(client, "ssh", "{\"action\":\"execute\",\"target\":{\"host\":\"127.0.0.1\",\"password\":\"rejected\"},\"script\":\"id\\n\"}", 1920, &data);
+    record("MCP native SSH rejects plaintext passwords before connecting", valid && string_is(&data, 0, "status", "validation_error") && string_is(&data, 0, "remote_outcome", "not_run"));
+    cdx_json_free(&data);
+    valid = tool_call(client, "ssh", "{\"target\":{\"host\":\"127.0.0.1\",\"port\":0}}", 1921, &data);
+    record("MCP native SSH validates port bounds before connecting", valid && string_is(&data, 0, "status", "validation_error"));
+    cdx_json_free(&data);
+#ifndef _WIN32
+    valid = tool_call(client, "ssh", "{\"target\":{\"host\":\"127.0.0.1\"}}", 1922, &data);
+    record("MCP native SSH Linux platform boundary is explicit", valid && string_is(&data, 0, "status", "not_supported") && string_is(&data, 0, "remote_outcome", "not_run"));
+    cdx_json_free(&data);
+#endif
+}
+
+static void process_query_cases(wire_client *client) {
+    cdx_json data;
+    int valid;
+#ifdef _WIN32
+    char arguments[256];
+    int array, entry, command;
+    wchar_t actual[32768];
+    FILETIME created, exited, kernel, user;
+    ULARGE_INTEGER ticks;
+    char exact_ticks[32];
+    (void)snprintf(arguments, sizeof(arguments), "{\"contains\":[\"cdx-stdio-tests\"],\"pids\":[%lu]}",
+        (unsigned long)GetCurrentProcessId());
+    valid = tool_call(client, "query_processes", arguments, 1910, &data);
+    array = valid ? cdx_json_get(&data, 0, "matches") : -1;
+    entry = array >= 0 ? data.nodes[array].first : -1;
+    command = entry >= 0 ? cdx_json_get(&data, entry, "command_line") : -1;
+    record("MCP native process query finds the live client", valid && string_is(&data, 0, "status", "completed") &&
+        entry >= 0 && data.nodes[entry].next < 0 && number_is(&data, "examined", 1));
+    record("MCP native process query preserves original command line", command >= 0 &&
+        data.nodes[command].type == CDX_JSON_STRING &&
+        MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, data.nodes[command].string, -1, actual, 32768) &&
+        !wcscmp(actual, GetCommandLineW()) && string_is(&data, entry, "command_line_source", "win32_original"));
+    ticks.QuadPart = 0;
+    if (GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user)) {
+        ticks.LowPart = created.dwLowDateTime; ticks.HighPart = created.dwHighDateTime;
+    }
+    (void)snprintf(exact_ticks, sizeof(exact_ticks), "%llu", ticks.QuadPart);
+    record("MCP process creation ticks preserve integer precision as text", entry >= 0 && ticks.QuadPart &&
+        string_is(&data, entry, "creation_filetime", exact_ticks));
+    cdx_json_free(&data);
+#else
+    valid = tool_call(client, "query_processes", "{\"contains\":[\"cdx\"]}", 1910, &data);
+    record("MCP Windows process query is explicitly unsupported on Linux", valid && string_is(&data, 0, "status", "not_supported"));
+    cdx_json_free(&data);
+#endif
+    valid = tool_call(client, "query_processes", "{\"contains\":[],\"limit\":0}", 1911, &data);
+    record("MCP native process query validates before inspection", valid && string_is(&data, 0, "status", "validation_error"));
+    cdx_json_free(&data);
+}
 
 int main(int argc, char **argv) {
 #ifndef _WIN32

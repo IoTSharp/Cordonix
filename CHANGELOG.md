@@ -2,11 +2,24 @@
 
 ## Unreleased
 
-- Added deterministic C11 per-call summaries in MCP result `_meta["cordonix/summary"]` and opt-in standard progress messages. Existing program/argv/path/range fields describe program purpose and operation targets without extra model calls, input fields or summary text in model-visible content. Client rendering remains a separate gate.
-- Clarified the existing native `Get-Content -LiteralPath | Select-Object -Skip M -First N` equivalent in MCP read-tool descriptions, parameter guidance and bilingual examples: `start_line=M+1`, `line_count=N`.
+- Made `proxy=auto` the default for built-in HTTP/HTTPS, SSH/SFTP and TCP/Telnet/MQTT connections. Direct network connection failures trigger bounded local 7890/1080 probes and actual HTTP CONNECT/SOCKS5 negotiation; explicit direct/proxy selection remains available.
+- Added native per-call HTTP bridging for SOCKS5/CONNECT tunnels while preserving original TLS hostname/system trust. WinHTTP loopback destination URLs remain direct in auto and reject explicit proxying as unsupported. Serial access stays local.
+- Added shared route traces, absolute-deadline/cancellation handling and pre-send HTTP phase checks. HTTP statuses, target trust/authentication failures and uncertain dispatched operations do not trigger replay or machine proxy changes.
 
+- Added native `http`, `network`, `serial` and `sftp` MCP/CLI tools. HTTP(S) uses WinHTTP; TCP/Telnet and MQTT CONNECT/QoS0 use Winsock; serial uses Windows COM APIs; SFTP reuses the approved static libssh2. No additional runtime package is required.
+- Added real HTTP/proxy/TLS, TCP/Telnet/MQTT, native serial API and SFTP fixtures with independent mutation/outcome/cleanup states. New backends return `not_supported` on Linux; physical serial acceptance is separate.
+- Fixed demonstrated SFTP interrupted-open result classification and handle cleanup. Lost mutation replies remain UNKNOWN; per-call libssh2 allocation accounting verifies local cleanup, including cancellation after open.
+- Documented protocol decisions, focused limits and deferred FTP/FTPS, and packaged typed request examples.
+
+- Added deterministic C11 per-call summaries in MCP result `_meta["cordonix/summary"]` and opt-in standard progress messages. Existing program/argv/path/range fields describe program purpose and operation targets without extra model calls, input fields or summary text in model-visible content. Client rendering remains a separate gate.
+- Added a native C `ssh` MCP/CLI client using statically linked libssh2 1.11.1 and Windows CNG: direct IP, direct-tcpip SSH jump and configurable PTY bastion target selection, with no external SSH/product helper process.
+- Added Windows Generic Credential and supported in-memory private-key authentication, independent host-key pins, optional interactive root elevation/UID guard, bounded cancellation/output and explicit remote UNKNOWN outcomes. Linux returns `not_supported`.
+- Added a real loopback SSH protocol acceptance fixture, request examples, native SSH guidance and packaged BSD-3-Clause notices. Release, installed-client adoption and deployed-bastion acceptance remain separate.
+- Fixed a reproduced MCP worker race where a sequential request arriving after the prior response could still receive busy. The dispatch loop now joins the completed worker before emitting its final response, preserving progress notifications and cancellation.
+
+- Clarified the existing native `Get-Content -LiteralPath | Select-Object -Skip M -First N` equivalent in MCP read-tool descriptions, parameter guidance and bilingual examples: `start_line=M+1`, `line_count=N`.
 - Added native read-only Windows `query_processes` to the C API, CLI and asynchronous MCP worker, preserving original command lines and exact creation times with explicit partial/timeout/cancellation/output-limit states. Linux returns `not_supported` without an interpreter fallback.
-- Added 19 real native checks and three Windows/two Linux MCP checks for the new operation, plus MSVC static analysis and AddressSanitizer coverage.
+- Added 19 real native checks and four Windows/two Linux MCP checks for the new operation, including lossless 64-bit creation-time JSON strings, plus MSVC static analysis and AddressSanitizer coverage.
 
 ## 0.0.4 - 2026-10-30
 

@@ -726,6 +726,12 @@ void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx
     }
     if (arguments < 0) { error_result(output, "validation_error", "arguments must be an object"); return; }
     if (!strcmp(operation, "execute_program")) { execute_program(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "query_processes")) { cdx_process_query_call(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "ssh")) { cdx_ssh_call(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "sftp")) { cdx_sftp_call(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "http")) { cdx_http_call(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "serial")) { cdx_serial_call(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "network")) { cdx_network_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "search_text") || !strcmp(operation, "git_status")) {
         cdx_adapter_call(operation, request, arguments, cancellation, output); return;
     }

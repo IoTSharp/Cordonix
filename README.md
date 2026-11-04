@@ -37,7 +37,8 @@ Cordonix is a development MVP. Windows has first-party Codex usage evidence; Lin
 |---|---|---|
 | Windows process core | 35 checks passed locally, including isolated child environments | Broader application and long-running workload coverage continues |
 | Encoding and memory document core | 36 core checks plus 25 integration/encoding edge checks passed locally | External tools read disk; they do not see uncommitted memory revisions |
-| CLI and MCP | Seventeen tools; isolated commit gates pass 101 Windows and 105 Linux real stdio checks plus 27 summary checks per platform; earlier SDK checks remain version-specific | Actual installed-client adoption and Codex UI title rendering have separate gates |
+| CLI and MCP | Twenty-three development tools; 115 Windows and 118 Linux real stdio checks; prior official SDK acceptance remains version-specific | Installed-client adoption and Codex UI rendering have separate gates |
+| Native SSH client | Windows loopback protocol 27/27; repeated on an AddressSanitizer client; static libssh2 with CNG | Deployed bastions NOT_RUN; Linux SSH NOT_SUPPORTED; current backend excludes Ed25519 |
 | New text files | 20 native checks on each platform plus eight shared MCP checks | Existing paths are never overwritten and parent directories must exist |
 | Linux | 276 checks including full Git/rg adapters; independent MCP client 44/44 across ext4/tmpfs/9p and 60 rounds over 600 seconds | Native rg and Codex CLI are installed; model-backed Linux Codex calls still need authentication. Other distributions and longer soak are separate |
 | Windows/Linux portable packages | ZIP/tar.gz, checksums, embedded build revision/dirty readback, official SPDX schema validation | Unsigned packages; build metadata is not a signed attestation. Published v0.0.1/v0.0.2 remain immutable |
@@ -64,7 +65,13 @@ The memory workspace belongs to one running session. MCP keeps that process aliv
 | Tool | Purpose |
 |---|---|
 | `tool_info` | Version, platform and document-load/commit counters |
+| `ssh` | Native C SSH direct, direct-tcpip jump and configurable interactive bastion execution; Windows CNG backend |
+| `http` | Native HTTP/HTTPS requests with WinHTTP, typed headers/body/proxy and bounded asynchronous cancellation |
+| `sftp` | Native libssh2 stat, bounded binary read and exclusive file creation over direct/jump SSH |
+| `network` | Bounded TCP/Telnet exchange and MQTT 3.1.1 CONNECT/QoS0 PUBLISH |
+| `serial` | Passive COM enumeration/diagnosis and explicitly requested active probes or byte exchange |
 | `execute_program` | Literal argv execution with bounded output, timeout and owned-process cleanup |
+| `query_processes` | Read-only Windows PID/parent/creation-time/original-command-line snapshots; Linux reports not_supported |
 | `search_text` | Parse JSON results from an explicitly supplied ripgrep executable |
 | `git_status` | Parse Git porcelain v2 NUL records, including both rename paths |
 | `create_file` | Create a new text file with strict encoding and no overwrite; parent directory must exist |
@@ -87,6 +94,12 @@ The summary is returned in result `_meta["cordonix/summary"]` and sent before ex
 
 ## Execution boundaries
 
+Native communication tools use Windows system APIs plus the existing static libssh2 dependency. See the [protocol assessment](docs/communication-protocols.md) for exact scope. MQTT currently excludes TLS/authentication/subscriptions; physical UART acceptance remains separate. FTP/FTPS is evaluated and deferred pending a concrete compatibility requirement. New communication operations explicitly return `not_supported` on Linux.
+
+Network tools now default to `proxy="auto"`: direct network connection first, then bounded probing of local ports 7890/1080 with actual HTTP CONNECT/SOCKS5 verification after a connection failure. `proxy="direct"` opts out; an explicit proxy selects one route. Target authentication/TLS/host-key errors, HTTP status errors and uncertain dispatched operations do not trigger replay. See [local proxy routing](docs/local-proxy.md). COM device access remains local.
+
+The development `ssh` tool embeds a C SSH client with static libssh2 and Windows CNG. It supports direct IP connections, a second SSH session through a bastion's direct-tcpip channel, and configurable PTY target selection. Authentication uses Windows credential aliases or supported private keys. See [native SSH](docs/native-ssh.md) for host-key pinning, remote-outcome semantics, examples and the Windows/platform validation boundary. This capability is separate from the installed release cited above.
+
 `execute_program` owns one bounded invocation. When its root process exits, Cordonix cleans up remaining owned processes even after exit code 0. Start persistent browsers, daemons and services through their existing lifecycle owner. `completed` confirms the command's exit status; it does not promise that a launched browser remains open. Results expose `active_processes_before_cleanup` and `active_processes_after_cleanup` alongside `cleanup_complete`.
 
 `args` is a flat native argv array. PowerShell 7 `-File` does not reconstruct a named `[string[]]` script parameter from subsequent argv entries; construct that array inside a saved script or use a data interface the target script explicitly supports. `output_encoding` selects how Cordonix decodes captured bytes, without changing the child program. On `encoding_error`, inspect `process_status`/`exit_code` and the preserved Base64 bytes before any retry. See [execution boundaries and examples](docs/execution-boundaries.md).
@@ -100,6 +113,18 @@ Optional `execute_program.env` is an object of child-only overrides, for example
 `git_status` requires absolute `program` (Git) and `cwd`. It runs `--no-optional-locks status --porcelain=v2 --branch -z`, parses branch metadata and ordinary/renamed/unmerged/untracked entries, and keeps both rename paths. Output paths may contain spaces, quotes and newlines. Invalid UTF-8 output returns `encoding_error` with raw Base64, without guessing a replacement encoding. `untracked` is `normal` (default), `all` or `no`.
 
 Both adapters accept `timeout_ms` (1–60000, default 30000), `output_limit_bytes` (1–262144) and `max_entries` (1–1000, default 200). Search also has `max_matches_per_file` (1–1000, default 50), disclosed in the result. Limits, cancellation and timeout do not become a complete successful result. Git and rg remain separately installed external programs.
+
+## Read-only Windows process queries
+
+`query_processes` implements the former CIM/filter/projection pipeline in C11 without Python, PowerShell, WMI or a spawned helper. Supply `contains` (1–16 nonempty UTF-8 strings, at most 4096 bytes total), matched as case-insensitive literal OR terms. Optional `pids` restricts inspection to 1–32 positive IDs; `include_self` defaults false. Defaults are `limit=10`, `max_processes=4096`, `timeout_ms=5000` and `output_limit_bytes=65536`. Bounds are 100 results, 4096 walked process entries, 10000 ms and 262144 bytes of process-record output; diagnostic metadata is additional.
+
+```json
+{"contains":["Publish-QueuedBlogs","Publish-PendingTweets","OsChinaPublisher","invoke-image-once"],"limit":10,"timeout_ms":5000}
+```
+
+Windows uses a Toolhelp snapshot, limited-query process handles and the native process command-line query. Results retain `pid`, `parent_pid`, exact `creation_filetime` (a decimal string in JSON to preserve all 64 bits), `created_utc` and the original UTF-8 `command_line`, labeled `command_line_source=win32_original`. This differs from reconstructing command text from argv. UTF-16 conversion is strict, and all handles and query allocations are released after the read.
+
+Read `scan_complete` and `stop_reason` with `status`. Access restrictions, unreadable command lines, encoding failures and result/scan caps remain `partial`; timeout, cancellation and output limits keep their own statuses. A partial empty result is UNKNOWN, not proof that no matching process exists. The snapshot is an observation, not an atomic ownership certificate or authorization to terminate a process. Cancellation/deadline checks occur between bounded OS queries; an individual OS query is not forcibly preempted. The Linux tool returns `not_supported` explicitly and does not fall back to an interpreter.
 
 ## Create a new text file
 
@@ -201,7 +226,7 @@ sh eng/test-linux.sh
 build/linux/bin/cdx --version
 ```
 
-Both platforms use the same JSON requests and seventeen MCP tools. Linux paths are absolute UTF-8 paths, and execution errors report `posix_error`; Windows keeps `win32_error`. The Linux executable is dynamically linked to system libraries. Build a local Windows ZIP with PowerShell 7 using `./eng/test-package.ps1` after `eng\test.cmd`; see [packaging](docs/packaging.md).
+Both platforms expose the same eighteen MCP tools and JSON contracts; the Windows-only process query reports `not_supported` on Linux. Linux paths are absolute UTF-8 paths, and execution errors report `posix_error`; Windows keeps `win32_error`. The Linux executable is dynamically linked to system libraries. Build a local Windows ZIP with PowerShell 7 using `./eng/test-package.ps1` after `eng\test.cmd`; see [packaging](docs/packaging.md).
 
 The CLI exposes these forms:
 

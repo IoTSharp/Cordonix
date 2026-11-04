@@ -58,7 +58,7 @@ json_lines() {
     } END { printf "]" }' "$1"
 }
 
-files='cdx LICENSE README.md docs/packaging.md docs/execution-boundaries.md docs/install-update.md install/install.ps1 install/install.sh examples/cordonix-install-update-prompt.md examples/codex-config.toml examples/request.json examples/read-lines.json examples/read-first.json examples/read-tail.json examples/read-raw.json examples/list-directory.json examples/resolve-path.json examples/verify-encoding.json'
+files='cdx LICENSE NOTICE third_party/libssh2/COPYING README.md docs/packaging.md docs/execution-boundaries.md docs/install-update.md docs/native-ssh.md docs/communication-protocols.md docs/local-proxy.md docs/native-http.md docs/native-network.md docs/native-serial.md docs/native-sftp.md install/install.ps1 install/install.sh examples/cordonix-install-update-prompt.md examples/codex-config.toml examples/request.json examples/read-lines.json examples/read-first.json examples/read-tail.json examples/read-raw.json examples/list-directory.json examples/resolve-path.json examples/verify-encoding.json examples/ssh-probe.json examples/ssh-jump.json examples/ssh-interactive.json examples/http-request.json examples/serial-list.json examples/network-connect.json examples/sftp-stat.json'
 printf '%s\n' $files | sort > "$task_root/payload-list.txt"
 for name in $files; do
     source="$root/$name"

@@ -3,3 +3,6 @@ Copyright 2026 Cordonix contributors
 
 This project is licensed under the Apache License, Version 2.0.
 Cordonix is an independent project and is not an OpenAI product.
+
+Windows SSH support statically links libssh2 1.11.1 under BSD-3-Clause.
+Its original copyright and license are in third_party/libssh2/COPYING.

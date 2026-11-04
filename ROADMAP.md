@@ -47,8 +47,31 @@ The process and document agents own disjoint platform sources. The packaging age
 | CDX-09E | Native directory listing and path resolution | ✅ local gate passed | 12 shared MCP checks; hidden/system entries, limits, normalization and explicit missing paths; existing-directory comparison matches PowerShell |
 | CDX-09F | Native batch encoding verification | ✅ local gate passed | 14 shared MCP checks; seven distinct CP936 fixtures match .NET strict verification without writes; scope/count preflight, BOM mismatch, timeout/cancel/EOF and NOT_RUN evidence |
 | CDX-09G | Execution boundary diagnostics and caller guidance | ✅ local gate passed, unreleased | PowerShell array binding reproduced; cleanup observations exposed; Windows 96/96 and Linux 100/100 real MCP checks. Persistent sessions remain outside this API; installed-client adoption is separate |
+| CDX-09I | Native C SSH client and configurable bastion routes | 🟡 Windows implementation and local gates PASS | Direct IP, direct-tcpip jump and PTY selection; 27/27 actual loopback protocol checks and 27/27 ASan client checks; full Windows 339 and Linux Git-scope 299 PASS. Linux SSH NOT_SUPPORTED; deployed bastions and installed-client adoption NOT_RUN |
 
 ## Next item
+
+CDX-10F default local-proxy selection is ✅ implemented and locally verified
+on Windows: direct first, then both local 7890/1080 candidates with real
+CONNECT/SOCKS5 recognition, shared deadline and no replay after dispatch.
+Shared proxy 23, native HTTP 29 / MCP 26, network 38 and SSH-proxy 6 checks
+PASS; full Windows 365 and Linux Git-scope 309 checks PASS. The HTTP loopback
+destination boundary, Linux NOT_SUPPORTED and installed-client/deployed-host
+NOT_RUN remain explicit in [local proxy routing](docs/local-proxy.md).
+
+| Item | Decision / local state | Remaining acceptance |
+|---|---|---|
+| CDX-10A HTTP/HTTPS | ✅ WinHTTP native requests; 19 real protocol checks, ASan and system TLS readback PASS | Broader curl features and Linux backend |
+| CDX-10B SFTP | ✅ Existing libssh2 reused; 11 subsystem checks including lost OPEN reply and cancellation, ASan PASS | Large transfers, deployed servers and atomic publication |
+| CDX-10C Serial | 🟡 Passive diagnosis and explicit bounded I/O; 16 native/ASan checks PASS | Physical UART, modem signals and driver cancellation under load NOT_RUN |
+| CDX-10D TCP/Telnet/MQTT | 🟡 24 loopback/ASan checks PASS; MQTT CONNECT/QoS0 subset | MQTT TLS/auth/subscription/QoS1/2 and persistent terminals |
+| CDX-10E FTP/FTPS | ⬜ Evaluated, deferred pending a legacy compatibility requirement | Backend/dependency approval and real FTP fixtures |
+
+The integrated communication layer passes Windows 361 and Linux Git-scope 305 checks. The four new tools are native Windows implementations; Linux returns NOT_SUPPORTED. The scope/installation-cost decision is in [communication protocols](docs/communication-protocols.md).
+
+CDX-09I implements a native C SSH client (Windows, static libssh2/WinCNG) with direct, direct-tcpip jump and configurable interactive-bastion routes. It has explicit host-key pinning, credential aliases, bounded cancellation/output and remote UNKNOWN semantics. Local loopback protocol, full regression, deployed-bastion compatibility and installed-client adoption are separate gates; see [native SSH](docs/native-ssh.md). Linux currently returns NOT_SUPPORTED.
+
+CDX-09H adds native Windows `query_processes` with original command-line and creation-time observations, 19 native checks and shared MCP wiring. Linux process enumeration is explicitly NOT_SUPPORTED. The local skill migration consolidates the old adapter skill into Cordonix; published-release and fresh Codex-client adoption remain separate from local C/CLI/MCP validation.
 
 CDX-09B2 (child environments) passes Windows 35 / Linux 39 process checks and 11 shared MCP checks. CDX-09B3 (external adapters) passes Windows 26 / Linux Git 17 native checks; Linux full rg passes 29 checks locally and in required CI. Official Python SDK acceptance passes 12 workflows. Compiler reproducibility and SPDX schema have their own gates; they do not establish a signing identity.
 
