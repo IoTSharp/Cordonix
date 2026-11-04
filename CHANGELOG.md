@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added native Windows/POSIX `create_directory` to the C API, CLI and cancellable MCP worker. Explicit `parents`/`exist_ok` options replace ensure-directory plus absolute-path readback; results retain leaf creation and total created counts on failure. Existing files are preserved, recursive creation has a 256-directory preflight bound, and deadline/cancellation states remain explicit.
+- Added native filesystem and real MCP regression coverage, including Unicode/spaces, existing directories, missing parents, file collisions, lexical normalization, invalid inputs, pre-cancellation and fixture cleanup. The development surface has 25 tools; publication and installed-client adoption are deferred to the next release.
+
 ## 0.1.0 - 2026-11-04
 
 - Published signed Windows/Linux archives on GitHub and Gitee from clean source `6bf1e14`. All tagged gates pass; 12 uploaded assets match across hosts, four independent signature checks and four tamper rejections pass, and downloaded binaries expose 24 MCP tools. The public Windows executable passes 108 protocol checks. WinGet update PR #470229 is submitted; community acceptance remains separate.

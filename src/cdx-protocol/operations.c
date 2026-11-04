@@ -649,6 +649,44 @@ static void create_file(const cdx_json *json, int arguments,
     cdx_json_raw(output, "}");
 }
 
+static void create_directory(const cdx_json *json, int arguments,
+                             cdx_cancel_handle cancellation, cdx_json_output *output) {
+    int valid = 1;
+    const char *path = string_arg(json, arguments, "path", NULL, &valid);
+    cdx_fs_create_request request;
+    cdx_fs_create_result result;
+    cdx_path_char *native_path;
+    const char *status;
+    memset(&request, 0, sizeof(request));
+    request.parents = boolean_arg(json, arguments, "parents", 0, &valid);
+    request.exist_ok = boolean_arg(json, arguments, "exist_ok", 0, &valid);
+    request.timeout_ms = (unsigned)integer_arg(json, arguments, "timeout_ms", 5000, 60000, &valid);
+    request.cancellation = cancellation;
+    if (!valid || !request.timeout_ms || !(native_path = native_text(path))) {
+        error_result(output, "validation_error", "Use an absolute path string, boolean parents/exist_ok and timeout_ms 1..60000"); return;
+    }
+    request.path = native_path;
+    (void)cdx_fs_create_directory(&request, &result);
+    free(native_path);
+    status = cdx_fs_status_name(result.status);
+    cdx_json_raw(output, "{\"status\":"); cdx_json_quote(output, status, strlen(status));
+    if (result.path) { cdx_json_raw(output, ",\"path\":"); cdx_json_quote(output, result.path, strlen(result.path)); }
+    cdx_json_raw(output, ",\"created\":"); cdx_json_raw(output, result.created ? "true" : "false");
+    cdx_json_raw(output, ",\"directories_created\":"); cdx_json_uint(output, result.directories_created);
+    if (result.status == CDX_FS_OK) cdx_json_raw(output, ",\"type\":\"directory\"");
+    else {
+        cdx_json_raw(output, ",\"message\":\"Directory creation did not complete; inspect created/count before retrying. Created parents are retained\""
+#ifdef _WIN32
+            ",\"win32_error\":");
+#else
+            ",\"posix_error\":");
+#endif
+        cdx_json_uint(output, result.native_error);
+    }
+    cdx_json_raw(output, "}");
+    cdx_fs_create_result_free(&result);
+}
+
 static void query_filesystem(const cdx_json *json, int arguments, int list,
                              cdx_cancel_handle cancellation, cdx_json_output *output) {
     int valid = 1;
@@ -739,6 +777,7 @@ void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx
         cdx_adapter_call(operation, request, arguments, cancellation, output); return;
     }
     if (!strcmp(operation, "create_file")) { create_file(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "create_directory")) { create_directory(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "workspace_open")) { open_document(request, arguments, output); return; }
     if (!strcmp(operation, "read_file")) { read_file(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "verify_encoding")) { verify_encoding(request, arguments, cancellation, output); return; }

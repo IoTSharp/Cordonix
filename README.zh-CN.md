@@ -1,5 +1,7 @@
 # Cordonix
 
+待发布：Windows/Linux 原生 `create_directory` 支持创建目录，并显式控制补建父目录和接受已有目录。开发版 MCP 共 25 个工具，此项能力随下一版发布。
+
 0.1.0 增加原生 SSH、HTTP、SFTP、TCP/Telnet/MQTT、串口、本机代理自动评估与调用概要，共 24 个工具，保留 v0.0.5 的全部 19 个工具及已发布字段。Windows/Linux 原生与 MCP 门禁、真实协议交互及便携包验证均已通过；正式标签签名、双站发布和公开回读记录见 [HANDOFF.md](HANDOFF.md)。
 
 0.0.5 增加 Windows 进程查询、实验性原生手机能力及 Microsoft Store/便携版 PowerShell 7 兼容修复。新版本发布与本地定时自动更新的结果单独记录在 HANDOFF.md；下方 v0.0.4 的完整验收是历史证据。
@@ -45,7 +47,7 @@ Git、ripgrep、编译器和 Codex 的 `apply_patch` 仍是配套工具。Cordon
 |---|---|---|
 | Windows 进程核心 | 本地 35 项检查通过，包含子进程环境隔离 | 更广泛应用和长时间负载仍需验证 |
 | 编码与内存文档核心 | 36 项核心检查与 25 项编码/接线边界检查通过 | 外部工具读取磁盘，看不到未提交的内存修改 |
-| CLI 与 MCP | 开发版 24 个工具，包含 v0.0.5 的 19 个已发布工具；合并后的验证记录见 HANDOFF.md | Windows 进程查询和新增通信工具在 Linux 返回 not_supported；新客户端采用和界面显示另行验收 |
+| CLI 与 MCP | 开发版 25 个工具，保留 v0.1.0 已发布的全部 24 个工具；合并后的验证记录见 HANDOFF.md | Windows 进程查询和新增通信工具在 Linux 返回 not_supported；新客户端采用和界面显示另行验收 |
 | 原生 SSH 客户端 | Windows 实际回环 SSH 协议 27/27；ASan 客户端再次通过；libssh2 静态链接 CNG | 实际部署跳板验收 NOT_RUN；Linux SSH NOT_SUPPORTED；当前后端不支持 Ed25519 |
 | 新文本文件 | 两平台各 20 项原生检查，以及 8 项共享 MCP 检查 | 已有路径不覆盖，父目录必须存在 |
 | Linux | 既有 CI 证据包含 276 项完整检查（含 Git/rg 适配器）；10 月 31 日 WSL 重跑通过 102 项 MCP、17/17 项 Git 适配器，因本机没有原生 rg 将 rg 标记为 `NOT_RUN` | Linux Codex 模型调用仍需认证。ACL/xattr 不支持，多发行版和更长时段仍单独验收 |
@@ -102,6 +104,7 @@ workspace_open -> workspace_read / workspace_search
 | `execute_program` | 原样传递 argv，限制输出和超时，回收任务所属进程 |
 | `query_processes` | 纯 C 只读查询 Windows PID、父 PID、创建时间和原始命令行；Linux 明确返回 not_supported |
 | `create_file` | 按严格编码创建新文本文件，不覆盖已有路径，父目录须存在 |
+| `create_directory` | 创建目录并返回绝对路径；按需显式补建父目录、接受已有目录 |
 | `list_directory` | 列出目录的直接子项，可包含隐藏项并限制结果数 |
 | `resolve_path` | 规范化已存在的绝对文件系统路径，返回路径及类型 |
 | `verify_encoding` | 按声明编码批量验证磁盘文件，可约束数量和目录范围 |
@@ -205,6 +208,27 @@ build\bin\cdx.exe --request examples\read-lines.json
 Tail 支持 1～1000 行，文件行数不足时返回全部；Raw 不受行数限制。两者保留原始换行符及末尾换行，返回解码后的文本，编码 BOM 通过元数据表示。成功结果包含 `mode`、实际起始行和行数，并保证 `eof=true`、`next_line=null`、`truncated=false`。
 
 输出仍受 `max_bytes` 限制，默认 32768、最多 262144 个 UTF-8 字节。Tail/Raw 必须完整放入预算；不足时返回 `output_limit`、`bytes_required` 和 `max_bytes`，不返回半份 `text`。可提高预算或改用范围分页。Tail/Raw 不能混用，也不能与 `start_line`、`line_count`、`offset`、`limit` 混用；`raw=false` 保持原有行范围语义。
+
+## 创建目录
+
+`create_directory` 接受绝对字面路径 `path`。`parents: true` 表示补建缺失的父目录，`exist_ok: true` 表示接受已有目录；两项默认均为 false。同名文件返回 `not_directory`，未允许已有目录时返回 `already_exists`。实现直接调用 Windows/POSIX 文件系统 API，无需启动 PowerShell 或其他 Shell。
+
+以下一次调用即可确保目录存在并返回规范化后的绝对 `path`，替代创建目录后再执行 `Get-Item | Select-Object -ExpandProperty FullName`：
+
+```json
+{
+  "operation": "create_directory",
+  "arguments": {
+    "path": "D:\\work\\center-query",
+    "parents": true,
+    "exist_ok": true
+  }
+}
+```
+
+成功结果包含 `type: "directory"`；`created` 表示本次是否新建目标目录，`directories_created` 是本次创建的目录总数。接受已有目录时，分别为 false 和 0。文件系统错误、取消、超时也保留实际创建结果，已创建的父目录会留在磁盘，失败后应先核对结果再重试。一次最多补建 256 个缺失目录，预检超限时不写入。`timeout_ms` 默认 5000，范围 1～60000；截止和取消在同步系统调用之间检查，不保证抢占卡住的文件系统驱动。Windows 沿用普通目录权限继承，POSIX 使用受 umask 限制的 0777。已有目录链接遵循平台行为；字面路径规范化不提供物理路径隔离。
+
+此项目前属于本地开发改动，不包含在已发布的 v0.1.0 或仍连接着的 0.0.5 中；安装更新及客户端重新加载工具列表分别验收。
 
 ## 列出目录与解析路径
 

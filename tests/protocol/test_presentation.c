@@ -30,6 +30,7 @@ int main(int argc, char **argv) {
         {"read_file", "{\"path\":\"/src/a.cs\",\"tail_lines\":55}", "读取文件 · src/a.cs · 末尾 55 行"},
         {"list_directory", "{\"path\":\"D:/GitHub/Cordonix/eng/\"}", "列出目录 · Cordonix/eng"},
         {"resolve_path", "{\"path\":\"D:/GitHub/Cordonix\"}", "确认路径是否存在 · GitHub/Cordonix"},
+        {"create_directory", "{\"path\":\"D:/Temp/query 目录\",\"exist_ok\":true}", "创建目录 · Temp/query 目录"},
         {"git_status", "{\"cwd\":\"/src/Cordonix\"}", "查看 Git 仓库状态 · Cordonix"},
         {"git_status", "{\"cwd\":\"/\"}", "查看 Git 仓库状态 · /"},
         {"git_status", "{\"cwd\":\"C:/\"}", "查看 Git 仓库状态 · C:/"},

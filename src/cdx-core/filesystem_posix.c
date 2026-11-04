@@ -62,6 +62,88 @@ static cdx_fs_status validate_path(const char *path) {
     return cdx_validate_utf8(path, length) ? CDX_FS_OK : CDX_FS_ENCODING_ERROR;
 }
 
+static cdx_fs_status create_directories(const cdx_fs_create_request *request, char *path,
+                                        uint64_t deadline, cdx_fs_create_result *result);
+
+cdx_fs_status cdx_fs_create_directory(const cdx_fs_create_request *request, cdx_fs_create_result *result) {
+    uint64_t deadline;
+    char *path = NULL;
+    cdx_fs_status status;
+    if (!result) return CDX_FS_VALIDATION_ERROR;
+    memset(result, 0, sizeof(*result));
+    if (!request || (request->parents != 0 && request->parents != 1) ||
+        (request->exist_ok != 0 && request->exist_ok != 1) ||
+        !request->timeout_ms || request->timeout_ms > 60000u) {
+        result->native_error = EINVAL;
+        return result->status = CDX_FS_VALIDATION_ERROR;
+    }
+    deadline = milliseconds() + request->timeout_ms;
+    status = cdx_fs_normalize_path(request->path, request->cancellation, &path, &result->native_error);
+    if (status != CDX_FS_OK) return result->status = status;
+    result->path = path;
+    status = create_directories(request, path, deadline, result);
+    if (status == CDX_FS_OK) status = interrupted(request->cancellation, deadline);
+    if (status == CDX_FS_CANCELLED) errno = ECANCELED;
+    else if (status == CDX_FS_TIMED_OUT) errno = ETIMEDOUT;
+    result->status = status;
+    if (status != CDX_FS_OK) result->native_error = (unsigned long)errno;
+    return status;
+}
+
+static cdx_fs_status create_directories(const cdx_fs_create_request *request, char *path,
+                                        uint64_t deadline, cdx_fs_create_result *result) {
+    size_t ends[CDX_FS_MAX_CREATED_DIRECTORIES], count = 0, length = strlen(path), step;
+    cdx_fs_status status;
+    if (!request->parents) ends[count++] = length;
+    else for (step = 0; step <= CDX_FS_MAX_CREATED_DIRECTORIES; ++step) {
+        struct stat metadata;
+        int found, error;
+        char saved = path[length];
+        status = interrupted(request->cancellation, deadline);
+        if (status != CDX_FS_OK) return status;
+        path[length] = 0;
+        found = stat(path, &metadata);
+        error = errno;
+        path[length] = saved;
+        if (!found) {
+            if (!S_ISDIR(metadata.st_mode)) { errno = ENOTDIR; return CDX_FS_NOT_DIRECTORY; }
+            if (!count && !request->exist_ok) { errno = EEXIST; return CDX_FS_ALREADY_EXISTS; }
+            break;
+        }
+        status = error_status(error);
+        if (status != CDX_FS_NOT_FOUND) { errno = error; return status; }
+        if (count == CDX_FS_MAX_CREATED_DIRECTORIES) { errno = ENAMETOOLONG; return CDX_FS_VALIDATION_ERROR; }
+        ends[count++] = length;
+        for (; length && path[length - 1] == '/'; --length) { }
+        for (; length && path[length - 1] != '/'; --length) { }
+        if (!length) { errno = ENOENT; return CDX_FS_NOT_FOUND; }
+    }
+    for (step = count; step > 0; --step) {
+        int error;
+        char saved = path[ends[step - 1]];
+        status = interrupted(request->cancellation, deadline);
+        if (status != CDX_FS_OK) return status;
+        path[ends[step - 1]] = 0;
+        if (!mkdir(path, 0777)) {
+            ++result->directories_created;
+            if (step == 1) result->created = 1;
+            status = CDX_FS_OK;
+        } else {
+            error = errno;
+            if (error == EEXIST) {
+                struct stat metadata;
+                if (stat(path, &metadata)) status = error_status(error = errno);
+                else if (!S_ISDIR(metadata.st_mode)) { error = ENOTDIR; status = CDX_FS_NOT_DIRECTORY; }
+                else status = step > 1 || request->exist_ok ? CDX_FS_OK : CDX_FS_ALREADY_EXISTS;
+            } else status = error_status(error);
+            errno = error;
+        }
+        path[ends[step - 1]] = saved;
+        if (status != CDX_FS_OK) return status;
+    }
+    return CDX_FS_OK;
+}
+
 cdx_fs_status cdx_fs_normalize_path(const char *path, cdx_cancel_handle cancellation,
                                     char **result, unsigned long *native_error) {
     size_t input = 1, output = 1, length, step;

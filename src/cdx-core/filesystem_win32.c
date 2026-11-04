@@ -16,6 +16,8 @@ static cdx_fs_status utf8_text(const wchar_t *text, char **output);
 static cdx_fs_kind kind_from_attributes(DWORD attributes);
 static cdx_fs_status list_entries(const cdx_fs_request *request, const wchar_t *path,
                                  ULONGLONG deadline, cdx_fs_result *result);
+static cdx_fs_status create_directories(const cdx_fs_create_request *request, wchar_t *path,
+                                        ULONGLONG deadline, cdx_fs_create_result *result);
 
 cdx_fs_status cdx_fs_query(const cdx_fs_request *request, cdx_fs_result *result) {
     ULONGLONG deadline = GetTickCount64() + CDX_FS_QUERY_MS;
@@ -50,6 +52,83 @@ done:
     if (status != CDX_FS_OK) result->native_error = GetLastError();
     free(full_path);
     return status;
+}
+
+cdx_fs_status cdx_fs_create_directory(const cdx_fs_create_request *request, cdx_fs_create_result *result) {
+    ULONGLONG deadline;
+    wchar_t *path = NULL;
+    cdx_fs_status status;
+    if (!result) return CDX_FS_VALIDATION_ERROR;
+    memset(result, 0, sizeof(*result));
+    if (!request || (request->parents != 0 && request->parents != 1) ||
+        (request->exist_ok != 0 && request->exist_ok != 1) ||
+        !request->timeout_ms || request->timeout_ms > 60000u) {
+        result->native_error = ERROR_INVALID_PARAMETER;
+        return result->status = CDX_FS_VALIDATION_ERROR;
+    }
+    deadline = GetTickCount64() + request->timeout_ms;
+    status = cdx_fs_normalize_path(request->path, request->cancellation, &path, &result->native_error);
+    if (status != CDX_FS_OK) return result->status = status;
+    status = utf8_text(path, &result->path);
+    if (status == CDX_FS_OK) status = create_directories(request, path, deadline, result);
+    if (status == CDX_FS_OK) status = checkpoint(request->cancellation, deadline);
+    result->status = status;
+    if (status != CDX_FS_OK) result->native_error = GetLastError();
+    free(path);
+    return status;
+}
+
+static cdx_fs_status create_directories(const cdx_fs_create_request *request, wchar_t *path,
+                                        ULONGLONG deadline, cdx_fs_create_result *result) {
+    size_t ends[CDX_FS_MAX_CREATED_DIRECTORIES], count = 0, length = wcslen(path), step;
+    cdx_fs_status status;
+    if (!request->parents) ends[count++] = length;
+    else for (step = 0; step <= CDX_FS_MAX_CREATED_DIRECTORIES; ++step) {
+        DWORD attributes, error;
+        wchar_t saved = path[length];
+        status = checkpoint(request->cancellation, deadline);
+        if (status != CDX_FS_OK) return status;
+        path[length] = 0;
+        attributes = GetFileAttributesW(path);
+        error = GetLastError();
+        path[length] = saved;
+        if (attributes != INVALID_FILE_ATTRIBUTES) {
+            if (!(attributes & FILE_ATTRIBUTE_DIRECTORY)) { SetLastError(ERROR_DIRECTORY); return CDX_FS_NOT_DIRECTORY; }
+            if (!count && !request->exist_ok) { SetLastError(ERROR_ALREADY_EXISTS); return CDX_FS_ALREADY_EXISTS; }
+            break;
+        }
+        status = status_from_error(error);
+        if (status != CDX_FS_NOT_FOUND) { SetLastError(error); return status; }
+        if (count == CDX_FS_MAX_CREATED_DIRECTORIES) { SetLastError(ERROR_FILENAME_EXCED_RANGE); return CDX_FS_VALIDATION_ERROR; }
+        ends[count++] = length;
+        for (; length && (path[length - 1] == L'\\' || path[length - 1] == L'/'); --length) { }
+        for (; length && path[length - 1] != L'\\' && path[length - 1] != L'/'; --length) { }
+        if (!length) { SetLastError(ERROR_PATH_NOT_FOUND); return CDX_FS_NOT_FOUND; }
+    }
+    for (step = count; step > 0; --step) {
+        DWORD error;
+        wchar_t saved = path[ends[step - 1]];
+        status = checkpoint(request->cancellation, deadline);
+        if (status != CDX_FS_OK) return status;
+        path[ends[step - 1]] = 0;
+        if (CreateDirectoryW(path, NULL)) {
+            ++result->directories_created;
+            if (step == 1) result->created = 1;
+            status = CDX_FS_OK;
+        } else {
+            error = GetLastError();
+            if (error == ERROR_ALREADY_EXISTS || error == ERROR_FILE_EXISTS) {
+                DWORD attributes = GetFileAttributesW(path);
+                if (attributes == INVALID_FILE_ATTRIBUTES) status = status_from_error(error = GetLastError());
+                else if (!(attributes & FILE_ATTRIBUTE_DIRECTORY)) { error = ERROR_DIRECTORY; status = CDX_FS_NOT_DIRECTORY; }
+                else status = step > 1 || request->exist_ok ? CDX_FS_OK : CDX_FS_ALREADY_EXISTS;
+            } else status = status_from_error(error);
+            SetLastError(error);
+        }
+        path[ends[step - 1]] = saved;
+        if (status != CDX_FS_OK) return status;
+    }
+    return CDX_FS_OK;
 }
 
 static int valid_request(const cdx_fs_request *request) {

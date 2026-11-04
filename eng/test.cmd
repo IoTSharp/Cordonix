@@ -51,6 +51,12 @@ build\workspace\create-file-tests.exe "%cd%\build\workspace" --pilot
 if errorlevel 1 exit /b %errorlevel%
 build\workspace\create-file-tests.exe "%cd%\build\workspace"
 if errorlevel 1 exit /b %errorlevel%
+cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 /DUNICODE /D_UNICODE /Iinclude /Fobuild\workspace\ /Febuild\workspace\create-directory-tests.exe tests\workspace\test_create_directory.c src\cdx-core\filesystem.c src\cdx-core\filesystem_win32.c
+if errorlevel 1 exit /b %errorlevel%
+build\workspace\create-directory-tests.exe "%cd%\build\workspace" --pilot
+if errorlevel 1 exit /b %errorlevel%
+build\workspace\create-directory-tests.exe "%cd%\build\workspace"
+if errorlevel 1 exit /b %errorlevel%
 build\protocol\cdx-json-tests.exe
 if errorlevel 1 exit /b %errorlevel%
 build\protocol\cdx-edge-tests.exe "%cd%\build\protocol"

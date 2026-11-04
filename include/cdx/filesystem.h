@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #define CDX_FS_MAX_ENTRIES 1000u
+#define CDX_FS_MAX_CREATED_DIRECTORIES 256u
 
 typedef enum cdx_fs_status {
     CDX_FS_OK = 0,
@@ -16,7 +17,8 @@ typedef enum cdx_fs_status {
     CDX_FS_ENCODING_ERROR,
     CDX_FS_IO_ERROR,
     CDX_FS_TIMED_OUT,
-    CDX_FS_CANCELLED
+    CDX_FS_CANCELLED,
+    CDX_FS_ALREADY_EXISTS
 } cdx_fs_status;
 
 typedef enum cdx_fs_kind {
@@ -53,7 +55,26 @@ typedef struct cdx_fs_result {
     unsigned long native_error;
 } cdx_fs_result;
 
+typedef struct cdx_fs_create_request {
+    const cdx_path_char *path;
+    int parents;
+    int exist_ok;
+    unsigned timeout_ms;
+    cdx_cancel_handle cancellation;
+} cdx_fs_create_request;
+
+typedef struct cdx_fs_create_result {
+    cdx_fs_status status;
+    char *path;
+    int created;
+    size_t directories_created;
+    unsigned long native_error;
+} cdx_fs_create_result;
+
 cdx_fs_status cdx_fs_query(const cdx_fs_request *request, cdx_fs_result *result);
+/* Created parents remain on failure; created identifies the requested leaf only. */
+cdx_fs_status cdx_fs_create_directory(const cdx_fs_create_request *request, cdx_fs_create_result *result);
+void cdx_fs_create_result_free(cdx_fs_create_result *result);
 /* Pure lexical normalization; caller frees the native path, even when it does not exist. */
 cdx_fs_status cdx_fs_normalize_path(const cdx_path_char *path, cdx_cancel_handle cancellation,
                                     cdx_path_char **normalized, unsigned long *native_error);

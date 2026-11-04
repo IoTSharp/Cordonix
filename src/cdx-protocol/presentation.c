@@ -173,6 +173,7 @@ void cdx_summarize_call(const char *operation, const cdx_json *json, int argumen
         if (*pattern) (void)snprintf(range, sizeof(range), " · %s", pattern);
     }
     else if (!strcmp(operation, "create_file")) action = "创建新文件";
+    else if (!strcmp(operation, "create_directory")) action = "创建目录";
     else if (!strcmp(operation, "workspace_open")) action = "打开文件到内存";
     else if (!strcmp(operation, "workspace_edit")) action = "编辑内存文档";
     else if (!strcmp(operation, "workspace_commit")) action = "提交内存文档到磁盘";

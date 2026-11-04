@@ -206,7 +206,8 @@ static void dispatch(const char *line, size_t length, int *initialized, active_r
                  string_node(&json, cdx_json_get(&json, params, "name"), "network") ||
                  string_node(&json, cdx_json_get(&json, params, "name"), "phone") ||
                  string_node(&json, cdx_json_get(&json, params, "name"), "verify_encoding") ||
-                 string_node(&json, cdx_json_get(&json, params, "name"), "create_file")) {
+                 string_node(&json, cdx_json_get(&json, params, "name"), "create_file") ||
+                 string_node(&json, cdx_json_get(&json, params, "name"), "create_directory")) {
             active->json = json;
             active->id = id;
             active->params = params;

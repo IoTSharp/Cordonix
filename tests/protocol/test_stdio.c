@@ -1063,6 +1063,89 @@ static void remove_fixture_directory(line_fixture *fixture) {
     fixture->owned = 0;
 }
 
+static void create_directory_cases(wire_client *client) {
+    line_fixture *paths = (line_fixture *)calloc(8, sizeof(*paths));
+    cdx_json data;
+    unsigned i, id = 2600;
+    int valid, all;
+    if (!paths) { record("create_directory fixture allocation", 0); return; }
+    if (!filesystem_root(&paths[0]) || !filesystem_child(&paths[1], &paths[0], "new \xe4\xb8\xad\xe6\x96\x87 directory") ||
+        !filesystem_child(&paths[2], &paths[0], "parent") || !filesystem_child(&paths[3], &paths[2], "leaf") ||
+        !filesystem_child(&paths[4], &paths[0], "file.txt") || !filesystem_child(&paths[5], &paths[4], "blocked") ||
+        !filesystem_child(&paths[7], &paths[3], "new.txt")) {
+        record("create_directory fixture setup", 0); goto cleanup;
+    }
+    valid = call_file_tool(client, "create_directory", &paths[1], "", id++, &data);
+    paths[1].owned = valid && bool_is(&data, "created", 1);
+    record("MCP creates a Unicode spaced directory and returns its absolute path", paths[1].owned &&
+        string_is(&data, 0, "status", "ok") && string_is(&data, 0, "path", paths[1].utf8_path) &&
+        string_is(&data, 0, "type", "directory") && number_is(&data, "directories_created", 1)); cdx_json_free(&data);
+    valid = call_file_tool(client, "resolve_path", &paths[1], "", id++, &data);
+    record("created directory reads back through resolve_path", valid && string_is(&data, 0, "status", "ok") &&
+        string_is(&data, 0, "type", "directory")); cdx_json_free(&data);
+    valid = call_file_tool(client, "create_directory", &paths[1], "", id++, &data);
+    record("MCP existing directory defaults to already_exists", valid && string_is(&data, 0, "status", "already_exists") &&
+        bool_is(&data, "created", 0) && number_is(&data, "directories_created", 0)); cdx_json_free(&data);
+    valid = call_file_tool(client, "create_directory", &paths[1], ",\"exist_ok\":true", id++, &data);
+    record("MCP exist_ok reports success without a new directory", valid && string_is(&data, 0, "status", "ok") &&
+        bool_is(&data, "created", 0) && number_is(&data, "directories_created", 0)); cdx_json_free(&data);
+    valid = call_file_tool(client, "create_directory", &paths[3], "", id++, &data);
+    all = valid && string_is(&data, 0, "status", "not_found") && bool_is(&data, "created", 0) && number_is(&data, "directories_created", 0);
+    cdx_json_free(&data);
+    valid = call_file_tool(client, "resolve_path", &paths[2], "", id++, &data);
+    record("MCP default leaves missing parents absent", all && valid && string_is(&data, 0, "status", "not_found")); cdx_json_free(&data);
+    valid = call_file_tool(client, "create_directory", &paths[3], ",\"parents\":true,\"exist_ok\":true", id++, &data);
+    paths[3].owned = valid && bool_is(&data, "created", 1);
+    paths[2].owned = valid && cdx_json_get(&data, 0, "directories_created") >= 0 &&
+        data.nodes[cdx_json_get(&data, 0, "directories_created")].number > 0;
+    record("MCP ensures nested directories with an explicit created count", paths[3].owned && paths[2].owned &&
+        string_is(&data, 0, "status", "ok") && number_is(&data, "directories_created", 2)); cdx_json_free(&data);
+    valid = call_file_tool(client, "create_directory", &paths[3], ",\"parents\":true,\"exist_ok\":true", id++, &data);
+    record("MCP repeated ensure is a no-op", valid && string_is(&data, 0, "status", "ok") &&
+        bool_is(&data, "created", 0) && number_is(&data, "directories_created", 0)); cdx_json_free(&data);
+    valid = call_file_tool(client, "create_file", &paths[7], ",\"content\":\"inside\"", id++, &data);
+    paths[7].owned = valid && bool_is(&data, "written_to_disk", 1);
+    record("created nested directory accepts a native create_file write", paths[7].owned && file_equals(paths[7].path, "inside")); cdx_json_free(&data);
+    if (!write_line_fixture(&paths[4], "keep", 4, 1)) { record("create_directory file collision fixture", 0); goto cleanup; }
+    valid = call_file_tool(client, "create_directory", &paths[4], ",\"parents\":true,\"exist_ok\":true", id++, &data);
+    all = valid && string_is(&data, 0, "status", "not_directory") && bool_is(&data, "created", 0) && number_is(&data, "directories_created", 0);
+    cdx_json_free(&data);
+    valid = call_file_tool(client, "create_directory", &paths[5], ",\"parents\":true,\"exist_ok\":true", id++, &data);
+    record("MCP file and file-ancestor collisions preserve content", all && valid && string_is(&data, 0, "status", "not_directory") &&
+        number_is(&data, "directories_created", 0) && file_equals(paths[4].path, "keep")); cdx_json_free(&data);
+    {
+        static const char *const invalid[] = {",\"parents\":\"true\"", ",\"exist_ok\":1", ",\"timeout_ms\":0", ",\"timeout_ms\":60001", ",\"timeout_ms\":true", ",\"timeout_ms\":1.5"};
+        all = 1;
+        for (i = 0; i < sizeof(invalid) / sizeof(invalid[0]) && GetTickCount64() < deadline; ++i) {
+            valid = call_file_tool(client, "create_directory", &paths[1], invalid[i], id++, &data);
+            all = all && valid && string_is(&data, 0, "status", "validation_error"); cdx_json_free(&data);
+        }
+        record("MCP create_directory validates boolean options and deadline bounds", all && i == sizeof(invalid) / sizeof(invalid[0]));
+    }
+    {
+        static const char *const invalid[] = {"{\"path\":false}", "{\"path\":\"relative\"}", "{\"path\":\"\"}", "{}"};
+        all = 1;
+        for (i = 0; i < sizeof(invalid) / sizeof(invalid[0]) && GetTickCount64() < deadline; ++i) {
+            valid = tool_call(client, "create_directory", invalid[i], id++, &data);
+            all = all && valid && string_is(&data, 0, "status", "validation_error"); cdx_json_free(&data);
+        }
+        valid = filesystem_child(&paths[6], &paths[0], "$(literal)") && call_file_tool(client, "create_directory", &paths[6], "", id++, &data);
+        all = all && valid && string_is(&data, 0, "status", "validation_error"); cdx_json_free(&data);
+        valid = filesystem_child(&paths[6], &paths[0], "bad\nname") && call_file_tool(client, "create_directory", &paths[6], "", id++, &data);
+        record("MCP create_directory rejects invalid and code-shaped paths", all && i == sizeof(invalid) / sizeof(invalid[0]) &&
+            valid && string_is(&data, 0, "status", "validation_error")); cdx_json_free(&data);
+    }
+cleanup:
+    remove_line_fixture(&paths[7]); remove_line_fixture(&paths[4]);
+    remove_fixture_directory(&paths[3]); remove_fixture_directory(&paths[2]);
+    remove_fixture_directory(&paths[1]); remove_fixture_directory(&paths[0]);
+    if (*paths[0].utf8_path) {
+        valid = call_file_tool(client, "resolve_path", &paths[0], "", id++, &data);
+        record("MCP create_directory owned fixtures cleaned", valid && string_is(&data, 0, "status", "not_found")); cdx_json_free(&data);
+    }
+    free(paths);
+}
+
 static int directory_entry(const cdx_json *json, const char *name) {
     int entries = cdx_json_get(json, 0, "entries"), entry;
     unsigned count;
@@ -1690,7 +1773,7 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
             if (title < 0 || response.nodes[title].type != CDX_JSON_STRING || !*response.nodes[title].string) titles_valid = 0;
             if (string_is(&response, tool, "name", "execute_program")) execution_title = string_is(&response, tool, "title", "执行本地程序");
         }
-        record("MCP twenty-four tools expose human-readable titles", count == 24 && tool < 0 && titles_valid && execution_title);
+        record("MCP twenty-five tools expose human-readable titles", count == 25 && tool < 0 && titles_valid && execution_title);
     }
     cdx_json_free(&response);
     process_snapshot_cases(&client);
@@ -1714,6 +1797,7 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
     line_read_cases(&client);
     tail_raw_cases(&client);
     filesystem_cases(&client);
+    create_directory_cases(&client);
     verify_encoding_cases(&client, program);
     environment_cases(&client, fixture);
     process_query_cases(&client);

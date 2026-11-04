@@ -1,5 +1,7 @@
 # Cordonix
 
+Unreleased: native `create_directory` adds directory creation and explicit `parents`/`exist_ok` controls on Windows and Linux. The development MCP surface has 25 tools; this addition is reserved for the next release.
+
 Release 0.1.0 adds native SSH, HTTP, SFTP, TCP/Telnet/MQTT and serial access, automatic local proxy evaluation and per-call summaries: 24 tools total, retaining all 19 v0.0.5 tools and their published fields. Windows/Linux native and MCP gates, real protocol fixtures and portable packages pass; signed tagged publication and public readback are recorded in [HANDOFF.md](HANDOFF.md).
 
 Version 0.0.5 adds Windows process queries, experimental native phone access and Microsoft Store/portable PowerShell 7 compatibility. Its release and natural installed-update checks are recorded separately in HANDOFF.md; the completed v0.0.4 acceptance below is historical evidence.
@@ -45,7 +47,7 @@ Cordonix is a development MVP. Windows has first-party Codex usage evidence; Lin
 |---|---|---|
 | Windows process core | 35 checks passed locally, including isolated child environments | Broader application and long-running workload coverage continues |
 | Encoding and memory document core | 36 core checks plus 25 integration/encoding edge checks passed locally | External tools read disk; they do not see uncommitted memory revisions |
-| CLI and MCP | Twenty-four development tools, including the 19 tools released in v0.0.5; integrated validation is recorded in HANDOFF.md | Installed-client adoption and Codex UI rendering have separate gates |
+| CLI and MCP | Twenty-five development tools, including all 24 released in v0.1.0; integrated validation is recorded in HANDOFF.md | Installed-client adoption and Codex UI rendering have separate gates |
 | Native SSH client | Windows loopback protocol 27/27; repeated on an AddressSanitizer client; static libssh2 with CNG | Deployed bastions NOT_RUN; Linux SSH NOT_SUPPORTED; current backend excludes Ed25519 |
 | New text files | 20 native checks on each platform plus eight shared MCP checks | Existing paths are never overwritten and parent directories must exist |
 | Linux | Earlier CI evidence includes 276 checks with full Git/rg adapters; the October 31 WSL rerun passed 102 MCP checks and 17/17 Git adapter checks while marking rg `NOT_RUN` because native rg is absent | Model-backed Linux Codex calls still need authentication. Other distributions and longer soak are separate |
@@ -104,6 +106,7 @@ The memory workspace belongs to one running session. MCP keeps that process aliv
 | `search_text` | Parse JSON results from an explicitly supplied ripgrep executable |
 | `git_status` | Parse Git porcelain v2 NUL records, including both rename paths |
 | `create_file` | Create a new text file with strict encoding and no overwrite; parent directory must exist |
+| `create_directory` | Create a directory and return its absolute path; explicitly opt into missing parents and existing directories |
 | `list_directory` | List immediate directory entries, with hidden-item and result-count controls |
 | `resolve_path` | Normalize an existing absolute filesystem path and report its type |
 | `verify_encoding` | Verify a bounded batch of disk files with a declared encoding, count and optional root constraint |
@@ -203,6 +206,27 @@ Use `tail_lines: 55` to read the final 55 lines, or `raw: true` to read the enti
 Tail accepts 1–1000 lines and returns the entire file if it has fewer lines. Raw has no line-count cap. Both preserve the original line delimiters and final newline; encoding BOMs are represented by metadata, rather than included in decoded text. Success reports `mode`, actual `start_line`, `lines_returned`, `eof=true`, `next_line=null` and `truncated=false`.
 
 The UTF-8 output budget remains `max_bytes` (default 32768, maximum 262144). Tail/raw require their complete result to fit. Otherwise they return `output_limit` with `bytes_required` and `max_bytes`, without a partial `text` value. Increase the bound or use range paging. Do not combine tail/raw with `start_line`, `line_count`, or byte `offset`/`limit`; `raw=false` keeps line-range semantics.
+
+## Create a directory
+
+`create_directory` accepts an absolute literal `path`. `parents: true` creates missing parents; `exist_ok: true` accepts an existing directory. Both default to false. A same-name file returns `not_directory`; an existing directory without `exist_ok` returns `already_exists`. It uses native Windows/POSIX filesystem APIs without starting PowerShell or another shell.
+
+This single request ensures the directory exists and returns its normalized absolute `path`, replacing directory creation followed by `Get-Item | Select-Object -ExpandProperty FullName`:
+
+```json
+{
+  "operation": "create_directory",
+  "arguments": {
+    "path": "D:\\work\\center-query",
+    "parents": true,
+    "exist_ok": true
+  }
+}
+```
+
+On success, `type` is `directory`. `created` reports whether this call created the requested leaf; `directories_created` counts all directories it created. An accepted existing directory returns `created: false` and count zero. These mutation fields are retained on filesystem errors, cancellation and timeout; created parents remain on disk. Reconcile them before retrying a failed call. Creation is limited to 256 missing directories, with no writes if preflight exceeds that bound. `timeout_ms` defaults to 5000, range 1–60000; the deadline and cancellation are checked between synchronous OS calls, without hard preemption of a stalled filesystem driver. Windows inherits normal directory security; POSIX uses mode 0777 subject to umask. Existing directory links follow platform behavior; lexical normalization does not provide physical containment.
+
+This operation is available in local development builds and is not included in published v0.1.0 or the retained 0.0.5 MCP connection. An updated installed runtime and a fresh client tool list are separate release/adoption gates.
 
 ## List a directory or resolve a path
 

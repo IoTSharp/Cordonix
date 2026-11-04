@@ -1,5 +1,13 @@
 # Cordonix Quality Gates
 
+## Next-release directory creation, 2026-11-04
+
+Local Windows `eng/test.cmd` passes 527 full checks and Ubuntu `eng/test-linux.sh` passes 421 (pilot checks excluded). Each platform passes 22 native directory checks, including Unicode/space paths, explicit existing-directory/parent behavior, file collisions, normalization, pre-cancellation, bounds and cleanup. The real MCP suites pass 137 Windows / 140 Linux checks, expose 25 titled tools and include 12 new directory workflows. Native Linux ripgrep is NOT_RUN on this PATH; Git adapter checks pass 17/17.
+
+MSVC `/analyze /W4 /WX` passes for the changed Windows filesystem backend and protocol dispatcher; Windows ASan passes 22/22. The expanded analysis attempt retains a C6001 warning at the unchanged common `filesystem.c:8`; the original HEAD file reproduces it under identical flags. This baseline warning was not suppressed. Linux ASan/UBSan/leak detection passes 22/22 on real ext4 with owned fixture cleanup. Logs and the failure/baseline comparison are in ignored `build/directory-create-20261104/`; the first Linux test-fixture compile failure is also retained before the corrected final pass.
+
+The user's original ensure-directory request passes on the rebuilt CLI with an existing directory, count zero and absolute-path readback. These are local source/build/MCP gates for the next version. Package validation, remote CI, publication and installed-client adoption for this change are NOT_RUN; the earlier dated release evidence below is unchanged.
+
 Final released boundary: **v0.0.4**, source `34115ba52cf15c465a92516e9cc9aa284840c65a`. Release CI `41002515571` passed all steps, including OIDC attestation and both publishers. Twelve product assets are SHA-identical between hosts. Four independent positive signature checks and four tampered-copy rejections PASS. Actual Windows/Linux 0.0.3-to-0.0.4 upgrades preserve old connections and binaries; each fresh native Codex client passes 12 workflows and calls all 17 released tools. Both real natural hourly scheduler recurrences and cleanup PASS. These final results supersede earlier pending observations below; [the ledger](successor-acceptance.md) retains each remaining limit.
 
 ## Successor evidence, 2026-10-30

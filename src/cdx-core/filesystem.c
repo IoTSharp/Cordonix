@@ -11,6 +11,12 @@ void cdx_fs_result_free(cdx_fs_result *result) {
     memset(result, 0, sizeof(*result));
 }
 
+void cdx_fs_create_result_free(cdx_fs_create_result *result) {
+    if (!result) return;
+    free(result->path);
+    memset(result, 0, sizeof(*result));
+}
+
 const char *cdx_fs_status_name(cdx_fs_status status) {
     switch (status) {
     case CDX_FS_OK: return "ok";
@@ -22,6 +28,7 @@ const char *cdx_fs_status_name(cdx_fs_status status) {
     case CDX_FS_IO_ERROR: return "io_error";
     case CDX_FS_TIMED_OUT: return "timed_out";
     case CDX_FS_CANCELLED: return "cancelled";
+    case CDX_FS_ALREADY_EXISTS: return "already_exists";
     default: return "unknown";
     }
 }
