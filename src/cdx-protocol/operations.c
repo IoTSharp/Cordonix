@@ -950,6 +950,7 @@ void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx
     if (!strcmp(operation, "http")) { cdx_http_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "serial")) { cdx_serial_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "network")) { cdx_network_call(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "screenshot")) { cdx_screenshot_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "query_processes")) { cdx_query_processes_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "phone")) { cdx_phone_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "search_text") || !strcmp(operation, "git_status")) {

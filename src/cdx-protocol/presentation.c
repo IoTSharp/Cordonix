@@ -183,6 +183,7 @@ void cdx_summarize_call(const char *operation, const cdx_json *json, int argumen
     else if (!strcmp(operation, "workspace_convert_encoding")) action = "转换内存文档编码";
     else if (!strcmp(operation, "verify_encoding")) action = "验证文件编码";
     else if (!strcmp(operation, "query_processes")) action = "查询 Windows 进程";
+    else if (!strcmp(operation, "screenshot")) action = "截取窗口或屏幕";
     else if (!strcmp(operation, "tool_info")) action = "查看 Cordonix 版本和会话状态";
     else if (!strcmp(operation, "ssh")) action = "远程 SSH 操作";
     if (!strcmp(operation, "workspace_edit") || !strcmp(operation, "workspace_convert_encoding")) {

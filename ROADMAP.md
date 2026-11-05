@@ -1,5 +1,9 @@
 # Cordonix Roadmap
 
+## Native screenshot gap (2026-11-06)
+
+The user reported repeated `Add-Type`/`System.Drawing.Common` compilation failures while capturing a WinForms demo. The authorized local addition is a native Windows `screenshot` tool with bounded window discovery, desktop/region/window/foreground PNG capture and explicit screen-versus-target rendering. It reuses the process core to bound synchronous capture, GDI/WIC from Windows and the existing C11/MSVC workflow. No new third-party dependency or UI automation is introduced. Development now has 27 tools. [The screenshot contract](docs/native-screenshot.md) documents visual-verification limits and separate build/native/MCP/package/installed-client gates; current results belong in HANDOFF.md.
+
 ## Active three-stage program (2026-11-05)
 
 The user authorized planning and implementation in a new chat with multiple agents, and explicitly requires independent decisions based on observed tasks, data, algorithms and business value. The [implementation plan](docs/implementation-plan-2026-11-05.zh-CN.md) defines ownership, dependencies, decision gates and closure. The [competitive assessment](docs/competitive-assessment-2026-11-05.zh-CN.md) is dated input, not an instruction to implement every competitor feature. This active program takes precedence over historical "Next item" and parallel-task descriptions below.

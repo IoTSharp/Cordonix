@@ -137,6 +137,8 @@ try {
         'docs/native-network.md' = Join-Path $SourceRoot 'docs\native-network.md'
         'docs/native-serial.md' = Join-Path $SourceRoot 'docs\native-serial.md'
         'docs/native-sftp.md' = Join-Path $SourceRoot 'docs\native-sftp.md'
+        'docs/native-screenshot.md' = Join-Path $SourceRoot 'docs\native-screenshot.md'
+        'examples/screenshot.json' = Join-Path $SourceRoot 'examples\screenshot.json'
         'examples/http-request.json' = Join-Path $SourceRoot 'examples\http-request.json'
         'examples/serial-list.json' = Join-Path $SourceRoot 'examples\serial-list.json'
         'examples/network-connect.json' = Join-Path $SourceRoot 'examples\network-connect.json'

@@ -1,0 +1,9 @@
+{
+  "operation": "screenshot",
+  "arguments": {
+    "target": "active_window",
+    "method": "print_window",
+    "path": "C:\\Users\\Public\\Pictures\\cordonix-window.png",
+    "timeout_ms": 10000
+  }
+}

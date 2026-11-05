@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added Windows native `screenshot` capture and bounded window discovery to CLI/MCP, bringing the development surface to 27 tools. Desktop/region/window/foreground targets use explicit visible-pixel or `PrintWindow` semantics, Unicode new-file PNG output, bounded owned-child execution, cancellation and independent write/cleanup results. Uses system GDI/WIC without PowerShell or .NET; Linux returns `not_supported`. Added native pixel/PNG/process fixtures, real MCP checks and packaged documentation/example; installed-client adoption remains separate.
+
 - Added optional HTTP `representation=both|text|base64`; the existing default, decoding status and outcome fields remain. Text mode omits duplicate Base64 only after strict decoding succeeds; binary/invalid text retains raw bytes without replay.
 - Added Windows/Linux `read_files` with 1–32 validated inputs, common deadline/cancellation, independent returned-text and escaped-output budgets, preserved per-item results and explicit `not_run`. Reuses strict single-file readers and both asynchronous MCP dispatchers; opens validated original paths to preserve POSIX symlink/`..` traversal. Development now has 26 tools.
 - Added independent three-round CLI/MCP acceptance, literal/encoding/hash comparisons, failure and maximum-budget counterexamples, real deadline/cancellation, POSIX path traversal and raw-response archives. Byte/call measurements remain separate from unmeasured tokens, provider cost, peak RSS and physical IO.

@@ -38,5 +38,6 @@ void cdx_tool_list(cdx_json_output *output) {
     cdx_json_raw(output, ","); cdx_json_raw(output, cdx_serial_tool_schema());
     cdx_json_raw(output, ","); cdx_json_raw(output, cdx_network_tool_schema());
     cdx_json_raw(output, ","); cdx_json_raw(output, read_files_tool_schema);
+    cdx_json_raw(output, ","); cdx_json_raw(output, cdx_screenshot_tool_schema());
     cdx_json_raw(output, "]}");
 }

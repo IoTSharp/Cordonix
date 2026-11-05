@@ -2,6 +2,7 @@
 #include "cdx/presentation.h"
 #include "cdx/version.h"
 #include "cdx/phone.h"
+#include "cdx/screenshot.h"
 #include <io.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -182,6 +183,7 @@ static int run_mcp(void) {
                      string_node(&json, cdx_json_get(&json, params, "name"), "serial") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "network") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "phone") ||
+                     string_node(&json, cdx_json_get(&json, params, "name"), "screenshot") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "verify_encoding") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "create_file") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "create_directory") ||
@@ -242,6 +244,7 @@ int wmain(int argc, wchar_t **argv) {
     InitializeCriticalSection(&output_lock);
     if (argc == 2 && !wcscmp(argv[1], L"--mcp")) result = run_mcp();
     else if (argc == 2 && !wcscmp(argv[1], L"--phone-helper")) result = run_phone_helper();
+    else if (argc == 9 && !wcscmp(argv[1], L"--screenshot-worker")) result = cdx_screenshot_worker(argc, argv);
     else if ((argc == 2 || argc == 3) && !wcscmp(argv[1], L"--phone-ui")) { FreeConsole(); result = cdx_phone_ui(argc == 3 ? argv[2] : L"", 0); }
     else if ((argc == 2 || argc == 3) && !wcscmp(argv[1], L"--phone-ui-tray")) { FreeConsole(); result = cdx_phone_ui_tray(argc == 3 ? argv[2] : L""); }
     else if (argc == 2 && !wcscmp(argv[1], L"--phone-ui-smoke")) result = cdx_phone_ui(L"", 1);

@@ -102,12 +102,12 @@ static int wire_send(wire_client *client, const char *text, size_t length) {
 }
 
 static int wire_read(wire_client *client, cdx_json *json) {
-    char bytes[32768];
+    char bytes[65536];
     size_t used = 0;
     unsigned iteration;
     ULONGLONG local_deadline = GetTickCount64() + 4000;
     memset(json, 0, sizeof(*json));
-    for (iteration = 0; iteration < 40000 && GetTickCount64() < local_deadline && GetTickCount64() < deadline; ++iteration) {
+    for (iteration = 0; iteration < sizeof(bytes) && GetTickCount64() < local_deadline && GetTickCount64() < deadline; ++iteration) {
         DWORD available = 0, got;
         if (!PeekNamedPipe(client->output, NULL, 0, NULL, &available, NULL)) return 0;
         if (!available) { Sleep(10); continue; }
@@ -289,12 +289,12 @@ static int wire_send(wire_client *client, const char *text, size_t length) {
 }
 
 static int wire_read(wire_client *client, cdx_json *json) {
-    char bytes[32768];
+    char bytes[65536];
     size_t used = 0;
     unsigned i;
     ULONGLONG end = GetTickCount64() + 4000;
     memset(json, 0, sizeof(*json));
-    for (i = 0; i < 40000 && used < sizeof(bytes) && GetTickCount64() < end && GetTickCount64() < deadline; ++i) {
+    for (i = 0; i < sizeof(bytes) && used < sizeof(bytes) && GetTickCount64() < end && GetTickCount64() < deadline; ++i) {
         struct pollfd source = {client->output, POLLIN, 0};
         ssize_t got;
         if (poll(&source, 1, 10) <= 0) continue;
@@ -664,6 +664,59 @@ static void process_snapshot_cases(wire_client *client) {
     valid = tool_call(client, "query_processes", "{\"max_entries\":0}", 6, &data);
     record("MCP process query rejects zero max_entries", valid && string_is(&data, 0, "status", "validation_error"));
     if (valid) cdx_json_free(&data);
+}
+
+static void screenshot_cases(wire_client *client) {
+    cdx_json data;
+    int valid = tool_call(client, "screenshot", "{\"action\":\"list_windows\",\"max_entries\":3}", 2700, &data);
+#ifdef _WIN32
+    int windows = valid ? cdx_json_get(&data, 0, "windows") : -1;
+    record("MCP screenshot lists bounded native windows", valid && string_is(&data, 0, "status", "ok") &&
+        windows >= 0 && data.nodes[windows].type == CDX_JSON_ARRAY);
+#else
+    record("MCP screenshot reports the Linux boundary", valid && string_is(&data, 0, "status", "not_supported"));
+#endif
+    cdx_json_free(&data);
+    valid = tool_call(client, "screenshot", "{\"target\":\"window\",\"window_handle\":123}", 2701, &data);
+    record("MCP screenshot rejects invalid handle types before capture", valid && string_is(&data, 0, "status", "validation_error") && bool_is(&data, "written_to_disk", 0));
+    cdx_json_free(&data);
+#ifdef _WIN32
+    {
+        wchar_t temporary[32768], path[32768];
+        char utf8[131072];
+        cdx_json_output arguments, wire;
+        HANDLE file;
+        BYTE signature[8]; DWORD length = 0;
+        static const BYTE png[] = {137, 80, 78, 71, 13, 10, 26, 10};
+        valid = GetTempPathW(32768, temporary) > 0;
+        (void)swprintf_s(path, 32768, L"%scdx-mcp-screenshot-%lu-%llu.png", temporary, GetCurrentProcessId(), GetTickCount64());
+        valid = valid && WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, path, -1, utf8, sizeof(utf8), NULL, NULL) > 0;
+        cdx_json_output_init(&arguments); cdx_json_raw(&arguments, "{\"target\":\"region\",\"x\":0,\"y\":0,\"width\":32,\"height\":24,\"path\":");
+        cdx_json_quote(&arguments, utf8, strlen(utf8)); cdx_json_raw(&arguments, "}");
+        valid = valid && tool_call(client, "screenshot", arguments.data, 2702, &data);
+        file = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+        valid = valid && file != INVALID_HANDLE_VALUE && ReadFile(file, signature, sizeof(signature), &length, NULL) &&
+            length == sizeof(signature) && !memcmp(signature, png, sizeof(png));
+        record("MCP screenshot creates a real PNG and returns its dimensions", valid && string_is(&data, 0, "status", "ok") &&
+            bool_is(&data, "written_to_disk", 1) && number_is(&data, "width", 32) && number_is(&data, "height", 24));
+        if (file != INVALID_HANDLE_VALUE) CloseHandle(file); cdx_json_free(&data);
+        valid = tool_call(client, "screenshot", arguments.data, 2703, &data);
+        record("MCP screenshot preserves existing files", valid && string_is(&data, 0, "status", "already_exists") && bool_is(&data, "written_to_disk", 0));
+        cdx_json_free(&data); (void)DeleteFileW(path);
+        cdx_json_output_init(&wire);
+        cdx_json_raw(&wire, "{\"jsonrpc\":\"2.0\",\"id\":2704,\"method\":\"tools/call\",\"params\":{\"name\":\"screenshot\",\"arguments\":");
+        cdx_json_raw(&wire, arguments.data); cdx_json_raw(&wire, "}}\n{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":2704}}\n");
+        {
+            cdx_json response;
+            valid = wire_send(client, wire.data, wire.size) && wire_read(client, &response);
+            memset(&data, 0, sizeof(data)); valid = valid && wire_tool_data(&response, &data);
+            record("MCP screenshot cancellation is asynchronous and creates no file", valid && string_is(&data, 0, "status", "cancelled") &&
+                bool_is(&data, "written_to_disk", 0) && GetFileAttributesW(path) == INVALID_FILE_ATTRIBUTES);
+            cdx_json_free(&response); cdx_json_free(&data);
+        }
+        cdx_json_output_free(&wire); cdx_json_output_free(&arguments);
+    }
+#endif
 }
 
 static void phone_cases(wire_client *client) {
@@ -1830,15 +1883,16 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
         int tool = node >= 0 ? response.nodes[node].first : -1;
         unsigned count = 0;
         int titles_valid = 1, execution_title = 0;
-        for (; tool >= 0 && count < 26; tool = response.nodes[tool].next, ++count) {
+        for (; tool >= 0 && count < 27; tool = response.nodes[tool].next, ++count) {
             int title = cdx_json_get(&response, tool, "title");
             if (title < 0 || response.nodes[title].type != CDX_JSON_STRING || !*response.nodes[title].string) titles_valid = 0;
             if (string_is(&response, tool, "name", "execute_program")) execution_title = string_is(&response, tool, "title", "执行本地程序");
         }
-        record("MCP twenty-six tools expose human-readable titles", count == 26 && tool < 0 && titles_valid && execution_title);
+        record("MCP twenty-seven tools expose human-readable titles", count == 27 && tool < 0 && titles_valid && execution_title);
     }
     cdx_json_free(&response);
     process_snapshot_cases(&client);
+    screenshot_cases(&client);
     phone_cases(&client);
     valid = wire_send(&client, malformed, sizeof(malformed) - 1) && wire_read(&client, &response);
     node = valid ? cdx_json_get(&response, cdx_json_get(&response, 0, "error"), "code") : -1;
