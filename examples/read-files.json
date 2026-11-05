@@ -1,0 +1,12 @@
+{
+  "operation": "read_files",
+  "arguments": {
+    "files": [
+      { "path": "D:\\source\\Cordonix\\README.md", "start_line": 1, "line_count": 20 },
+      { "path": "D:\\source\\Cordonix\\docs\\native-http.md", "tail_lines": 10 }
+    ],
+    "timeout_ms": 10000,
+    "max_total_bytes": 1048576,
+    "max_output_bytes": 4194304
+  }
+}

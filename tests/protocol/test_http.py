@@ -75,6 +75,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.answer(b"\xff\x00\x80\x01")
         elif self.path == "/large":
             self.answer(b"a" * 1024)
+        elif self.path == "/split-utf8":
+            self.answer("中文".encode("utf-8"))
         elif self.path == "/slow":
             STOP.wait(.5)
             self.answer(b"late")
@@ -295,6 +297,71 @@ class Client:
             assert self.process.returncode == 0 and not self.reader.is_alive()
 
 
+def check_representations(client, origin, check):
+    body = "中文 $(literal) \"quoted\"\n"
+    cases = [
+        ("POST", "/representation-echo", {"method": "POST", "body": body},
+         body.encode("utf-8"), body, "completed", 200, "known", "ok", False),
+        ("CP936", "/cp936", {"output_encoding": "cp936"},
+         "你好".encode("gbk"), "你好", "completed", 200, "known", "ok", False),
+        ("binary", "/binary", {}, b"\xff\x00\x80\x01", None,
+         "completed", 200, "known", "encoding_error", False),
+        ("HTTP 404", "/missing", {}, b"missing", "missing",
+         "completed", 404, "known", "ok", False),
+        ("response limit", "/large", {"response_limit_bytes": 8}, b"a" * 8, "a" * 8,
+         "output_limit", 200, "unknown", "ok", False),
+        ("split UTF-8 limit", "/split-utf8", {"response_limit_bytes": 1}, b"\xe4", None,
+         "output_limit", 200, "unknown", "encoding_error", False),
+        ("POST timeout", "/slow", {"method": "POST", "body": "once-timeout", "timeout_ms": 100},
+         b"", "", "timed_out", None, "unknown", "ok", False),
+        ("POST cancellation", "/slow", {"method": "POST", "body": "once-cancel"},
+         b"", "", "cancelled", None, "unknown", "ok", True),
+    ]
+    evidence_keys = (
+        "status", "stage", "status_code", "http_success", "body_encoding_status", "body_bytes",
+        "request_started", "response_complete", "request_send_started", "remote_outcome",
+        "cleanup_complete", "proxy_bridge_used", "proxy",
+    )
+    for label, path, options, raw, decoded, status, status_code, outcome, encoding_status, cancel in cases:
+        baseline = None
+        for mode in (None, "text", "base64"):
+            request = {"url": origin + path, **options}
+            if mode is not None:
+                request["representation"] = mode
+            method = request.get("method", "GET")
+            before = len([event for event in EVENTS if event[:2] == (method, path)])
+            result = client.call(request, cancel=cancel)
+            after = len([event for event in EVENTS if event[:2] == (method, path)])
+            projected = (
+                ("body" not in result if mode == "base64" else "body" in result and result["body"] == decoded)
+                and ("body_base64" not in result if mode == "text" and encoding_status == "ok"
+                     else "body_base64" in result and base64.b64decode(result["body_base64"], validate=True) == raw)
+            )
+            check(label + " " + (mode or "default") + " preserves bytes, status and one dispatch",
+                  result["status"] == status and result["status_code"] == status_code
+                  and result["remote_outcome"] == outcome and result["cleanup_complete"]
+                  and result["body_bytes"] == len(raw) and result["body_encoding_status"] == encoding_status
+                  and result["response_complete"] == (outcome == "known") and projected
+                  and after == before + 1, result)
+            if baseline is None:
+                baseline = result
+            else:
+                check(label + " " + mode + " preserves default outcome and cleanup evidence",
+                      all(result[key] == baseline[key] for key in evidence_keys),
+                      {"default": baseline, "projection": result})
+        if cancel:
+            result = client.call({"url": origin + "/after-representation-cancel", "representation": "text"})
+            check("HTTP MCP session remains usable after representation cancellation",
+                  result["status"] == "completed" and result["body"] == "hello 中文 /after-representation-cancel"
+                  and result["cleanup_complete"], result)
+    for invalid in ("invalid", 42, None, True):
+        before = len(EVENTS)
+        result = client.call({"url": origin + "/", "representation": invalid})
+        check("invalid representation " + repr(invalid) + " is rejected before dispatch",
+              result["status"] == "validation_error" and result["remote_outcome"] == "not_run"
+              and not result["request_started"] and result["cleanup_complete"] and len(EVENTS) == before, result)
+
+
 def certificate(folder):
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
@@ -346,6 +413,8 @@ def main():
               and result["body"] == "hello 中文 /literal?x=$(data)&a=two%20words" and result["remote_outcome"] == "known" and result["cleanup_complete"], result)
         if args.pilot:
             return
+        if not args.shim:
+            check_representations(client, origin, check)
         with tunnel_proxy("http", ("127.0.0.1", port)) as (proxy_port, evidence):
             candidates = [proxy_port, unused_port()]
             result = client.call({"url": origin + "/forbidden", "proxy_ports": candidates})

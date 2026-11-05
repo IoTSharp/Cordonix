@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added optional HTTP `representation=both|text|base64`; the existing default, decoding status and outcome fields remain. Text mode omits duplicate Base64 only after strict decoding succeeds; binary/invalid text retains raw bytes without replay.
+- Added Windows/Linux `read_files` with 1–32 validated inputs, common deadline/cancellation, independent returned-text and escaped-output budgets, preserved per-item results and explicit `not_run`. Reuses strict single-file readers and both asynchronous MCP dispatchers; opens validated original paths to preserve POSIX symlink/`..` traversal. Development now has 26 tools.
+- Added independent three-round CLI/MCP acceptance, literal/encoding/hash comparisons, failure and maximum-budget counterexamples, real deadline/cancellation, POSIX path traversal and raw-response archives. Byte/call measurements remain separate from unmeasured tokens, provider cost, peak RSS and physical IO.
+- Packaged the missing linked user/project documentation and batch example on both platforms; package gates now check relative Markdown targets. Audited official MCP specifications while retaining the existing legacy handshake; error mapping and modern-client compatibility remain open.
+- Documented the authorized three-stage implementation program, evidence-based selection rules, parallel ownership and separate closure gates. Background jobs and design/office extensions remain planned.
+
 - Added native Windows/POSIX `create_directory` to the C API, CLI and cancellable MCP worker. Explicit `parents`/`exist_ok` options replace ensure-directory plus absolute-path readback; results retain leaf creation and total created counts on failure. Existing files are preserved, recursive creation has a 256-directory preflight bound, and deadline/cancellation states remain explicit.
 - Normalized Windows parent candidates before probing their directory entries, preserving drive roots. This fixes the file-ancestor classification exposed by the first Windows Server 2022 CI run; native fixture failures now include the status, native error and created count.
 - Added native filesystem and real MCP regression coverage, including Unicode/spaces, existing directories, missing parents, file collisions, lexical normalization, invalid inputs, pre-cancellation and fixture cleanup. The development surface has 25 tools; publication and installed-client adoption are deferred to the next release.

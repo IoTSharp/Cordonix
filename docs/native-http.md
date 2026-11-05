@@ -16,6 +16,13 @@ duplicate names. Their total text is bounded to 16 KiB. Header line injection
 and caller overrides of Host, Content-Length, Transfer-Encoding or Connection
 are rejected; the typed request and WinHTTP control framing.
 
+`representation` is optional and defaults to `both`, preserving the original
+response fields. `text` keeps the decoded `body` and omits `body_base64` after
+successful decoding. `base64` keeps the exact `body_base64` and omits decoded
+text. A text request that encounters a strict decoding error still includes
+`body_base64` so the captured bytes remain recoverable without replaying the
+network request. The values are an explicit enum: `both`, `text` or `base64`.
+
 `proxy` defaults to `auto`; an omitted or empty value also selects `auto`.
 The client first tries direct. Only a network connection failure before
 WinHTTP observes `SENDING_REQUEST`, `REQUEST_SENT` or a connected/TLS phase
@@ -65,10 +72,17 @@ example HTTP 404 can have `status=completed` and `http_success=false`.
 `response_headers` retains the raw response header block, bounded to 64 KiB.
 The response body limit defaults to 64 KiB and can be 1–256 KiB.
 
-`body_base64` always preserves the captured response bytes. `body` is strict
-UTF-8 text by default, with explicit CP936/GBK decoding available through
-`output_encoding`. An invalid text body is null and `body_encoding_status`
-is `encoding_error`; the transport status and Base64 remain available.
+`body_base64` preserves the captured response bytes when the selected
+representation includes it. `body` is strict UTF-8 text by default, with
+explicit CP936/GBK decoding available through `output_encoding`. An invalid
+text body is null and `body_encoding_status` is `encoding_error`; the
+transport status and Base64 remain available even in `text` mode. Every
+mode runs the same strict decoder and retains `body_encoding_status=ok` or
+`encoding_error`. The selection changes only which body fields are emitted;
+transport, HTTP, encoding, completeness, proxy and cleanup observations keep
+their existing meanings. Select `both` or `base64` when exact captured bytes
+are needed after a successful decode. Text mode retains no hidden cache or
+later-read handle.
 Content decompression is not enabled, so compressed bytes remain compressed.
 
 The overall `timeout_ms` defaults to 30000 and is limited to five minutes.
@@ -112,6 +126,54 @@ Pass this object to MCP tool `http`, or wrap it as
 `{"operation":"http","arguments":...}` for CLI `--request`.
 
 ## Validation boundary
+
+### CDX-11A decision record (2026-11-06)
+
+The 2026-11-05 assessment observed one response with 52,594 captured body
+bytes and 70,128 Base64 characters. The protocol source also unconditionally
+emitted both representations. That demonstrates duplicate representation;
+it does not establish token, cost, latency or whole-task savings.
+
+Keeping the original output requires no maintenance but retains that
+duplication. The selected minimum extension is a three-value projection
+enum at the protocol boundary; it uses the existing request, transport,
+decoder and byte buffer. A general field selector or retained-result store
+would require separate retention, lifetime and recovery contracts without a
+proven need in this slice, so those options remain deferred.
+
+Omitting the field keeps the original `both` serialization. `text` omits
+Base64 only on successful decoding; `base64` omits the decoded text field.
+Invalid values fail validation before dispatch. All modes perform the same
+decode and retain encoding status; invalid UTF-8/CP936 and a limit cutting a
+multibyte sequence still return the exact captured Base64 in that call.
+There is one transport execution; representation never triggers a retry.
+
+Work is linear in captured body bytes. Base64 itself is exactly
+`4 * ceil(n / 3)` characters; text-mode omission removes that payload and
+its JSON field overhead. The existing 256 KiB body and 64 KiB header caps
+are unchanged. Peak memory still includes the captured bytes, strict-decoded
+text and JSON/MCP serialization; this slice does not claim memory or IO
+acceleration. Actual internal JSON and complete MCP bytes are measured by
+the independent three-stage acceptance fixture, separately from tokens.
+
+Acceptance compares a default call and explicit projections against the
+same local peer bytes, including literal POST counted once per request,
+CP936, binary decoding failure, 404, output limits, a truncated multibyte
+sequence, timeout and real MCP cancellation followed by a usable session.
+The projection cases run only through the protocol MCP binary; the native
+C API shim has no representation parameter and retains its existing suite.
+A changed body, outcome/cleanup field, additional dispatch, or lost fallback
+bytes falsifies this choice. Build, protocol, analysis and independent
+measurement results are recorded by the integration owner before closure.
+
+The 2026-11-06 three-round acceptance preserved a fixed 54,000-byte UTF-8
+fixture while reducing full MCP response bytes from 169,036 (`both`) to
+97,015 (`text`). Invalid UTF-8 kept its Base64 fallback with no meaningful
+size reduction. Normal and ASan clients each passed all 71 protocol checks;
+the independent corpus passed 25 Windows cases/725 predicates on each build.
+These are measured wire bytes and local correctness checks, not tokenizer,
+provider-cost or general latency claims. Final raw evidence is recorded in
+[HANDOFF](../HANDOFF.md).
 
 `tests/protocol/test_http.py` exercises actual loopback HTTP/proxy peers,
 exact POST bytes, duplicate headers, binary/CP936 responses, HTTP errors,

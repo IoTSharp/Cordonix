@@ -13,6 +13,8 @@ v0.0.4 开始，发布工作流为两个归档提供 GitHub OIDC 签名 provenan
 
 ## 输出与证据
 
+下一开发版包含 50 个 payload 文件、52 条 SPDX 文件记录和 53 个归档文件。新增中英文导航引用的项目/用户文档、`call-summaries.md`、批量读取与 MCP 审计说明及 `read-files.json`。两平台包门禁逐一核验包内 Markdown 相对链接的文件目标。下述 34/36/37 数量仍专指已发布的 0.1.0，不用于新的开发包。
+
 默认输出在 `build\packaging`：
 
 - `cordonix-0.1.0-dev-win-x64.zip`，包含可执行文件、Apache-2.0 许可证、README、打包说明、安装/更新说明、可复制 AI 提示词、配置示例和三份元数据。

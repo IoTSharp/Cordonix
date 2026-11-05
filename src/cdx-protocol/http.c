@@ -43,11 +43,12 @@ void cdx_http_call(const cdx_json *json, int arguments, cdx_cancel_handle cancel
     cdx_http_request request;
     cdx_http_result result;
     cdx_http_header headers[CDX_HTTP_MAX_HEADERS];
-    const char *body, *encoding;
+    const char *body, *encoding, *representation;
     cdx_encoding decoder = CDX_ENCODING_UTF8;
     char *decoded = NULL;
     size_t decoded_size = 0;
     int valid = 1, body_decoded = 1, array, node;
+    int emit_text = 1, emit_base64 = 1;
     memset(&request, 0, sizeof(request)); memset(&result, 0, sizeof(result)); memset(headers, 0, sizeof(headers));
     request.url = text_field(json, arguments, "url", "", &valid);
     request.method = text_field(json, arguments, "method", "GET", &valid);
@@ -60,6 +61,10 @@ void cdx_http_call(const cdx_json *json, int arguments, cdx_cancel_handle cancel
     encoding = text_field(json, arguments, "output_encoding", "utf-8", &valid);
     if (!strcmp(encoding, "cp936") || !strcmp(encoding, "gbk")) decoder = CDX_ENCODING_CP936;
     else if (strcmp(encoding, "utf-8")) valid = 0;
+    representation = text_field(json, arguments, "representation", "both", &valid);
+    if (!strcmp(representation, "text")) emit_base64 = 0;
+    else if (!strcmp(representation, "base64")) emit_text = 0;
+    else if (strcmp(representation, "both")) valid = 0;
     array = cdx_json_get(json, arguments, "headers");
     if (array >= 0) {
         if (json->nodes[array].type != CDX_JSON_ARRAY) valid = 0;
@@ -84,12 +89,19 @@ void cdx_http_call(const cdx_json *json, int arguments, cdx_cancel_handle cancel
     cdx_json_raw(output, ",\"http_success\":"); cdx_json_raw(output, result.status_code >= 200u && result.status_code < 300u ? "true" : "false");
     cdx_json_raw(output, ",\"response_headers\":");
     cdx_json_quote(output, result.headers ? result.headers : "", result.headers_size);
-    cdx_json_raw(output, ",\"body\":");
-    if (!result.body_size) cdx_json_raw(output, "\"\"");
-    else if (cdx_decode_to_utf8(result.body, result.body_size, decoder, &decoded, &decoded_size)) cdx_json_quote(output, decoded, decoded_size);
-    else { cdx_json_raw(output, "null"); body_decoded = 0; }
+    if (result.body_size)
+        body_decoded = cdx_decode_to_utf8(result.body, result.body_size, decoder, &decoded, &decoded_size);
+    if (emit_text) {
+        cdx_json_raw(output, ",\"body\":");
+        if (!result.body_size) cdx_json_raw(output, "\"\"");
+        else if (body_decoded) cdx_json_quote(output, decoded, decoded_size);
+        else cdx_json_raw(output, "null");
+    }
     cdx_json_raw(output, ",\"body_encoding_status\":"); cdx_json_raw(output, body_decoded ? "\"ok\"" : "\"encoding_error\"");
-    cdx_json_raw(output, ",\"body_base64\":"); base64(output, result.body, result.body_size);
+    /* A text-only request still receives Base64 when strict decoding fails so raw bytes remain recoverable. */
+    if (emit_base64 || !body_decoded) {
+        cdx_json_raw(output, ",\"body_base64\":"); base64(output, result.body, result.body_size);
+    }
     cdx_json_raw(output, ",\"body_bytes\":"); cdx_json_uint(output, result.body_size);
     cdx_json_raw(output, ",\"request_started\":"); cdx_json_raw(output, result.request_started ? "true" : "false");
     cdx_json_raw(output, ",\"response_complete\":"); cdx_json_raw(output, result.response_complete ? "true" : "false");
@@ -119,7 +131,7 @@ void cdx_http_call(const cdx_json *json, int arguments, cdx_cancel_handle cancel
 
 const char *cdx_http_tool_schema(void) {
     return "{\"name\":\"http\",\"title\":\"HTTP/HTTPS 网络请求\","
-        "\"description\":\"Native Windows WinHTTP with typed requests and strict system TLS verification. No curl process. proxy defaults to auto: direct first, then evaluate local 7890/1080 HTTP CONNECT/SOCKS5 only after a connection failure before any SENDING_REQUEST/REQUEST_SENT phase. HTTP statuses, TLS/auth failures and requests with send-phase evidence never trigger route replay. A bounded per-call local bridge supports SOCKS without changing TLS or machine settings. Redirects/cookies/automatic authentication are disabled. Binary response bytes remain in body_base64; HTTP status_code and body decoding are independent of transport status. Interrupted dispatch retains remote_outcome=unknown. Linux returns not_supported.\","
+        "\"description\":\"Native Windows WinHTTP with typed requests and strict system TLS verification. No curl process. proxy defaults to auto: direct first, then evaluate local 7890/1080 HTTP CONNECT/SOCKS5 only after a connection failure before any SENDING_REQUEST/REQUEST_SENT phase. HTTP statuses, TLS/auth failures and requests with send-phase evidence never trigger route replay. A bounded per-call local bridge supports SOCKS without changing TLS or machine settings. Redirects/cookies/automatic authentication are disabled. representation defaults to both decoded text and Base64; text omits Base64 after successful decoding, while base64 omits text. Every mode retains encoding status, and decoding failure always retains raw Base64 without another request. HTTP status_code and body decoding are independent of transport status. Interrupted dispatch retains remote_outcome=unknown. Linux returns not_supported.\","
         "\"inputSchema\":{\"type\":\"object\",\"required\":[\"url\"],\"properties\":{"
         "\"url\":{\"type\":\"string\",\"maxLength\":8192,\"description\":\"Absolute HTTP/HTTPS URL without credentials or fragment\"},"
         "\"method\":{\"type\":\"string\",\"enum\":[\"GET\",\"HEAD\",\"POST\",\"PUT\",\"PATCH\",\"DELETE\",\"OPTIONS\"],\"default\":\"GET\"},"
@@ -128,6 +140,7 @@ const char *cdx_http_tool_schema(void) {
         "\"proxy\":{\"type\":\"string\",\"default\":\"auto\",\"maxLength\":4096,\"description\":\"auto/empty evaluates local proxies after proven pre-send direct failure; direct disables fallback. Explicit HTTP proxy preserves per-request behavior. socks5://127.0.0.1:PORT uses only that tunnel.\"},"
         "\"timeout_ms\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":300000,\"default\":30000},"
         "\"response_limit_bytes\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":262144,\"default\":65536},"
+        "\"representation\":{\"type\":\"string\",\"enum\":[\"both\",\"text\",\"base64\"],\"default\":\"both\",\"description\":\"both preserves legacy fields; text omits Base64 only after strict decoding succeeds; base64 omits decoded text. Encoding status and raw Base64 on decoding failure remain in every mode.\"},"
         "\"output_encoding\":{\"type\":\"string\",\"enum\":[\"utf-8\",\"cp936\",\"gbk\"],\"default\":\"utf-8\"}}},"
         "\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false}}";
 }

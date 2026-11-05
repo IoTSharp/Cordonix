@@ -511,6 +511,68 @@ static int bool_is(const cdx_json *json, const char *key, int expected) {
     return node >= 0 && json->nodes[node].type == CDX_JSON_BOOL && json->nodes[node].boolean == expected;
 }
 
+static void batch_read_cases(wire_client *client) {
+    static const char original[] = "head\r\n\xe4\xb8\xad\nlast";
+    line_fixture *fixture = (line_fixture *)calloc(1, sizeof(*fixture));
+    cdx_json_output args;
+    cdx_json data;
+    int valid, results, first, second, nested;
+    unsigned id = 2800;
+    if (!fixture || !create_line_fixture(fixture, id, original, sizeof(original) - 1u)) {
+        record("batch read fixture setup", 0);
+        if (fixture) { remove_line_fixture(fixture); free(fixture); }
+        return;
+    }
+    cdx_json_output_init(&args);
+    cdx_json_raw(&args, "{\"files\":[{\"path\":");
+    cdx_json_quote(&args, fixture->utf8_path, strlen(fixture->utf8_path));
+    cdx_json_raw(&args, ",\"start_line\":2,\"line_count\":1},{\"path\":");
+    cdx_json_quote(&args, fixture->utf8_path, strlen(fixture->utf8_path));
+    cdx_json_raw(&args, ",\"tail_lines\":1}]}");
+    valid = tool_call(client, "read_files", args.data, id++, &data);
+    results = cdx_json_get(&data, 0, "results");
+    first = results >= 0 ? data.nodes[results].first : -1;
+    second = first >= 0 ? data.nodes[first].next : -1;
+    nested = cdx_json_get(&data, first, "result");
+    record("MCP batch preserves ordered line and tail text", valid && number_is(&data, "count", 2) &&
+        number_is(&data, "completed", 2) && number_is(&data, "not_run", 0) &&
+        string_is(&data, 0, "status", "ok") && string_is(&data, nested, "text", "\xe4\xb8\xad\n") &&
+        string_is(&data, cdx_json_get(&data, second, "result"), "text", "last") &&
+        string_is(&data, first, "source", "disk") && second >= 0 && data.nodes[second].next < 0);
+    cdx_json_free(&data); cdx_json_output_free(&args);
+
+    cdx_json_output_init(&args);
+    cdx_json_raw(&args, "{\"max_total_bytes\":1,\"files\":[{\"path\":");
+    cdx_json_quote(&args, fixture->utf8_path, strlen(fixture->utf8_path));
+    cdx_json_raw(&args, ",\"raw\":true},{\"path\":");
+    cdx_json_quote(&args, fixture->utf8_path, strlen(fixture->utf8_path));
+    cdx_json_raw(&args, ",\"raw\":true}]}");
+    valid = tool_call(client, "read_files", args.data, id++, &data);
+    results = cdx_json_get(&data, 0, "results");
+    first = results >= 0 ? data.nodes[results].first : -1;
+    second = first >= 0 ? data.nodes[first].next : -1;
+    record("MCP batch text budget retains limit and NOT_RUN entries", valid &&
+        string_is(&data, 0, "status", "output_limit") && number_is(&data, "completed", 1) &&
+        number_is(&data, "not_run", 1) && number_is(&data, "text_bytes", 0) &&
+        string_is(&data, first, "status", "output_limit") && string_is(&data, second, "status", "not_run"));
+    cdx_json_free(&data); cdx_json_output_free(&args);
+    {
+        static const char *const invalid[] = {"{\"files\":[]}", "{\"files\":[{\"path\":false}]}",
+            "{\"files\":[{\"path\":\"relative.txt\"}]}", "{\"files\":[{}]}",
+            "{\"files\":[{\"path\":\"x\",\"raw\":true,\"tail_lines\":1}]}",
+            "{\"files\":[{\"path\":\"x\"}],\"timeout_ms\":false}"};
+        unsigned i;
+        int all = 1;
+        for (i = 0; i < sizeof(invalid) / sizeof(invalid[0]) && GetTickCount64() < deadline; ++i) {
+            valid = tool_call(client, "read_files", invalid[i], id++, &data);
+            all = all && valid && string_is(&data, 0, "status", "validation_error");
+            cdx_json_free(&data);
+        }
+        record("MCP batch validates modes paths and typed limits", all && i == sizeof(invalid) / sizeof(invalid[0]));
+    }
+    remove_line_fixture(fixture); free(fixture);
+}
+
 static int presentation_call(wire_client *client, const char *name, const char *arguments,
                              const char *token, int progress, const char *fragment, unsigned id, cdx_json *data) {
     cdx_json_output request;
@@ -1768,12 +1830,12 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
         int tool = node >= 0 ? response.nodes[node].first : -1;
         unsigned count = 0;
         int titles_valid = 1, execution_title = 0;
-        for (; tool >= 0 && count < 25; tool = response.nodes[tool].next, ++count) {
+        for (; tool >= 0 && count < 26; tool = response.nodes[tool].next, ++count) {
             int title = cdx_json_get(&response, tool, "title");
             if (title < 0 || response.nodes[title].type != CDX_JSON_STRING || !*response.nodes[title].string) titles_valid = 0;
             if (string_is(&response, tool, "name", "execute_program")) execution_title = string_is(&response, tool, "title", "执行本地程序");
         }
-        record("MCP twenty-five tools expose human-readable titles", count == 25 && tool < 0 && titles_valid && execution_title);
+        record("MCP twenty-six tools expose human-readable titles", count == 26 && tool < 0 && titles_valid && execution_title);
     }
     cdx_json_free(&response);
     process_snapshot_cases(&client);
@@ -1796,6 +1858,7 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
     create_file_cases(&client);
     line_read_cases(&client);
     tail_raw_cases(&client);
+    batch_read_cases(&client);
     filesystem_cases(&client);
     create_directory_cases(&client);
     verify_encoding_cases(&client, program);

@@ -184,7 +184,8 @@ static int run_mcp(void) {
                      string_node(&json, cdx_json_get(&json, params, "name"), "phone") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "verify_encoding") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "create_file") ||
-                     string_node(&json, cdx_json_get(&json, params, "name"), "create_directory")) {
+                     string_node(&json, cdx_json_get(&json, params, "name"), "create_directory") ||
+                     string_node(&json, cdx_json_get(&json, params, "name"), "read_files")) {
                 active.json = json; active.id = id; active.params = params; active.cancel = CreateEventW(NULL, TRUE, FALSE, NULL);
                 active.phone = phone;
                 active.thread = active.cancel ? CreateThread(NULL, 0, execution_worker, &active, 0, NULL) : NULL;

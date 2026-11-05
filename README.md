@@ -1,6 +1,8 @@
 # Cordonix
 
-Unreleased: native `create_directory` adds directory creation and explicit `parents`/`exist_ok` controls on Windows and Linux. The development MCP surface has 25 tools; this addition is reserved for the next release.
+The [three-stage roadmap](ROADMAP.md#active-three-stage-program-2026-11-05) and [implementation/acceptance plan](docs/implementation-plan-2026-11-05.zh-CN.md) track local deliveries and later work on task execution, coding/data workflows, and design/office delivery. Remaining stages require their own evidence and acceptance.
+
+Unreleased: the development MCP surface has 26 tools, including native `create_directory` and bounded sequential `read_files` on Windows/Linux. HTTP adds optional `representation=both|text|base64`, retaining `both` by default and preserving raw Base64 when text decoding fails. See [batch read limits](docs/batch-read.md), [HTTP representation](docs/native-http.md) and the [MCP compatibility audit](docs/mcp-compatibility.md). These changes are local and await release and installed-client adoption.
 
 Release 0.1.0 adds native SSH, HTTP, SFTP, TCP/Telnet/MQTT and serial access, automatic local proxy evaluation and per-call summaries: 24 tools total, retaining all 19 v0.0.5 tools and their published fields. Windows/Linux native and MCP gates, real protocol fixtures and portable packages pass; signed tagged publication and public readback are recorded in [HANDOFF.md](HANDOFF.md).
 
@@ -47,7 +49,7 @@ Cordonix is a development MVP. Windows has first-party Codex usage evidence; Lin
 |---|---|---|
 | Windows process core | 35 checks passed locally, including isolated child environments | Broader application and long-running workload coverage continues |
 | Encoding and memory document core | 36 core checks plus 25 integration/encoding edge checks passed locally | External tools read disk; they do not see uncommitted memory revisions |
-| CLI and MCP | Twenty-five development tools, including all 24 released in v0.1.0; integrated validation is recorded in HANDOFF.md | Installed-client adoption and Codex UI rendering have separate gates |
+| CLI and MCP | Twenty-six development tools, including all 24 released in v0.1.0; integrated validation is recorded in HANDOFF.md | Installed-client adoption, protocol migration and Codex UI rendering have separate gates |
 | Native SSH client | Windows loopback protocol 27/27; repeated on an AddressSanitizer client; static libssh2 with CNG | Deployed bastions NOT_RUN; Linux SSH NOT_SUPPORTED; current backend excludes Ed25519 |
 | New text files | 20 native checks on each platform plus eight shared MCP checks | Existing paths are never overwritten and parent directories must exist |
 | Linux | Earlier CI evidence includes 276 checks with full Git/rg adapters; the October 31 WSL rerun passed 102 MCP checks and 17/17 Git adapter checks while marking rg `NOT_RUN` because native rg is absent | Model-backed Linux Codex calls still need authentication. Other distributions and longer soak are separate |
@@ -113,6 +115,7 @@ The memory workspace belongs to one running session. MCP keeps that process aliv
 | `workspace_open` | Load a file using an explicit encoding or strict BOM/UTF-8 detection |
 | `workspace_read` | Read the memory revision by byte/line range, last N lines or complete decoded text |
 | `read_file` | Read a fresh disk snapshot by path and encoding, using a line range, tail or raw text |
+| `read_files` | Read 1–32 disk files under one deadline and explicit text/output budgets, preserving individual outcomes |
 | `workspace_edit` | Preview or apply an exact memory-only replacement with SHA/count preconditions |
 | `workspace_convert_encoding` | Preview or perform lossless UTF-8/UTF-16/CP936 conversion in memory |
 | `workspace_commit` | Validate the current disk revision and commit one document |

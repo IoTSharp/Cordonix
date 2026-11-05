@@ -113,6 +113,16 @@ try:
         path = extracted / record['path']
         require(path.resolve().is_relative_to(extracted.resolve()) and path.is_file() and
                 path.stat().st_size == record['size_bytes'] and digest(path) == record['sha256'], 'Payload differs from manifest')
+    for record in manifest['files']:
+        document = extracted / record['path']
+        if document.suffix != '.md':
+            continue
+        for target in re.findall(r'\]\(([^)#]+)(?:#[^)]*)?\)', document.read_text(encoding='utf-8')):
+            if re.match(r'^[A-Za-z][A-Za-z0-9+.-]*:', target):
+                continue
+            linked = (document.parent / target).resolve()
+            require(linked.is_relative_to(extracted.resolve()) and linked.exists(),
+                    f'Missing packaged link from {record["path"]}: {target}')
     require(digest(extracted / 'LICENSE') == digest(root / 'LICENSE'), 'Packaged license differs from source')
     build_info = json.loads(run([str(extracted / 'cdx'), '--request', str(extracted / 'examples/request.json')]))
     require(provenance['binary_build_revision'] == build_info['build_revision'] and
@@ -154,6 +164,18 @@ try:
     info = json.loads(run([str(extracted / 'cdx'), '--request', str(request)]))
     require(info['status'] == 'ok' and info['name'] == 'Cordonix' and info['version'] == version and
             info['platform'] == 'linux' and info['runtime'] == 'C11', 'Packaged tool_info mismatch')
+    example = json.loads((extracted / 'examples/read-files.json').read_text())
+    for item, target in zip(example['arguments']['files'], ['README.md', 'docs/native-http.md'], strict=True):
+        item['path'] = str(extracted / target)
+    batch_request = task / 'read-files.json'
+    batch_request.write_text(json.dumps(example), encoding='utf-8')
+    batch = json.loads(run([str(extracted / 'cdx'), '--request', str(batch_request)]))
+    require(batch['status'] == 'ok' and batch['count'] == batch['completed'] == 2, 'Packaged batch example failed')
+    for index, item in enumerate(batch['results']):
+        original = Path(example['arguments']['files'][index]['path']).read_bytes().decode('utf-8')
+        selected = item['result']['text']
+        require(item['index'] == index and item['status'] == 'ok' and item['source'] == 'disk' and bool(selected) and
+                (original.startswith(selected) if index == 0 else original.endswith(selected)), 'Packaged batch example returned different text')
     success = True
     receipt = {'status': 'PASS', 'checks': checks, 'version': version, 'reproducible_sha256': first_hash,
                'archive': str(archive), 'manifest_files': len(manifest['files']), 'spdx_files': len(sbom['files']),
