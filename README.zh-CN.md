@@ -4,7 +4,7 @@
 
 Windows 原生 `screenshot` 提供桌面、区域、指定窗口和前台窗口 PNG 截图，以及有界窗口列表。参见[截图方法与结果边界](docs/native-screenshot.md)。已有安装版连接需要加载新运行时后才会显示新增工具。
 
-0.3.1 补丁修复未设置 PATH 时的显式候选、Windows 1970 年前时间、POSIX 符号链接/`..` 元数据路径及虚拟环境解释器发现，同时保留程序发现的中断和错误状态，排除旧式 Windows 可执行格式。验证与发布状态分别记录于 [HANDOFF.md](HANDOFF.md)。
+已发布的 0.3.1 补丁修复未设置 PATH 时的显式候选、Windows 1970 年前时间、POSIX 符号链接/`..` 元数据路径、目录隐藏标志及虚拟环境解释器发现，同时保留程序发现的中断和错误状态，排除旧式 Windows 可执行格式。验证与发布状态分别记录于 [HANDOFF.md](HANDOFF.md)。
 
 后续工作见[三阶段路线图](ROADMAP.md#active-three-stage-program-2026-11-05)和[实施与验收计划](docs/implementation-plan-2026-11-05.zh-CN.md)：依次改善上下文成本、编程与数据任务、设计与办公交付。每项以实际需求和验证结果决定取舍；计划不代表功能已经可用。
 
@@ -20,7 +20,7 @@ Windows 原生 `screenshot` 提供桌面、区域、指定窗口和前台窗口 
 
 WinGet 发行正在以 `IoTSharp.Cordonix` 提交收录；安装边界、入库状态和新版本自动提交 PR 的流程见 [WinGet 说明](docs/winget.md)。
 
-已验收发行版：[GitHub v0.3.0](https://github.com/IoTSharp/Cordonix/releases/tag/v0.3.0) / [Gitee v0.3.0](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.3.0)，干净发行源码为 `5b43630`。两端 12 个上传附件的 SHA-256 完全一致，四份原始压缩包通过精确标签 OIDC 验签，四份篡改副本均被拒绝。下载的 Windows/Linux 程序均提供全部 34 个 MCP 工具，分别通过 165/166 项真实协议检查。本次证据见 [HANDOFF.md](HANDOFF.md)；安装版客户端采用单独验收，v0.2.0 附件保持不变。
+已验收发行版：[GitHub v0.3.1](https://github.com/IoTSharp/Cordonix/releases/tag/v0.3.1) / [Gitee v0.3.1](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.3.1)，干净发行源码为 `0c50aab`。两端 12 个上传附件的 SHA-256 完全一致，四份原始压缩包通过精确标签 OIDC 验签，四份篡改副本均被拒绝。下载的 Windows/Linux 程序均提供全部 34 个 MCP 工具，分别通过 165/166 项真实协议检查及补丁回归。本次证据见 [HANDOFF.md](HANDOFF.md)；安装版客户端采用单独验收，v0.3.0/v0.2.0 附件保持不变。WinGet 收录仍需通过微软的独立验证和审核。
 
 
 **面向 AI 编程代理的原生执行与内存工作区。**
@@ -61,7 +61,7 @@ Git、ripgrep、编译器和 Codex 的 `apply_patch` 仍是配套工具。Cordon
 | 原生 SSH 客户端 | Windows 实际回环 SSH 协议 27/27；ASan 客户端再次通过；libssh2 静态链接 CNG | 实际部署跳板验收 NOT_RUN；Linux SSH NOT_SUPPORTED；当前后端不支持 Ed25519 |
 | 新文本文件 | 两平台各 20 项原生检查，以及 8 项共享 MCP 检查 | 已有路径不覆盖，父目录必须存在 |
 | Linux | 既有 CI 证据包含 276 项完整检查（含 Git/rg 适配器）；10 月 31 日 WSL 重跑通过 102 项 MCP、17/17 项 Git 适配器，因本机没有原生 rg 将 rg 标记为 `NOT_RUN` | Linux Codex 模型调用仍需认证。ACL/xattr 不支持，多发行版和更长时段仍单独验收 |
-| Windows/Linux 便携包 | v0.3.0 ZIP/tar.gz、校验和、干净构建 revision、官方 SPDX 验证及独立验签的 OIDC provenance | Windows Authenticode 与更广目标环境另行验收；已发布标签和附件保持不可变 |
+| Windows/Linux 便携包 | v0.3.1 ZIP/tar.gz、校验和、干净构建 revision、官方 SPDX 验证及独立验签的 OIDC provenance | Windows Authenticode 与更广目标环境另行验收；已发布标签和附件保持不可变 |
 
 上述结果是本地验证，不是性能基准，也不代表不会发生错误。各项验收边界见[质量门禁](docs/quality-gates.md)。
 

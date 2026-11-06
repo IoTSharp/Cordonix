@@ -4,6 +4,7 @@
 
 ## 0.3.1 - 2026-11-06
 
+- Published from clean source `0c50aab` on GitHub and Gitee after Windows/Linux CI and tagged gates. All 12 uploaded assets match across hosts; four original archives pass exact-tag OIDC verification and four altered copies are rejected. Downloaded binaries pass 165 Windows / 166 Linux MCP checks and real patch regressions. Published 0.3.0/0.2.0 tags and GitHub asset metadata remain unchanged. Automatic WinGet submission #472267 remains a separate upstream validation and review gate.
 - Fixed explicit executable candidates being skipped when inherited PATH is absent on Windows/Linux.
 - Preserved POSIX executable launch spelling so Python virtual environments keep their identity; symlinks and dot segments retain actual filesystem traversal.
 - Fixed POSIX stat returning a path for a different entry after intermediate symlink/`..` traversal. The returned absolute spelling now identifies the entry queried, while final links remain links.

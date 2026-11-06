@@ -4,7 +4,7 @@ Version 0.3.0 adds `stat` and `find_program` to the existing data, discovery and
 
 Windows screenshot support provides native PNG capture for desktop, region, window and foreground targets, plus bounded window discovery. See [capture methods and outcomes](docs/native-screenshot.md). Existing installed connections keep their original tool schema until a new runtime is loaded.
 
-The 0.3.1 patch repairs unset PATH with explicit candidates, Windows pre-1970 timestamps, POSIX symlink/`..` metadata paths and virtual-environment interpreter discovery. It also retains discovery interruption/errors and rejects legacy Windows executable formats. Validation and publication states are recorded separately in [HANDOFF.md](HANDOFF.md).
+The published 0.3.1 patch repairs unset PATH with explicit candidates, Windows pre-1970 timestamps, POSIX symlink/`..` metadata paths, directory hidden-name flags and virtual-environment interpreter discovery. It also retains discovery interruption/errors and rejects legacy Windows executable formats. Validation and publication states are recorded separately in [HANDOFF.md](HANDOFF.md).
 
 The [three-stage roadmap](ROADMAP.md#active-three-stage-program-2026-11-05) and [implementation/acceptance plan](docs/implementation-plan-2026-11-05.zh-CN.md) track local deliveries and later work on task execution, coding/data workflows, and design/office delivery. Remaining stages require their own evidence and acceptance.
 
@@ -20,7 +20,7 @@ On 2026-11-02 this machine's existing hourly task naturally upgraded 0.0.4 to 0.
 
 WinGet distribution is being submitted as `IoTSharp.Cordonix`. See [the WinGet guide](docs/winget.md) for catalog availability, installation boundaries and automatic release PRs.
 
-Verified release: [v0.3.0 on GitHub](https://github.com/IoTSharp/Cordonix/releases/tag/v0.3.0) and [Gitee](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.3.0), from clean source `5b43630`. All 12 uploaded assets match across both hosts; four original archives pass exact-tag OIDC verification and four tampered copies fail. Downloaded Windows/Linux binaries expose all 34 MCP tools and pass 165/166 real protocol checks respectively. Current evidence is in [HANDOFF.md](HANDOFF.md); installed-client adoption remains separate, and v0.2.0 assets are preserved.
+Verified release: [v0.3.1 on GitHub](https://github.com/IoTSharp/Cordonix/releases/tag/v0.3.1) and [Gitee](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.3.1), from clean source `0c50aab`. All 12 uploaded assets match across both hosts; four original archives pass exact-tag OIDC verification and four tampered copies fail. Downloaded Windows/Linux binaries expose all 34 MCP tools and pass 165/166 real protocol checks respectively, plus the patch regressions. Current evidence is in [HANDOFF.md](HANDOFF.md); installed-client adoption remains separate, and v0.3.0/v0.2.0 assets are preserved. WinGet submissions remain subject to Microsoft's separate validation and review.
 
 
 **A native execution and memory workspace for AI coding agents.**
@@ -61,7 +61,7 @@ Cordonix is a development MVP. Windows has first-party Codex usage evidence; Lin
 | Native SSH client | Windows loopback protocol 27/27; repeated on an AddressSanitizer client; static libssh2 with CNG | Deployed bastions NOT_RUN; Linux SSH NOT_SUPPORTED; current backend excludes Ed25519 |
 | New text files | 20 native checks on each platform plus eight shared MCP checks | Existing paths are never overwritten and parent directories must exist |
 | Linux | Earlier CI evidence includes 276 checks with full Git/rg adapters; the October 31 WSL rerun passed 102 MCP checks and 17/17 Git adapter checks while marking rg `NOT_RUN` because native rg is absent | Model-backed Linux Codex calls still need authentication. Other distributions and longer soak are separate |
-| Windows/Linux portable packages | v0.3.0 ZIP/tar.gz, checksums, clean build revision, official SPDX validation and independently verified OIDC provenance | Windows Authenticode and broader target environments retain separate gates; published tags/assets remain immutable |
+| Windows/Linux portable packages | v0.3.1 ZIP/tar.gz, checksums, clean build revision, official SPDX validation and independently verified OIDC provenance | Windows Authenticode and broader target environments retain separate gates; published tags/assets remain immutable |
 
 These are local validation results, not performance benchmarks or a zero-error guarantee. See [quality gates](docs/quality-gates.md) for the separate acceptance boundaries.
 
