@@ -1,12 +1,12 @@
 # Cordonix
 
-待发布：新增 `data_query`、`find_files`、`hash_file`、`copy_file`、`move_file`，开发版共 32 个工具。参见[缺口实施与验收](docs/capability-gaps-20261106.zh-CN.md)、[数据查询](docs/data-query.md)、[文件发现](docs/file-discovery.md)和[文件操作](docs/file-operations.md)。
+0.2.0 新增 `data_query`、`find_files`、`hash_file`、`copy_file`、`move_file`，MCP 共 32 个工具。先看[工具选择与客户端发现指南](docs/mcp-tool-guide.md)，再看[缺口实施与验收](docs/capability-gaps-20261106.zh-CN.md)、[数据查询](docs/data-query.md)、[文件发现](docs/file-discovery.md)和[文件操作](docs/file-operations.md)。
 
 Windows 原生 `screenshot` 提供桌面、区域、指定窗口和前台窗口 PNG 截图，以及有界窗口列表。参见[截图方法与结果边界](docs/native-screenshot.md)。已有安装版连接需要加载新运行时后才会显示新增工具。
 
 后续工作见[三阶段路线图](ROADMAP.md#active-three-stage-program-2026-11-05)和[实施与验收计划](docs/implementation-plan-2026-11-05.zh-CN.md)：依次改善上下文成本、编程与数据任务、设计与办公交付。每项以实际需求和验证结果决定取舍；计划不代表功能已经可用。
 
-待发布：开发版 MCP 共 32 个工具，包含 Windows/Linux 原生 `create_directory` 和有界顺序批量读取 `read_files`。HTTP 新增 `representation=both|text|base64`，默认仍为 `both`，text 解码失败保留原始 Base64。参见[批量读取边界](docs/batch-read.md)、[HTTP 表示](docs/native-http.md)和[MCP 兼容审计](docs/mcp-compatibility.md)。这些是本地开发变更，发布与安装版采用单独验收。
+0.2.0 还包含 Windows/Linux 原生 `create_directory` 和有界顺序批量读取 `read_files`。HTTP 新增 `representation=both|text|base64`，默认仍为 `both`，text 解码失败保留原始 Base64。参见[批量读取边界](docs/batch-read.md)、[HTTP 表示](docs/native-http.md)和[MCP 兼容审计](docs/mcp-compatibility.md)。发布与安装版采用的实际证据单独记录在 HANDOFF.md。
 
 当前 MCP 适配器还会在分发前拒绝格式错误或未知的 `tools/call`，返回 JSON-RPC `-32602`。确定性的操作失败会增加外层 `isError: true`，同时保留原始状态 JSON；partial、preview、no-match、不支持平台和未知结果仍保持文本结果。该本地兼容切片已通过 Windows 与 WSL Linux 各 148/148 项 MCP 检查；新客户端采用仍是独立门禁。
 

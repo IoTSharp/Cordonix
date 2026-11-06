@@ -139,6 +139,8 @@ try {
         'docs/native-sftp.md' = Join-Path $SourceRoot 'docs\native-sftp.md'
         'docs/native-screenshot.md' = Join-Path $SourceRoot 'docs\native-screenshot.md'
         'docs/data-query.md' = Join-Path $SourceRoot 'docs\data-query.md'
+        'docs/mcp-tool-guide.md' = Join-Path $SourceRoot 'docs\mcp-tool-guide.md'
+        'docs/release-signing.md' = Join-Path $SourceRoot 'docs\release-signing.md'
         'docs/file-discovery.md' = Join-Path $SourceRoot 'docs\file-discovery.md'
         'docs/file-operations.md' = Join-Path $SourceRoot 'docs\file-operations.md'
         'docs/capability-gaps-20261106.zh-CN.md' = Join-Path $SourceRoot 'docs\capability-gaps-20261106.zh-CN.md'

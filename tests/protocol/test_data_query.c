@@ -61,6 +61,23 @@ static int bool_field(const cdx_json *json, int object, const char *field, int e
     return node >= 0 && json->nodes[node].type == CDX_JSON_BOOL && json->nodes[node].boolean == expected;
 }
 
+static int documented_schema(const cdx_json *json, int tool) {
+    int description = cdx_json_get(json, tool, "description"), node;
+    size_t i;
+    if (description < 0 || json->nodes[description].type != CDX_JSON_STRING ||
+        !*json->nodes[description].string) return 0;
+    for (i = 0; i < json->count; ++i) {
+        const cdx_json_node *properties = &json->nodes[i];
+        if (properties->type != CDX_JSON_OBJECT || !properties->key || strcmp(properties->key, "properties")) continue;
+        for (node = properties->first; node >= 0; node = json->nodes[node].next) {
+            description = cdx_json_get(json, node, "description");
+            if (description < 0 || json->nodes[description].type != CDX_JSON_STRING ||
+                !*json->nodes[description].string) return 0;
+        }
+    }
+    return 1;
+}
+
 static void basic_case(const char *name, const char *format, const char *text, const char *extra,
                        const char *status, size_t examined, size_t matched, size_t returned, int complete) {
     cdx_json_output result = execute(format, text, extra, NULL);
@@ -240,9 +257,12 @@ static void posix_traversal_cases(const char *directory) {
 int main(int argc, char **argv) {
     int pilot = argc > 2 && !strcmp(argv[2], "--pilot");
     cdx_json schema;
+    int schema_valid;
     deadline = milliseconds() + 15000u;
     if (argc < 2) { fprintf(stderr, "usage: test_data_query ABSOLUTE_FIXTURE_DIRECTORY [--pilot]\n"); return 2; }
-    record("tool schema is valid JSON", cdx_json_parse(&schema, cdx_data_query_tool_schema(), strlen(cdx_data_query_tool_schema())), NULL);
+    schema_valid = cdx_json_parse(&schema, cdx_data_query_tool_schema(), strlen(cdx_data_query_tool_schema()));
+    record("tool schema is valid JSON", schema_valid, NULL);
+    record("published query schema documents the tool and every input", schema_valid && documented_schema(&schema, 0), NULL);
     cdx_json_free(&schema);
     basic_case("JSON array rows", "json", "[{\"x\":1},{\"x\":2}]", NULL, "ok", 2, 2, 2, 1);
     if (!pilot) {

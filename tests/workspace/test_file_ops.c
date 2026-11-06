@@ -163,6 +163,23 @@ static void hash_vectors(const cdx_path_char *root, cdx_file_request *request) {
     remove_file(path); free(million);
 }
 
+static int documented_schema(const cdx_json *json, int tool) {
+    int description = cdx_json_get(json, tool, "description"), node;
+    size_t i;
+    if (description < 0 || json->nodes[description].type != CDX_JSON_STRING ||
+        !*json->nodes[description].string) return 0;
+    for (i = 0; i < json->count; ++i) {
+        const cdx_json_node *properties = &json->nodes[i];
+        if (properties->type != CDX_JSON_OBJECT || !properties->key || strcmp(properties->key, "properties")) continue;
+        for (node = properties->first; node >= 0; node = json->nodes[node].next) {
+            description = cdx_json_get(json, node, "description");
+            if (description < 0 || json->nodes[description].type != CDX_JSON_STRING ||
+                !*json->nodes[description].string) return 0;
+        }
+    }
+    return 1;
+}
+
 static void protocol_cases(const cdx_path_char *path) {
     cdx_json_output input, output;
     cdx_json json, parsed;
@@ -204,8 +221,14 @@ static void protocol_cases(const cdx_path_char *path) {
     valid = cdx_json_parse(&json, input.data, input.size);
     if (valid) {
         unsigned count = 0;
-        for (int node = json.nodes[0].first; node >= 0 && count < 4u; node = json.nodes[node].next) ++count;
-        check(count == 3u, "all three native file tool schemas parse"); cdx_json_free(&json);
+        int documented = 1;
+        for (int node = json.nodes[0].first; node >= 0 && count < 4u; node = json.nodes[node].next) {
+            if (!documented_schema(&json, node)) documented = 0;
+            ++count;
+        }
+        check(count == 3u, "all three native file tool schemas parse");
+        check(count == 3u && documented, "published file schemas document each tool and every input");
+        cdx_json_free(&json);
     } else check(0, "file tool schemas JSON valid");
     cdx_json_output_free(&input);
 }

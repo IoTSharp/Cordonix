@@ -144,6 +144,23 @@ static int call(cdx_json *result, const char *program, const char *cwd, const ch
     return success;
 }
 
+static int documented_schema(const cdx_json *json, int tool) {
+    int description = cdx_json_get(json, tool, "description"), node;
+    size_t i;
+    if (description < 0 || json->nodes[description].type != CDX_JSON_STRING ||
+        !*json->nodes[description].string) return 0;
+    for (i = 0; i < json->count; ++i) {
+        const cdx_json_node *properties = &json->nodes[i];
+        if (properties->type != CDX_JSON_OBJECT || !properties->key || strcmp(properties->key, "properties")) continue;
+        for (node = properties->first; node >= 0; node = json->nodes[node].next) {
+            description = cdx_json_get(json, node, "description");
+            if (description < 0 || json->nodes[description].type != CDX_JSON_STRING ||
+                !*json->nodes[description].string) return 0;
+        }
+    }
+    return 1;
+}
+
 int main(int argc, char **argv) {
     static const char *const names[] = {"a space.txt", "z.txt", "中文-$(literal).txt", "skip.bin", ".hidden.txt"};
     char root[4096], missing[8192], long_name[160];
@@ -167,6 +184,7 @@ int main(int argc, char **argv) {
     if (!success) return 1;
     success = cdx_json_parse(&schema, cdx_discovery_tool_schema(), strlen(cdx_discovery_tool_schema()));
     check("published tool schema parses", success && equal(&schema, "name", "find_files"));
+    check("published discovery schema documents the tool and every input", success && documented_schema(&schema, 0));
     cdx_json_free(&schema);
     success = call(&full, argv[1], root, root, NULL, 0, NULL);
     check("real rg complete sorted scan", success && equal(&full, "status", "completed") &&

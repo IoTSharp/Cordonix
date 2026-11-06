@@ -1,12 +1,12 @@
 # Cordonix
 
-Unreleased: five measured workflow gaps add `data_query`, `find_files`, `hash_file`, `copy_file` and `move_file`, bringing the development surface to 32 tools. See the [batch scope and validation](docs/capability-gaps-20261106.zh-CN.md), [data query](docs/data-query.md), [file discovery](docs/file-discovery.md) and [regular-file operations](docs/file-operations.md).
+Version 0.2.0 adds `data_query`, `find_files`, `hash_file`, `copy_file` and `move_file`, bringing the MCP surface to 32 tools. Start with the [tool selection and client discovery guide](docs/mcp-tool-guide.md), then the [batch scope and validation](docs/capability-gaps-20261106.zh-CN.md), [data query](docs/data-query.md), [file discovery](docs/file-discovery.md) and [regular-file operations](docs/file-operations.md).
 
 Windows screenshot support provides native PNG capture for desktop, region, window and foreground targets, plus bounded window discovery. See [capture methods and outcomes](docs/native-screenshot.md). Existing installed connections keep their original tool schema until a new runtime is loaded.
 
 The [three-stage roadmap](ROADMAP.md#active-three-stage-program-2026-11-05) and [implementation/acceptance plan](docs/implementation-plan-2026-11-05.zh-CN.md) track local deliveries and later work on task execution, coding/data workflows, and design/office delivery. Remaining stages require their own evidence and acceptance.
 
-Unreleased: the development MCP surface has 32 tools, including native `create_directory` and bounded sequential `read_files` on Windows/Linux. HTTP adds optional `representation=both|text|base64`, retaining `both` by default and preserving raw Base64 when text decoding fails. See [batch read limits](docs/batch-read.md), [HTTP representation](docs/native-http.md) and the [MCP compatibility audit](docs/mcp-compatibility.md). These changes are local and await release and installed-client adoption.
+Version 0.2.0 also includes native `create_directory` and bounded sequential `read_files` on Windows/Linux. HTTP adds optional `representation=both|text|base64`, retaining `both` by default and preserving raw Base64 when text decoding fails. See [batch read limits](docs/batch-read.md), [HTTP representation](docs/native-http.md) and the [MCP compatibility audit](docs/mcp-compatibility.md). Release publication and installed-client adoption have separate evidence in HANDOFF.md.
 
 The current MCP adapters also reject malformed or unknown `tools/call` requests with JSON-RPC `-32602`. Deterministic operation failures expose outer `isError: true` while keeping the original status JSON; partial, preview, no-match, unsupported-platform and unknown-outcome results remain text results. This local compatibility slice is covered by 148/148 MCP checks on Windows and WSL Linux; modern client adoption remains a separate gate.
 

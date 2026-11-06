@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 0.2.0 - 2026-11-06
+
+- Completed selection-focused MCP descriptions and every input-property description for the five new tools, with schema coverage checks, minimal examples, client upgrade/discovery guidance and a packaged tool-selection guide. Removed the stale fixed tool allow-list from the Codex configuration example so new tools can be discovered. A fresh Codex CLI successfully invoked the query, hash and discovery tools; client completion and installed desktop adoption remain separate. MSVC static analysis C6001 in data-query group cleanup remains unresolved; normal warnings-as-errors builds and sanitizer evidence are recorded separately.
 - Added five evidence-selected Windows/Linux tools: native `data_query` for JSON/JSONL/CSV projection, filtering, counting and grouping; external-rg `find_files` with complete-scan sorting and bounded offset pages; streaming `hash_file`, no-replace `copy_file` and same-filesystem `move_file`. Development now has 32 tools. Original numeric tokens, strict decoding, partial results, cancellation and output budgets remain explicit. Linux copy publication requires hard links; atomic no-replace move requires filesystem support for `renameat2`. No new core dependency is introduced. Contracts, platform limits and validation are recorded in the capability-gap batch document.
 
 - Implemented the CDX-11E minimum MCP result mapping on Windows/POSIX stdio: malformed or unknown `tools/call` requests return JSON-RPC `-32602`, and deterministic domain failures add outer `isError: true` while preserving the inner status JSON. Partial, preview, no-match, unsupported-platform and unknown-outcome results remain text results. Added real stdio coverage for the envelope and error mapping; modern client compatibility remains open.

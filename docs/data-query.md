@@ -1,8 +1,13 @@
 # Structured data queries
 
-`data_query` performs read-only native queries over JSON, JSONL and CSV. Supply
-exactly one absolute `path` or inline `text`, plus `format`. It does not invoke a
-shell, interpreter or database engine, and does not write source files.
+Use `data_query` to filter, project, count or group records in JSON, JSONL and CSV
+without writing a script. Use `read_file` to read decoded text and `search_text`
+to find content matches without parsing records. The query is native and read-only;
+it does not invoke a shell, interpreter or database engine.
+
+Every call requires `format` and exactly one absolute local file `path` or inline
+`text`. File decoding is strict. Omit `encoding` when supplying `text`; an explicit
+encoding with inline text is a validation error.
 
 ```json
 {
@@ -23,6 +28,38 @@ only to rows and produces an object whose keys are the supplied pointers.
 Missing projections become `null`. Missing group values have `missing:true`
 and remain distinct from an explicit JSON null. A container at `group_by`
 returns `invalid_group_value`.
+
+For `count`, omit `offset`, `limit` and `select`. Supply `group_by` only with
+`group_count`, where it is required. Omit `records_path` for JSONL and CSV.
+`limit` controls the returned page; it does not stop scanning after that many
+records. `max_records` separately bounds all examined records, including records
+that fail the filter.
+
+For example, this counts CSV string values while retaining leading zeroes in IDs:
+
+```json
+{
+  "format": "csv",
+  "text": "state,id\nfailed,001\nok,002\nfailed,003\n",
+  "operation": "count",
+  "where": {"field": "/state", "equals": "failed"}
+}
+```
+
+Its result includes `count:2` and `scan_complete:true`. To count groups instead,
+use a scalar pointer and leave out `select`:
+
+```json
+{
+  "format": "json",
+  "text": "[{\"state\":\"failed\"},{\"state\":\"ok\"},{\"state\":\"failed\"}]",
+  "operation": "group_count",
+  "group_by": "/state",
+  "limit": 10
+}
+```
+
+The groups appear as `failed` with count 2, then `ok` with count 1.
 
 All field references, including `records_path`, use RFC6901 JSON Pointer:
 the empty string selects the current value, `/a~1b` selects key `a/b`, and
@@ -69,6 +106,16 @@ the completed scan remains `scan_complete:true`. Pagination alone can set
 `truncated:true` while leaving the scan complete.
 `next_offset` is returned only after at least one row/group was returned.
 Repeat pagination against an unchanged source; offsets are not snapshot tokens.
+
+Check `scan_complete` before using a count as the total. With `scan_complete:false`,
+returned records and counts describe an examined prefix; `next_offset` is not a
+cursor that resumes parsing after an error or budget limit. Correct a malformed
+source, narrow it, or raise the relevant scan budget and repeat the read. With a
+complete scan and `truncated:true`, continue using `next_offset` against unchanged
+input. If a single row/group cannot fit and no offset is returned, raise
+`max_output_bytes` and repeat the same page. Read-only retries can observe a changed
+source; they do not share a snapshot. `no_match` with a complete scan is an empty
+result, not an execution failure.
 
 `timeout_ms` defaults to 10 seconds and permits 1–60,000 ms. Cancellation and
 deadlines are checked between bounded steps. Existing synchronous file loading

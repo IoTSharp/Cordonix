@@ -1,12 +1,15 @@
-# Build cdx.exe first; replace the path with your actual absolute executable path.
+# Installed Windows example: replace both paths with existing absolute paths.
+# PowerShell 7 may be installed through Microsoft Store instead of Program Files.
+# The stable launcher reads current.json, so later installed versions need no path edit.
 [mcp_servers.cordonix]
-command = 'D:\GitHub\Cordonix\build\bin\cdx.exe'
-args = [ '--mcp' ]
+command = 'C:\Program Files\PowerShell\7\pwsh.exe'
+args = [ '-NoProfile', '-File', 'C:\Users\YOUR_USER\AppData\Local\Cordonix\launch.ps1', '--mcp' ]
 startup_timeout_sec = 15
 tool_timeout_sec = 300
-enabled_tools = [
-  'tool_info', 'execute_program', 'read_file',
-  'list_directory', 'resolve_path', 'verify_encoding',
-  'workspace_open', 'workspace_read', 'workspace_search', 'workspace_status',
-  'workspace_edit', 'workspace_convert_encoding', 'workspace_commit', 'workspace_close'
-]
+
+# No fixed allow-list: expose the tools advertised by the connected runtime.
+# If you add enabled_tools or disabled_tools, review them after every upgrade.
+# For a development build, set command to the absolute cdx.exe path and args=['--mcp'].
+# Linux installed alternative: command='/home/YOUR_USER/.local/opt/cordonix/current/cdx'
+# and args=['--mcp']; verify your install root instead of copying a versioned binary path.
+# See ../docs/mcp-tool-guide.md for selection, filters and fresh-client verification.
