@@ -31,6 +31,8 @@ connection under its lifecycle owner; do not terminate shared MCP services.
 | --- | --- | --- |
 | Filter, project, count or group JSON, JSONL or CSV records | `data_query`: `format` and exactly one `path` or `text` | Native read-only parsing. Field selectors are RFC6901 pointers. Counts describe the examined prefix until `scan_complete=true`. |
 | Recursively discover filenames with optional glob filters | `find_files`: absolute ripgrep `program`, absolute `cwd`, absolute `roots` | Uses literal `rg --no-config --files --null`. Ordinary ignore rules apply. Sorted pages require a complete scan; offsets are not snapshots. |
+| Read one path's metadata | `stat`: absolute `path`, optional `timeout_ms` | Reports file/directory/link/other, size availability, flags, timestamps and precision. Missing paths retain normalized context. |
+| Resolve an executable before launch | `find_program`: bare `name`, optional absolute `candidates` or PATH | Discovery only. Results are absolute, unique and bounded; inspect `scan_complete`, `truncated` and `stop_reason`. |
 | Compute a binary SHA-256 | `hash_file`: absolute `path` | Exact bytes, without text decoding. Regular files only; source links/reparse points are rejected. |
 | Copy a file to a new destination | `copy_file`: absolute `source`, `destination` | No overwrite; existing destination parent required. Inspect publication, cleanup and metadata flags. |
 | Relocate a file within one filesystem | `move_file`: absolute `source`, `destination` | Atomic rename without replacement. No cross-filesystem copy/delete fallback; inspect `source_removed`. |
@@ -44,7 +46,8 @@ working directories and file paths in their separate typed fields. A missing
 PowerShell expression feature is not a reason to bypass a supported native
 operation. Git, ripgrep and compilers remain explicit external executables.
 
-Detailed contracts: [data queries](data-query.md), [file discovery](file-discovery.md),
+Detailed contracts: [data queries](data-query.md), [file metadata](file-stat.md),
+[program discovery](program-discovery.md), [file discovery](file-discovery.md),
 [regular-file operations](file-operations.md), [batch reads](batch-read.md), and
 [Windows screenshots](native-screenshot.md).
 
@@ -74,6 +77,22 @@ Discover C source names with the installed ripgrep executable:
   "globs": ["*.c", "!**/generated/**"],
   "offset": 0,
   "limit": 200
+}
+```
+
+Read metadata without changing the path:
+
+```json
+{"path":"C:/repo/src/main.c","timeout_ms":5000}
+```
+
+Resolve one explicit executable candidate before passing it to `execute_program`:
+
+```json
+{
+  "name": "cdx",
+  "candidates": ["C:/tools/cordonix/cdx.exe"],
+  "search_path": false
 }
 ```
 
@@ -145,7 +164,7 @@ For an intentionally restricted Cordonix connection, the following optional
 line can go inside its existing `[mcp_servers.cordonix]` table:
 
 ```toml
-enabled_tools = ['tool_info', 'read_file', 'read_files', 'list_directory', 'create_directory', 'screenshot', 'data_query', 'find_files', 'hash_file', 'copy_file', 'move_file']
+enabled_tools = ['tool_info', 'read_file', 'read_files', 'list_directory', 'create_directory', 'screenshot', 'data_query', 'find_files', 'stat', 'find_program', 'hash_file', 'copy_file', 'move_file']
 ```
 
 This example restricts the connection to the listed tools. Omit it when no
@@ -165,9 +184,9 @@ and verify the observed result in a fresh connection.
    the [installation guide](install-update.md). Record the installation version
    separately from the connected `tool_info` result. Opening a chat can reuse
    a process, so a new chat alone is not a version check.
-2. Verify the actual names and schemas for the five new tools in the selection
-   table. Also check `read_files`, `create_directory` and `screenshot` if the
-   intended workflow uses them. Presence and platform action support are
+2. Verify the actual names and schemas for the current additions (`stat` and
+   `find_program`) together with the existing data, discovery and file-operation
+   tools in the selection table. Presence and platform action support are
    separate observations.
 3. Run the inline CSV `data_query` above. Require `count:2` and
    `scan_complete:true`. Record the returned status and scan fields; a partial

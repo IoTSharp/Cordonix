@@ -1903,10 +1903,38 @@ static int call_two_path_tool(wire_client *client, const char *name, const line_
     return valid;
 }
 
-static void capability_gap_cases(wire_client *client) {
+static int call_stat_tool(wire_client *client, const char *path, unsigned id, cdx_json *data) {
+    cdx_json_output arguments;
+    int valid;
+    cdx_json_output_init(&arguments);
+    cdx_json_raw(&arguments, "{\"path\":");
+    cdx_json_quote(&arguments, path, strlen(path));
+    cdx_json_raw(&arguments, ",\"timeout_ms\":5000}");
+    valid = !arguments.failed && tool_call(client, "stat", arguments.data, id, data);
+    cdx_json_output_free(&arguments);
+    return valid;
+}
+
+static int call_find_program_tool(wire_client *client, const char *name, const char *candidate,
+                                    int search_path, unsigned id, cdx_json *data) {
+    cdx_json_output arguments;
+    int valid;
+    cdx_json_output_init(&arguments);
+    cdx_json_raw(&arguments, "{\"name\":");
+    cdx_json_quote(&arguments, name, strlen(name));
+    cdx_json_raw(&arguments, ",\"candidates\":[");
+    cdx_json_quote(&arguments, candidate, strlen(candidate));
+    cdx_json_raw(&arguments, "],\"search_path\":");
+    cdx_json_raw(&arguments, search_path ? "true}" : "false}");
+    valid = !arguments.failed && tool_call(client, "find_program", arguments.data, id, data);
+    cdx_json_output_free(&arguments);
+    return valid;
+}
+
+static void capability_gap_cases(wire_client *client, const char *program) {
     static const char abc[] = "abc";
     static const char csv[] = "name,n\r\nx,1\r\ny,2\r\n";
-    line_fixture *paths = (line_fixture *)calloc(5, sizeof(*paths));
+    line_fixture *paths = (line_fixture *)calloc(7, sizeof(*paths));
     cdx_json_output arguments, wire;
     cdx_json data, response;
     const char *rg = getenv("CDX_RG");
@@ -1933,11 +1961,81 @@ static void capability_gap_cases(wire_client *client) {
         !filesystem_child(&paths[2], &paths[0], "copy.bin") ||
         !filesystem_child(&paths[3], &paths[0], "moved.bin") ||
         !filesystem_child(&paths[4], &paths[0], "records.csv") ||
+        !filesystem_child(&paths[5], &paths[0], "missing-stat") ||
+        !filesystem_child(&paths[6], &paths[0], "stat-link") ||
         !write_line_fixture(&paths[1], abc, 3, 1) ||
         !write_line_fixture(&paths[4], csv, sizeof(csv) - 1u, 1)) {
         record("MCP capability gap fixtures created", 0); goto cleanup;
     }
     paths[2].owned = paths[3].owned = 1;
+    valid = call_stat_tool(client, paths[1].utf8_path, id++, &data);
+    record("MCP stat reports regular file metadata", valid && string_is(&data, 0, "status", "ok") &&
+        string_is(&data, 0, "type", "file") && bool_is(&data, "size_known", 1) &&
+        number_is(&data, "size_bytes", 3)); cdx_json_free(&data);
+    valid = call_stat_tool(client, paths[0].utf8_path, id++, &data);
+    record("MCP stat reports directory without file size", valid && string_is(&data, 0, "status", "ok") &&
+        string_is(&data, 0, "type", "directory") && bool_is(&data, "size_known", 0)); cdx_json_free(&data);
+    valid = call_stat_tool(client, paths[5].utf8_path, id++, &data);
+    row = valid ? cdx_json_get(&data, 0, "path") : -1;
+    record("MCP stat keeps normalized path context for missing files", valid &&
+        string_is(&data, 0, "status", "not_found") && row >= 0 &&
+        data.nodes[row].type == CDX_JSON_STRING && data.nodes[row].string[0] != 0); cdx_json_free(&data);
+#ifndef _WIN32
+    if (!symlink(paths[1].utf8_path, paths[6].utf8_path)) {
+        paths[6].owned = 1;
+        valid = call_stat_tool(client, paths[6].utf8_path, id++, &data);
+        record("MCP stat reports POSIX links lexically", valid && string_is(&data, 0, "status", "ok") &&
+            string_is(&data, 0, "type", "link") && bool_is(&data, "size_known", 0)); cdx_json_free(&data);
+    } else {
+        (void)fputs("MCP stat link NOT_RUN: symlink creation unavailable\\n", stderr);
+    }
+#endif
+    valid = call_find_program_tool(client, "cdx", program, 0, id++, &data);
+    row = valid ? cdx_json_get(&data, 0, "selected") : -1;
+    record("MCP find_program resolves an explicit native candidate", valid && string_is(&data, 0, "status", "ok") &&
+        row >= 0 && data.nodes[row].type == CDX_JSON_STRING && data.nodes[row].string[0] != 0 &&
+        bool_is(&data, "scan_complete", 1) && bool_is(&data, "truncated", 0)); cdx_json_free(&data);
+    valid = call_find_program_tool(client, "missing-cdx", paths[5].utf8_path, 0, id++, &data);
+    record("MCP find_program reports a complete not_found scan", valid && string_is(&data, 0, "status", "not_found") &&
+        bool_is(&data, "scan_complete", 1) && bool_is(&data, "truncated", 0)); cdx_json_free(&data);
+    valid = tool_call(client, "find_program", "{\"name\":\"bad/name\"}", id++, &data);
+    record("MCP find_program rejects path-shaped names", valid && string_is(&data, 0, "status", "validation_error"));
+    cdx_json_free(&data);
+    {
+        char cancellation[192];
+        unsigned request_id = id++;
+        int length = snprintf(cancellation, sizeof(cancellation),
+            "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":%u}}\n", request_id);
+        cdx_json_output_init(&wire);
+        cdx_json_raw(&wire, "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"id\":");
+        cdx_json_uint(&wire, request_id);
+        cdx_json_raw(&wire, ",\"params\":{\"name\":\"find_program\",\"arguments\":{\"name\":\"cdx-missing-program\",\"path\":\"");
+        for (i = 0; i < 8000u; ++i) cdx_json_raw(&wire,
+#ifdef _WIN32
+            "C:/Windows/System32;"
+#else
+            "/bin:"
+#endif
+        );
+        cdx_json_raw(&wire, "\"}}}\n");
+        if (length > 0 && (size_t)length < sizeof(cancellation)) cdx_json_raw(&wire, cancellation);
+        valid = !wire.failed && length > 0 && (size_t)length < sizeof(cancellation);
+        for (sent = 0; valid && sent < wire.size && sent < 262144u; ) {
+            size_t chunk = wire.size - sent;
+            if (chunk > 16384u) chunk = 16384u;
+            valid = wire_send(client, wire.data + sent, chunk);
+            sent += chunk;
+        }
+        memset(&response, 0, sizeof(response));
+        valid = valid && sent == wire.size && wire_read(client, &response);
+        memset(&data, 0, sizeof(data));
+        valid = valid && wire_tool_data(&response, &data);
+        record("MCP find_program receives asynchronous cancellation", valid &&
+            string_is(&data, 0, "status", "cancelled") && bool_is(&data, "scan_complete", 0));
+        if (!valid || !string_is(&data, 0, "status", "cancelled"))
+            (void)fprintf(stderr, "program cancellation response: %.1200s\n", response.source ? response.source : "no response");
+        cdx_json_free(&response); cdx_json_free(&data); cdx_json_output_free(&wire);
+    }
     valid = call_file_tool(client, "data_query", &paths[4], ",\"format\":\"csv\",\"operation\":\"count\"", id++, &data);
     record("MCP data_query decodes and counts a real CSV file", valid &&
         string_is(&data, 0, "status", "ok") && number_is(&data, "count", 2) &&
@@ -2005,7 +2103,7 @@ static void capability_gap_cases(wire_client *client) {
     cdx_json_free(&response); cdx_json_free(&data); cdx_json_output_free(&wire);
 cleanup:
     if (paths) {
-        for (i = 1; i < 5; ++i) remove_line_fixture(&paths[i]);
+        for (i = 1; i < 7; ++i) remove_line_fixture(&paths[i]);
         remove_fixture_directory(&paths[0]); free(paths);
     }
 }
@@ -2038,13 +2136,15 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
     {
         int tool = node >= 0 ? response.nodes[node].first : -1;
         unsigned count = 0;
-        int titles_valid = 1, execution_title = 0;
-        for (; tool >= 0 && count < 32; tool = response.nodes[tool].next, ++count) {
+        int titles_valid = 1, execution_title = 0, stat_title = 0, discovery_title = 0;
+        for (; tool >= 0 && count < 64; tool = response.nodes[tool].next, ++count) {
             int title = cdx_json_get(&response, tool, "title");
             if (title < 0 || response.nodes[title].type != CDX_JSON_STRING || !*response.nodes[title].string) titles_valid = 0;
             if (string_is(&response, tool, "name", "execute_program")) execution_title = string_is(&response, tool, "title", "执行本地程序");
+            if (string_is(&response, tool, "name", "stat")) stat_title = title >= 0;
+            if (string_is(&response, tool, "name", "find_program")) discovery_title = title >= 0;
         }
-        record("MCP thirty-two tools expose human-readable titles", count == 32 && tool < 0 && titles_valid && execution_title);
+        record("MCP thirty-four tools expose human-readable titles", count == 34 && tool < 0 && titles_valid && execution_title && stat_title && discovery_title);
     }
     cdx_json_free(&response);
     process_snapshot_cases(&client);
@@ -2074,7 +2174,7 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
     batch_read_cases(&client);
     filesystem_cases(&client);
     create_directory_cases(&client);
-    capability_gap_cases(&client);
+    capability_gap_cases(&client, program);
     verify_encoding_cases(&client, program);
     environment_cases(&client, fixture);
     process_query_cases(&client);

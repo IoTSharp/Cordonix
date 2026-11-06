@@ -164,6 +164,8 @@ void cdx_summarize_call(const char *operation, const cdx_json *json, int argumen
         else (void)snprintf(range, sizeof(range), " · 第 %u～%u 行", first, first + (count ? count - 1u : 0u));
     } else if (!strcmp(operation, "list_directory")) action = "列出目录";
     else if (!strcmp(operation, "resolve_path")) action = "确认路径是否存在";
+    else if (!strcmp(operation, "stat")) action = "查询文件元数据";
+    else if (!strcmp(operation, "find_program")) action = "发现可执行程序";
     else if (!strcmp(operation, "git_status")) { action = "查看 Git 仓库状态"; short_path(target, sizeof(target), text_arg(json, arguments, "cwd"), 1); }
     else if (!strcmp(operation, "search_text")) {
         char pattern[64];

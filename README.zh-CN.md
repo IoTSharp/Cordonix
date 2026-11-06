@@ -1,6 +1,6 @@
 # Cordonix
 
-0.2.0 新增 `data_query`、`find_files`、`hash_file`、`copy_file`、`move_file`，MCP 共 32 个工具。先看[工具选择与客户端发现指南](docs/mcp-tool-guide.md)，再看[缺口实施与验收](docs/capability-gaps-20261106.zh-CN.md)、[数据查询](docs/data-query.md)、[文件发现](docs/file-discovery.md)和[文件操作](docs/file-operations.md)。
+0.3.0 候选版新增 `stat` 和 `find_program`，接入既有数据查询、发现和文件操作能力，MCP 共 34 个工具。先看[工具选择与客户端发现指南](docs/mcp-tool-guide.md)，再看[缺口实施与验收](docs/capability-gaps-20261106.zh-CN.md)、[数据查询](docs/data-query.md)、[文件元数据](docs/file-stat.md)、[程序发现](docs/program-discovery.md)、[文件发现](docs/file-discovery.md)和[文件操作](docs/file-operations.md)。
 
 Windows 原生 `screenshot` 提供桌面、区域、指定窗口和前台窗口 PNG 截图，以及有界窗口列表。参见[截图方法与结果边界](docs/native-screenshot.md)。已有安装版连接需要加载新运行时后才会显示新增工具。
 
@@ -8,7 +8,7 @@ Windows 原生 `screenshot` 提供桌面、区域、指定窗口和前台窗口 
 
 0.2.0 还包含 Windows/Linux 原生 `create_directory` 和有界顺序批量读取 `read_files`。HTTP 新增 `representation=both|text|base64`，默认仍为 `both`，text 解码失败保留原始 Base64。参见[批量读取边界](docs/batch-read.md)、[HTTP 表示](docs/native-http.md)和[MCP 兼容审计](docs/mcp-compatibility.md)。发布与安装版采用的实际证据单独记录在 HANDOFF.md。
 
-当前 MCP 适配器还会在分发前拒绝格式错误或未知的 `tools/call`，返回 JSON-RPC `-32602`。确定性的操作失败会增加外层 `isError: true`，同时保留原始状态 JSON；partial、preview、no-match、不支持平台和未知结果仍保持文本结果。该本地兼容切片已通过 Windows 与 WSL Linux 各 148/148 项 MCP 检查；新客户端采用仍是独立门禁。
+当前 MCP 适配器还会在分发前拒绝格式错误或未知的 `tools/call`，返回 JSON-RPC `-32602`。确定性的操作失败会增加外层 `isError: true`，同时保留原始状态 JSON；partial、preview、no-match、不支持平台和未知结果仍保持文本结果。当前 34 工具已通过 Windows/Linux 真实 MCP 检查，包含程序发现的异步取消；实测计数见 HANDOFF.md，新客户端采用仍是独立门禁。
 
 0.1.0 增加原生 SSH、HTTP、SFTP、TCP/Telnet/MQTT、串口、本机代理自动评估与调用概要，共 24 个工具，保留 v0.0.5 的全部 19 个工具及已发布字段。Windows/Linux 原生与 MCP 门禁、真实协议交互及便携包验证均已通过；正式标签签名、双站发布和公开回读记录见 [HANDOFF.md](HANDOFF.md)。
 
@@ -55,7 +55,7 @@ Git、ripgrep、编译器和 Codex 的 `apply_patch` 仍是配套工具。Cordon
 |---|---|---|
 | Windows 进程核心 | 本地 35 项检查通过，包含子进程环境隔离 | 更广泛应用和长时间负载仍需验证 |
 | 编码与内存文档核心 | 36 项核心检查与 25 项编码/接线边界检查通过 | 外部工具读取磁盘，看不到未提交的内存修改 |
-| CLI 与 MCP | 开发版 32 个工具，保留 v0.1.0 已发布的全部 24 个工具；合并后的验证记录见 HANDOFF.md | Windows 进程查询和新增通信工具在 Linux 返回 not_supported；协议迁移、新客户端采用和界面显示另行验收 |
+| CLI 与 MCP | 开发版 34 个工具，新增 `stat` 与 `find_program`；合并后的验证记录见 HANDOFF.md | Windows 进程查询和新增通信工具在 Linux 返回 not_supported；协议迁移、新客户端采用和界面显示另行验收 |
 | 原生 SSH 客户端 | Windows 实际回环 SSH 协议 27/27；ASan 客户端再次通过；libssh2 静态链接 CNG | 实际部署跳板验收 NOT_RUN；Linux SSH NOT_SUPPORTED；当前后端不支持 Ed25519 |
 | 新文本文件 | 两平台各 20 项原生检查，以及 8 项共享 MCP 检查 | 已有路径不覆盖，父目录必须存在 |
 | Linux | 既有 CI 证据包含 276 项完整检查（含 Git/rg 适配器）；10 月 31 日 WSL 重跑通过 102 项 MCP、17/17 项 Git 适配器，因本机没有原生 rg 将 rg 标记为 `NOT_RUN` | Linux Codex 模型调用仍需认证。ACL/xattr 不支持，多发行版和更长时段仍单独验收 |
@@ -122,6 +122,8 @@ workspace_open -> workspace_read / workspace_search
 | `read_files` | 在共同截止时间及正文/输出预算内读取 1～32 个磁盘文件，保留逐项结果 |
 | `data_query` | 对 JSON、JSONL、CSV 做投影、过滤、计数、分组与分页，保留数字精度及部分结果状态 |
 | `find_files` | 复用 rg，对完整的有界文件扫描排序、去重和分页 |
+| `stat` | 查询文件、目录或链接元数据，保留字段可用性、时间表示单位与缺失路径上下文 |
+| `find_program` | 按显式候选及 PATH 有界发现可执行程序，不运行候选程序 |
 | `hash_file` | 按二进制字节流计算 SHA-256 |
 | `copy_file` | 原子发布新的普通文件，遇到已有目标明确报冲突 |
 | `move_file` | 在支持的同一文件系统内原子移动普通文件，不覆盖目标 |
