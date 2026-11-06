@@ -17,6 +17,19 @@ and local-manifest installation requires an administrator-enabled setting.
 The upstream installation gate remains failed pending investigation; neither
 local manifest validation nor a new patch release establishes that it passes.
 
+The user-approved [investigation report](https://github.com/microsoft/winget-pkgs/pull/472173#issuecomment-6682697322)
+was posted and read back on 2026-11-06. It requests the affected file, threat
+name, Defender definition version and revalidation if the failure was transient.
+The PR now has `Needs-Attention`; no maintainer response or revalidation has
+been observed at this checkpoint.
+
+After signed 0.3.1 publication, [workflow 42207184901](https://github.com/IoTSharp/Cordonix/actions/runs/42207184901)
+verified the new ZIP/checksum and submitted [PR #472267](https://github.com/microsoft/winget-pkgs/pull/472267).
+Its archive SHA-256 is
+`a90b2af00d7b0ae28a883b2d5fb2496f9502c1eecccbc03bececd7f3623dc4b7`.
+This new submission does not close the older Defender investigation or establish
+Microsoft installation acceptance, review approval or catalog availability.
+
 For this label, follow the upstream [validation guide](https://github.com/microsoft/winget-pkgs/blob/master/doc/ValidationFailureGuide.md):
 obtain the affected file, detection name and signature version, scan with an
 enabled Defender installation, and submit an incorrect detection to Microsoft
