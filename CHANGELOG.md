@@ -4,6 +4,7 @@
 
 ## 0.3.0 - 2026-11-06
 
+- Published from clean source `5b43630` on GitHub and Gitee after Windows/Linux CI. All 12 uploaded assets match across hosts; four original archives pass exact-tag OIDC verification and four tampered copies fail. Downloaded binaries expose all 34 tools and pass 165 Windows / 166 Linux real MCP checks; v0.2.0 assets remain unchanged.
 - Added read-only native `stat` for absolute file metadata on Windows and POSIX. Results preserve normalized paths, distinguish files/directories/links/other, expose size/mode/hidden/system flags and timestamp precision, and keep missing, timeout and cancellation states explicit.
 - Added `find_program` for bounded executable discovery. Explicit absolute candidates are checked before absolute PATH entries; Windows validates native `.exe` files, POSIX validates regular executable files, and discovery never executes a result or invokes a shell.
 - Wired both tools through CLI, asynchronous MCP dispatch, documented schemas, titles, summaries and Windows/Linux build/package gates. Real MCP fixtures cover metadata, executable selection and asynchronous discovery cancellation; extracted-package checks exercise both tools under Unicode paths.

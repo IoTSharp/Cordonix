@@ -2,7 +2,7 @@
 
 ## Measured capability gaps (2026-11-06)
 
-The user authorized multiple agents to implement the measured gaps in sequence. The current batch adds native `stat` (general file metadata) and `find_program` (bounded executable discovery) to the existing JSON/JSONL/CSV `data_query`, rg-backed `find_files`, binary hash and no-replace file operations. The development schema has 34 tools. [Scope, measured demand and gates](docs/capability-gaps-20261106.zh-CN.md) distinguish these slices from remaining SQLite, grouped search/context, snapshot cursors, archive, browser, image and Office workflows. Final evidence belongs in HANDOFF.md. Installed runtime adoption remains a separate delivery.
+The user authorized multiple agents to implement the measured gaps in sequence. Release 0.3.0 adds native `stat` (general file metadata) and `find_program` (bounded executable discovery) to the existing JSON/JSONL/CSV `data_query`, rg-backed `find_files`, binary hash and no-replace file operations. The published schema has 34 tools. PR #1 merged at `5b43630`; Windows/Linux CI, tagged publication, all 12 mirrored asset hashes and exact-tag OIDC verification pass. [Scope, measured demand and gates](docs/capability-gaps-20261106.zh-CN.md) distinguish these slices from remaining SQLite, grouped search/context, snapshot cursors, archive, browser, image and Office workflows. HANDOFF.md records the delivery receipts. Installed runtime adoption remains a separate delivery.
 
 ## Native screenshot gap (2026-11-06)
 
@@ -12,7 +12,7 @@ The user reported repeated `Add-Type`/`System.Drawing.Common` compilation failur
 
 The user authorized planning and implementation in a new chat with multiple agents, and explicitly requires independent decisions based on observed tasks, data, algorithms and business value. The [implementation plan](docs/implementation-plan-2026-11-05.zh-CN.md) defines ownership, dependencies, decision gates and closure. The [competitive assessment](docs/competitive-assessment-2026-11-05.zh-CN.md) is dated input, not an instruction to implement every competitor feature. This active program takes precedence over historical "Next item" and parallel-task descriptions below.
 
-Baseline: source and connected installed runtime remain separate from this unreleased work. The current development tree exposes 34 tools, including `stat` and `find_program`; the Windows build and MCP gate are recorded in HANDOFF.md. Native directory creation remains part of the existing surface. Installed adoption, package publication and release tags remain separate delivery gates. No token-saving percentage is accepted as measured or as a fixed gate before a reproducible baseline exists.
+Baseline: source and connected installed runtime retain separate evidence. Release 0.3.0 exposes 34 tools, including `stat` and `find_program`; Windows/Linux native, MCP, package and publication gates are recorded in HANDOFF.md. Native directory creation remains part of the existing surface. Installed adoption remains a separate gate. No token-saving percentage is accepted as measured or as a fixed gate before a reproducible baseline exists.
 
 | ID | Stage / delivery | Dependencies | Initial decision and status | Closing evidence |
 |---|---|---|---|---|

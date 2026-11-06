@@ -2,6 +2,23 @@
 
 ## Capability gaps batch (2026-11-06, Asia/Shanghai)
 
+### 0.3.0 publication acceptance
+
+[PR #1](https://github.com/IoTSharp/Cordonix/pull/1) merged implementation commit `6ab2c404e2d806defa5130ef31ae2808790e8a9f` as `5b4363005b5bba94b38388d75cae6af33f1b4c0e`. Tag `v0.3.0` resolves to that merge commit on GitHub and Gitee. The feature-head push/PR CI, merged-main CI and tag CI all pass on Windows/Linux. The [tagged release workflow](https://github.com/IoTSharp/Cordonix/actions/runs/42183576083) completed successfully on attempt 3; both builds, package/SPDX/reproducibility/install gates, OIDC signing, source mirror and both release publications pass.
+
+Releases: [GitHub v0.3.0](https://github.com/IoTSharp/Cordonix/releases/tag/v0.3.0) / [Gitee v0.3.0](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.3.0). Readback downloaded 24 files: all 12 uploaded assets are byte-identical between hosts, and all four downloaded archive checksums pass. Four original archives pass the existing independent Sigstore runner with exact repository, release workflow, source SHA, tag, GitHub-hosted runner, OIDC issuer and SLSA predicate policy; four altered copies are rejected. Verifier-owned processes and altered fixtures are cleaned up. Official SPDX schema checks passed in the tagged workflow. Published v0.2.0 retains its original 12 GitHub asset digests and publication timestamp.
+
+| Public package readback | Windows x64 | Linux x64 |
+|---|---|---|
+| Version / source | 0.3.0 / clean `5b43630` | 0.3.0 / clean `5b43630` |
+| MCP tools / real protocol checks | 34 / 165 passed | 34 / 166 passed on WSL Ubuntu ext4 |
+| Archive SHA-256 | `67119af4030deaae73d7cc4b8e307d86451f73073c702a23d3d4ca1400f74e82` | `419a9215354c01030c1d426a4849772c4eef5c2b6fb2cfff289429687331c74f` |
+| Executable SHA-256 | `adc839415aea9819bb5d504ac5d1afdb8639cb1be72ad92cb3d79dfa18779ada` | `c69d7b033215b30a779d7009b3c13f53789da2b98446d65585f74f30e4bc597f` |
+
+The first two Gitee upload attempts timed out after 30 seconds. State readback confirmed nine uploaded assets and three missing Windows files. A bounded local recovery used the user's existing `maikebing` GCM credential in process memory, checked the release/tag/commit and downloaded GitHub hashes, then uploaded only the missing original files without replacement. The final CI attempt read back the complete release and passed. A local form-token attempt failed before publication; subsequent release readback preceded the successful header-authenticated upload. Failure logs remain available; no release was rebuilt or retagged.
+
+Ignored receipts remain under `build/capability-gaps-next/`: `acceptance-local.json`, `release-readback/receipt.json`, `release-signature-v0.3.0.json`, `windows-public-info.json`, `linux-public-info.json` and `linux-public-mcp.log`. The connected desktop session remains 0.2.0; no shared runtime was replaced. Fresh desktop adoption, Windows Authenticode, broader deployments and unmeasured token/cost/RSS/physical-IO claims retain their separate status. This documentation follow-up records completed publication after the immutable release tag.
+
 ### 0.3.0 local acceptance and delivery candidate
 
 This continuation uses the managed worktree `C:\Users\mysti\.codex\worktrees\capability-gaps-next\Cordonix` on branch `codex/capability-gaps-next`. The original checkout remains unchanged. The candidate adds `stat` and `find_program`, bringing the development MCP schema to 34 tools; it does not replace the retained installed runtime or publish a release.
