@@ -9,6 +9,14 @@ cl.exe %CDX_GAP_FLAGS% /Febuild\capability-gaps\cdx-data-query-tests.exe tests\p
 if errorlevel 1 exit /b %errorlevel%
 build\capability-gaps\cdx-data-query-tests.exe "%cd%\build\capability-gaps"
 if errorlevel 1 exit /b %errorlevel%
+cl.exe %CDX_GAP_FLAGS% /Febuild\capability-gaps\cdx-file-stat-tests.exe tests\workspace\test_file_stat.c src\cdx-core\file_stat.c src\cdx-core\file_stat_win32.c src\cdx-core\filesystem.c src\cdx-core\filesystem_win32.c /link bcrypt.lib
+if errorlevel 1 exit /b %errorlevel%
+build\capability-gaps\cdx-file-stat-tests.exe "%cd%\build\capability-gaps"
+if errorlevel 1 exit /b %errorlevel%
+cl.exe %CDX_GAP_FLAGS% /Febuild\capability-gaps\cdx-program-discovery-tests.exe tests\protocol\test_program_discovery.c src\cdx-protocol\program_discovery.c src\cdx-protocol\json.c src\cdx-core\filesystem.c src\cdx-core\filesystem_win32.c src\cdx-workspace\encoding_win32.c /link bcrypt.lib
+if errorlevel 1 exit /b %errorlevel%
+build\capability-gaps\cdx-program-discovery-tests.exe
+if errorlevel 1 exit /b %errorlevel%
 cl.exe %CDX_GAP_FLAGS% /Febuild\capability-gaps\cdx-file-ops-tests.exe tests\workspace\test_file_ops.c src\cdx-core\file_ops.c src\cdx-core\file_ops_win32.c src\cdx-protocol\file_operations.c src\cdx-protocol\json.c src\cdx-core\filesystem.c src\cdx-core\filesystem_win32.c src\cdx-workspace\encoding_win32.c /link bcrypt.lib
 if errorlevel 1 exit /b %errorlevel%
 build\capability-gaps\cdx-file-ops-tests.exe "%cd%\build\capability-gaps"

@@ -510,8 +510,11 @@ void cdx_data_query_call(const cdx_json *json, int arguments, cdx_cancel_handle 
     query.cancellation = cancellation; query.deadline = data_milliseconds() + query.options.timeout_ms;
     cdx_json_output_init(&query.rows);
     if (!strcmp(query.options.operation, "group_count")) {
-        query.groups = (data_group *)calloc(query.options.max_groups, sizeof(*query.groups));
+        query.groups = (data_group *)malloc(query.options.max_groups * sizeof(*query.groups));
         if (!query.groups) query.stop = "io_error";
+        else {
+            for (i = 0; i < query.options.max_groups; ++i) query.groups[i] = (data_group){0};
+        }
     }
     source = stopped(&query) ? NULL : load_source(&query, &document, &length);
     if (source) {
@@ -521,7 +524,14 @@ void cdx_data_query_call(const cdx_json *json, int arguments, cdx_cancel_handle 
     }
     if (!strcmp(query.options.operation, "group_count")) emit_groups(&query);
     emit_result(&query, output);
-    for (i = 0; i < query.group_count; ++i) free(query.groups[i].value);
+    if (query.groups) {
+        for (i = 0; i < query.options.max_groups; ++i) {
+            if (query.groups[i].value) {
+                free(query.groups[i].value);
+                query.groups[i].value = NULL;
+            }
+        }
+    }
     free(query.groups); cdx_json_output_free(&query.rows); cdx_document_free(&document);
 }
 

@@ -1,6 +1,6 @@
 # Cordonix
 
-Version 0.2.0 adds `data_query`, `find_files`, `hash_file`, `copy_file` and `move_file`, bringing the MCP surface to 32 tools. Start with the [tool selection and client discovery guide](docs/mcp-tool-guide.md), then the [batch scope and validation](docs/capability-gaps-20261106.zh-CN.md), [data query](docs/data-query.md), [file discovery](docs/file-discovery.md) and [regular-file operations](docs/file-operations.md).
+The 0.3.0 candidate adds `stat` and `find_program` to the existing data, discovery and file-operation tools, bringing the MCP surface to 34 tools. Start with the [tool selection and client discovery guide](docs/mcp-tool-guide.md), then the [batch scope and validation](docs/capability-gaps-20261106.zh-CN.md), [data query](docs/data-query.md), [file metadata](docs/file-stat.md), [program discovery](docs/program-discovery.md), [file discovery](docs/file-discovery.md) and [regular-file operations](docs/file-operations.md).
 
 Windows screenshot support provides native PNG capture for desktop, region, window and foreground targets, plus bounded window discovery. See [capture methods and outcomes](docs/native-screenshot.md). Existing installed connections keep their original tool schema until a new runtime is loaded.
 
@@ -8,7 +8,7 @@ The [three-stage roadmap](ROADMAP.md#active-three-stage-program-2026-11-05) and 
 
 Version 0.2.0 also includes native `create_directory` and bounded sequential `read_files` on Windows/Linux. HTTP adds optional `representation=both|text|base64`, retaining `both` by default and preserving raw Base64 when text decoding fails. See [batch read limits](docs/batch-read.md), [HTTP representation](docs/native-http.md) and the [MCP compatibility audit](docs/mcp-compatibility.md). Release publication and installed-client adoption have separate evidence in HANDOFF.md.
 
-The current MCP adapters also reject malformed or unknown `tools/call` requests with JSON-RPC `-32602`. Deterministic operation failures expose outer `isError: true` while keeping the original status JSON; partial, preview, no-match, unsupported-platform and unknown-outcome results remain text results. This local compatibility slice is covered by 148/148 MCP checks on Windows and WSL Linux; modern client adoption remains a separate gate.
+The current MCP adapters also reject malformed or unknown `tools/call` requests with JSON-RPC `-32602`. Deterministic operation failures expose outer `isError: true` while keeping the original status JSON; partial, preview, no-match, unsupported-platform and unknown-outcome results remain text results. This compatibility slice and the 34-tool surface are covered by real Windows/Linux MCP fixtures, including asynchronous program-discovery cancellation. Current counts and separate installed-client gates are recorded in HANDOFF.md.
 
 Release 0.1.0 adds native SSH, HTTP, SFTP, TCP/Telnet/MQTT and serial access, automatic local proxy evaluation and per-call summaries: 24 tools total, retaining all 19 v0.0.5 tools and their published fields. Windows/Linux native and MCP gates, real protocol fixtures and portable packages pass; signed tagged publication and public readback are recorded in [HANDOFF.md](HANDOFF.md).
 
@@ -55,7 +55,7 @@ Cordonix is a development MVP. Windows has first-party Codex usage evidence; Lin
 |---|---|---|
 | Windows process core | 35 checks passed locally, including isolated child environments | Broader application and long-running workload coverage continues |
 | Encoding and memory document core | 36 core checks plus 25 integration/encoding edge checks passed locally | External tools read disk; they do not see uncommitted memory revisions |
-| CLI and MCP | Twenty-seven development tools, including all 24 released in v0.1.0; integrated validation is recorded in HANDOFF.md | Installed-client adoption, protocol migration and Codex UI rendering have separate gates |
+| CLI and MCP | Thirty-four development tools, including `stat` and `find_program`; integrated validation is recorded in HANDOFF.md | Installed-client adoption, protocol migration and Codex UI rendering have separate gates |
 | Native SSH client | Windows loopback protocol 27/27; repeated on an AddressSanitizer client; static libssh2 with CNG | Deployed bastions NOT_RUN; Linux SSH NOT_SUPPORTED; current backend excludes Ed25519 |
 | New text files | 20 native checks on each platform plus eight shared MCP checks | Existing paths are never overwritten and parent directories must exist |
 | Linux | Earlier CI evidence includes 276 checks with full Git/rg adapters; the October 31 WSL rerun passed 102 MCP checks and 17/17 Git adapter checks while marking rg `NOT_RUN` because native rg is absent | Model-backed Linux Codex calls still need authentication. Other distributions and longer soak are separate |
@@ -122,6 +122,8 @@ The memory workspace belongs to one running session. MCP keeps that process aliv
 | `create_directory` | Create a directory and return its absolute path; explicitly opt into missing parents and existing directories |
 | `list_directory` | List immediate directory entries, with hidden-item and result-count controls |
 | `resolve_path` | Normalize an existing absolute filesystem path and report its type |
+| `stat` | Read one absolute path's type, size, mode, flags and timestamps without mutation |
+| `find_program` | Resolve bounded absolute executable candidates or PATH entries without executing them |
 | `verify_encoding` | Verify a bounded batch of disk files with a declared encoding, count and optional root constraint |
 | `workspace_open` | Load a file using an explicit encoding or strict BOM/UTF-8 detection |
 | `workspace_read` | Read the memory revision by byte/line range, last N lines or complete decoded text |

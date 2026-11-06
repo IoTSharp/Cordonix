@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.3.0 - 2026-11-06
+
+- Added read-only native `stat` for absolute file metadata on Windows and POSIX. Results preserve normalized paths, distinguish files/directories/links/other, expose size/mode/hidden/system flags and timestamp precision, and keep missing, timeout and cancellation states explicit.
+- Added `find_program` for bounded executable discovery. Explicit absolute candidates are checked before absolute PATH entries; Windows validates native `.exe` files, POSIX validates regular executable files, and discovery never executes a result or invokes a shell.
+- Wired both tools through CLI, asynchronous MCP dispatch, documented schemas, titles, summaries and Windows/Linux build/package gates. Real MCP fixtures cover metadata, executable selection and asynchronous discovery cancellation; extracted-package checks exercise both tools under Unicode paths.
+- Fixed data-query group initialization/cleanup so MSVC `/analyze /W4 /WX` passes without warning suppression. Added explicit POSIX timestamp range handling and preserved actual filesystem traversal during program discovery, with reproducing behavior tests.
+- Fixed missing newlines in both capability-gap test scripts. Current Windows/Linux native, real-rg, MCP, static-analysis and sanitizer evidence is recorded in HANDOFF.md; installed-client adoption remains separate.
+
+
 ## 0.2.0 - 2026-11-06
 
 - Completed selection-focused MCP descriptions and every input-property description for the five new tools, with schema coverage checks, minimal examples, client upgrade/discovery guidance and a packaged tool-selection guide. Removed the stale fixed tool allow-list from the Codex configuration example so new tools can be discovered. A fresh Codex CLI successfully invoked the query, hash and discovery tools; client completion and installed desktop adoption remain separate. MSVC static analysis C6001 in data-query group cleanup remains unresolved; normal warnings-as-errors builds and sanitizer evidence are recorded separately.

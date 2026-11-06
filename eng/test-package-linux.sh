@@ -181,6 +181,17 @@ try:
             data_query['group_count'] == 2 and data_query['groups'] ==
             [{'value': 'Cordonix', 'missing': False, 'count': 1}, {'value': 'Skills', 'missing': False, 'count': 1}],
             'Packaged data query example failed')
+    stat_request = task / 'stat.json'
+    stat_request.write_text(json.dumps({'operation': 'stat', 'arguments': {'path': str(extracted / 'README.md')}}))
+    metadata = json.loads(run([str(extracted / 'cdx'), '--request', str(stat_request)]))
+    require(metadata['status'] == 'ok' and metadata['type'] == 'file' and metadata['size_known'] and
+            metadata['size_bytes'] == (extracted / 'README.md').stat().st_size, 'Packaged stat returned different metadata')
+    find_request = task / 'find-program.json'
+    find_request.write_text(json.dumps({'operation': 'find_program', 'arguments': {
+        'name': 'cdx', 'candidates': [str(extracted / 'cdx')], 'search_path': False}}))
+    found = json.loads(run([str(extracted / 'cdx'), '--request', str(find_request)]))
+    require(found['status'] == 'ok' and found['scan_complete'] and not found['truncated'] and
+            found['selected'] == str((extracted / 'cdx').resolve()), 'Packaged executable discovery returned a different path')
     success = True
     receipt = {'status': 'PASS', 'checks': checks, 'version': version, 'reproducible_sha256': first_hash,
                'archive': str(archive), 'manifest_files': len(manifest['files']), 'spdx_files': len(sbom['files']),

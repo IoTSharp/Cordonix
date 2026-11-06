@@ -93,7 +93,7 @@ static int supported_tool(const char *name) {
         "resolve_path", "verify_encoding", "read_file", "workspace_read", "workspace_edit",
         "workspace_commit", "workspace_convert_encoding", "workspace_status", "workspace_search",
         "workspace_close", "sftp", "http", "serial", "network", "read_files", "screenshot",
-        "data_query", "find_files", "hash_file", "copy_file", "move_file"
+        "data_query", "find_files", "find_program", "hash_file", "copy_file", "move_file", "stat"
     };
     size_t i;
     if (!name) return 0;
@@ -106,7 +106,8 @@ static int asynchronous_tool(const char *name) {
         !strcmp(name, "git_status") || !strcmp(name, "query_processes") || !strcmp(name, "ssh") ||
         !strcmp(name, "sftp") || !strcmp(name, "http") || !strcmp(name, "serial") ||
         !strcmp(name, "network") || !strcmp(name, "phone") || !strcmp(name, "screenshot") ||
-        !strcmp(name, "data_query") || !strcmp(name, "find_files") || !strcmp(name, "hash_file") ||
+        !strcmp(name, "data_query") || !strcmp(name, "find_files") || !strcmp(name, "find_program") ||
+        !strcmp(name, "stat") || !strcmp(name, "hash_file") ||
         !strcmp(name, "copy_file") || !strcmp(name, "move_file") ||
         !strcmp(name, "verify_encoding") || !strcmp(name, "create_file") ||
         !strcmp(name, "create_directory") || !strcmp(name, "read_files"));

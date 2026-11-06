@@ -3,6 +3,7 @@
 #include "cdx/document.h"
 #include "cdx/create_file.h"
 #include "cdx/filesystem.h"
+#include "cdx/file_stat.h"
 #include "cdx/process_query.h"
 #include "cdx/phone.h"
 #include "cdx/version.h"
@@ -43,6 +44,11 @@ static void error_result(cdx_json_output *output, const char *status, const char
     cdx_json_raw(output, "{\"status\":"); cdx_json_quote(output, status, strlen(status));
     cdx_json_raw(output, ",\"message\":"); cdx_json_quote(output, message, strlen(message));
     cdx_json_raw(output, "}");
+}
+static void json_int64(cdx_json_output *output, long long value) {
+    char number[32];
+    (void)snprintf(number, sizeof(number), "%lld", value);
+    cdx_json_raw(output, number);
 }
 static const char *string_arg(const cdx_json *json, int arguments, const char *key, const char *fallback, int *valid) {
     int node = cdx_json_get(json, arguments, key);
@@ -922,6 +928,60 @@ static void query_filesystem(const cdx_json *json, int arguments, int list,
     cdx_fs_result_free(&result);
 }
 
+static void query_file_stat(const cdx_json *json, int arguments, cdx_cancel_handle cancellation,
+                            cdx_json_output *output) {
+    int valid = 1;
+    const char *path = string_arg(json, arguments, "path", NULL, &valid);
+    cdx_stat_request request;
+    cdx_stat_result result;
+    cdx_path_char *native_path;
+    const char *status;
+    memset(&request, 0, sizeof(request));
+    request.timeout_ms = (unsigned)integer_arg(json, arguments, "timeout_ms", 5000, CDX_STAT_MAX_TIMEOUT_MS, &valid);
+    request.cancellation = cancellation;
+    if (!valid || !request.timeout_ms || !(native_path = native_text(path))) {
+        error_result(output, "validation_error", "Use an absolute path string and timeout_ms 1..60000");
+        return;
+    }
+    request.path = native_path;
+    (void)cdx_stat_query(&request, &result);
+    free(native_path);
+    status = cdx_fs_status_name(result.status);
+    cdx_json_raw(output, "{\"status\":"); cdx_json_quote(output, status, strlen(status));
+    if (result.path) { cdx_json_raw(output, ",\"path\":"); cdx_json_quote(output, result.path, strlen(result.path)); }
+    if (result.status == CDX_FS_OK) {
+        cdx_json_raw(output, ",\"type\":"); cdx_json_quote(output, cdx_fs_kind_name(result.kind), strlen(cdx_fs_kind_name(result.kind)));
+        cdx_json_raw(output, ",\"size_bytes\":");
+        if (result.size_known) cdx_json_uint(output, result.size_bytes); else cdx_json_raw(output, "null");
+        cdx_json_raw(output, ",\"size_known\":"); cdx_json_raw(output, result.size_known ? "true" : "false");
+        cdx_json_raw(output, ",\"mode_bits\":");
+        if (result.mode_known) cdx_json_uint(output, result.mode_bits); else cdx_json_raw(output, "null");
+        cdx_json_raw(output, ",\"mode_known\":"); cdx_json_raw(output, result.mode_known ? "true" : "false");
+        cdx_json_raw(output, ",\"hidden\":"); cdx_json_raw(output, result.hidden ? "true" : "false");
+        cdx_json_raw(output, ",\"hidden_known\":"); cdx_json_raw(output, result.hidden_known ? "true" : "false");
+        cdx_json_raw(output, ",\"system\":"); cdx_json_raw(output, result.system ? "true" : "false");
+        cdx_json_raw(output, ",\"system_known\":"); cdx_json_raw(output, result.system_known ? "true" : "false");
+        cdx_json_raw(output, ",\"creation_time_ns\":");
+        if (result.creation_time_known) json_int64(output, (long long)result.creation_time_ns); else cdx_json_raw(output, "null");
+        cdx_json_raw(output, ",\"access_time_ns\":");
+        if (result.access_time_known) json_int64(output, (long long)result.access_time_ns); else cdx_json_raw(output, "null");
+        cdx_json_raw(output, ",\"modification_time_ns\":");
+        if (result.modification_time_known) json_int64(output, (long long)result.modification_time_ns); else cdx_json_raw(output, "null");
+        cdx_json_raw(output, ",\"time_precision_ns\":");
+        if (result.time_precision_known) cdx_json_uint(output, result.time_precision_ns); else cdx_json_raw(output, "null");
+    } else {
+        cdx_json_raw(output, ",\"message\":\"Metadata query did not complete; no files were changed\"");
+#ifdef _WIN32
+        cdx_json_raw(output, ",\"win32_error\":");
+#else
+        cdx_json_raw(output, ",\"posix_error\":");
+#endif
+        cdx_json_uint(output, result.native_error);
+    }
+    cdx_json_raw(output, "}");
+    cdx_stat_result_free(&result);
+}
+
 void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx_cancel_handle cancellation, cdx_json_output *output) {
     int valid = 1;
     unsigned long long id;
@@ -953,6 +1013,7 @@ void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx
     if (!strcmp(operation, "screenshot")) { cdx_screenshot_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "data_query")) { cdx_data_query_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "find_files")) { cdx_discovery_call(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "find_program")) { cdx_program_discovery_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "hash_file") || !strcmp(operation, "copy_file") || !strcmp(operation, "move_file")) {
         cdx_file_ops_call(operation, request, arguments, cancellation, output); return;
     }
@@ -969,6 +1030,7 @@ void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx
     if (!strcmp(operation, "verify_encoding")) { verify_encoding(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "list_directory")) { query_filesystem(request, arguments, 1, cancellation, output); return; }
     if (!strcmp(operation, "resolve_path")) { query_filesystem(request, arguments, 0, cancellation, output); return; }
+    if (!strcmp(operation, "stat")) { query_file_stat(request, arguments, cancellation, output); return; }
     id = integer_arg(request, arguments, "document_id", 0, 9007199254740991ull, &valid);
     slot = valid ? find_document(id) : NULL;
     if (!slot) { error_result(output, "not_found", "No live document with this id; open it in this MCP session"); return; }

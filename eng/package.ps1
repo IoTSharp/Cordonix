@@ -142,6 +142,8 @@ try {
         'docs/mcp-tool-guide.md' = Join-Path $SourceRoot 'docs\mcp-tool-guide.md'
         'docs/release-signing.md' = Join-Path $SourceRoot 'docs\release-signing.md'
         'docs/file-discovery.md' = Join-Path $SourceRoot 'docs\file-discovery.md'
+        'docs/file-stat.md' = Join-Path $SourceRoot 'docs\file-stat.md'
+        'docs/program-discovery.md' = Join-Path $SourceRoot 'docs\program-discovery.md'
         'docs/file-operations.md' = Join-Path $SourceRoot 'docs\file-operations.md'
         'docs/capability-gaps-20261106.zh-CN.md' = Join-Path $SourceRoot 'docs\capability-gaps-20261106.zh-CN.md'
         'examples/data-query.json' = Join-Path $SourceRoot 'examples\data-query.json'
