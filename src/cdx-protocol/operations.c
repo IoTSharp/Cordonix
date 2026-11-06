@@ -951,6 +951,11 @@ void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx
     if (!strcmp(operation, "serial")) { cdx_serial_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "network")) { cdx_network_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "screenshot")) { cdx_screenshot_call(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "data_query")) { cdx_data_query_call(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "find_files")) { cdx_discovery_call(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "hash_file") || !strcmp(operation, "copy_file") || !strcmp(operation, "move_file")) {
+        cdx_file_ops_call(operation, request, arguments, cancellation, output); return;
+    }
     if (!strcmp(operation, "query_processes")) { cdx_query_processes_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "phone")) { cdx_phone_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "search_text") || !strcmp(operation, "git_status")) {

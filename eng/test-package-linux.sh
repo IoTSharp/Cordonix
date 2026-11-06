@@ -176,6 +176,11 @@ try:
         selected = item['result']['text']
         require(item['index'] == index and item['status'] == 'ok' and item['source'] == 'disk' and bool(selected) and
                 (original.startswith(selected) if index == 0 else original.endswith(selected)), 'Packaged batch example returned different text')
+    data_query = json.loads(run([str(extracted / 'cdx'), '--request', str(extracted / 'examples/data-query.json')]))
+    require(data_query['status'] == 'ok' and data_query['scan_complete'] and data_query['matched'] == 2 and
+            data_query['group_count'] == 2 and data_query['groups'] ==
+            [{'value': 'Cordonix', 'missing': False, 'count': 1}, {'value': 'Skills', 'missing': False, 'count': 1}],
+            'Packaged data query example failed')
     success = True
     receipt = {'status': 'PASS', 'checks': checks, 'version': version, 'reproducible_sha256': first_hash,
                'archive': str(archive), 'manifest_files': len(manifest['files']), 'spdx_files': len(sbom['files']),

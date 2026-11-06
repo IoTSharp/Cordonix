@@ -184,6 +184,11 @@ static int run_mcp(void) {
                      string_node(&json, cdx_json_get(&json, params, "name"), "network") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "phone") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "screenshot") ||
+                     string_node(&json, cdx_json_get(&json, params, "name"), "data_query") ||
+                     string_node(&json, cdx_json_get(&json, params, "name"), "find_files") ||
+                     string_node(&json, cdx_json_get(&json, params, "name"), "hash_file") ||
+                     string_node(&json, cdx_json_get(&json, params, "name"), "copy_file") ||
+                     string_node(&json, cdx_json_get(&json, params, "name"), "move_file") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "verify_encoding") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "create_file") ||
                      string_node(&json, cdx_json_get(&json, params, "name"), "create_directory") ||

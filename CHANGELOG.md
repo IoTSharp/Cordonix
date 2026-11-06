@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added five evidence-selected Windows/Linux tools: native `data_query` for JSON/JSONL/CSV projection, filtering, counting and grouping; external-rg `find_files` with complete-scan sorting and bounded offset pages; streaming `hash_file`, no-replace `copy_file` and same-filesystem `move_file`. Development now has 32 tools. Original numeric tokens, strict decoding, partial results, cancellation and output budgets remain explicit. Linux copy publication requires hard links; atomic no-replace move requires filesystem support for `renameat2`. No new core dependency is introduced. Contracts, platform limits and validation are recorded in the capability-gap batch document.
+
 - Added Windows native `screenshot` capture and bounded window discovery to CLI/MCP, bringing the development surface to 27 tools. Desktop/region/window/foreground targets use explicit visible-pixel or `PrintWindow` semantics, Unicode new-file PNG output, bounded owned-child execution, cancellation and independent write/cleanup results. Uses system GDI/WIC without PowerShell or .NET; Linux returns `not_supported`. Added native pixel/PNG/process fixtures, real MCP checks and packaged documentation/example; installed-client adoption remains separate.
 
 - Added optional HTTP `representation=both|text|base64`; the existing default, decoding status and outcome fields remain. Text mode omits duplicate Base64 only after strict decoding succeeds; binary/invalid text retains raw bytes without replay.

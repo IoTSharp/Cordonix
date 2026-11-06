@@ -39,5 +39,8 @@ void cdx_tool_list(cdx_json_output *output) {
     cdx_json_raw(output, ","); cdx_json_raw(output, cdx_network_tool_schema());
     cdx_json_raw(output, ","); cdx_json_raw(output, read_files_tool_schema);
     cdx_json_raw(output, ","); cdx_json_raw(output, cdx_screenshot_tool_schema());
+    cdx_json_raw(output, ","); cdx_json_raw(output, cdx_data_query_tool_schema());
+    cdx_json_raw(output, ","); cdx_json_raw(output, cdx_file_ops_tool_schema());
+    cdx_json_raw(output, ","); cdx_json_raw(output, cdx_discovery_tool_schema());
     cdx_json_raw(output, "]}");
 }

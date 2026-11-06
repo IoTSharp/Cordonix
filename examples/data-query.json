@@ -1,0 +1,10 @@
+{
+  "operation": "data_query",
+  "arguments": {
+    "format": "json",
+    "text": "[{\"project\":\"Cordonix\",\"state\":\"open\"},{\"project\":\"Cordonix\",\"state\":\"done\"},{\"project\":\"Skills\",\"state\":\"open\"}]",
+    "operation": "group_count",
+    "where": { "field": "/state", "equals": "open" },
+    "group_by": "/project"
+  }
+}

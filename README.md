@@ -1,10 +1,12 @@
 # Cordonix
 
-Unreleased Windows screenshot support adds the twenty-seventh development tool: native PNG capture for desktop, region, window and foreground targets, plus bounded window discovery. See [capture methods and outcomes](docs/native-screenshot.md). Existing installed connections keep their original tool schema until a new runtime is loaded.
+Unreleased: five measured workflow gaps add `data_query`, `find_files`, `hash_file`, `copy_file` and `move_file`, bringing the development surface to 32 tools. See the [batch scope and validation](docs/capability-gaps-20261106.zh-CN.md), [data query](docs/data-query.md), [file discovery](docs/file-discovery.md) and [regular-file operations](docs/file-operations.md).
+
+Windows screenshot support provides native PNG capture for desktop, region, window and foreground targets, plus bounded window discovery. See [capture methods and outcomes](docs/native-screenshot.md). Existing installed connections keep their original tool schema until a new runtime is loaded.
 
 The [three-stage roadmap](ROADMAP.md#active-three-stage-program-2026-11-05) and [implementation/acceptance plan](docs/implementation-plan-2026-11-05.zh-CN.md) track local deliveries and later work on task execution, coding/data workflows, and design/office delivery. Remaining stages require their own evidence and acceptance.
 
-Unreleased: the development MCP surface has 27 tools, including native `create_directory` and bounded sequential `read_files` on Windows/Linux. HTTP adds optional `representation=both|text|base64`, retaining `both` by default and preserving raw Base64 when text decoding fails. See [batch read limits](docs/batch-read.md), [HTTP representation](docs/native-http.md) and the [MCP compatibility audit](docs/mcp-compatibility.md). These changes are local and await release and installed-client adoption.
+Unreleased: the development MCP surface has 32 tools, including native `create_directory` and bounded sequential `read_files` on Windows/Linux. HTTP adds optional `representation=both|text|base64`, retaining `both` by default and preserving raw Base64 when text decoding fails. See [batch read limits](docs/batch-read.md), [HTTP representation](docs/native-http.md) and the [MCP compatibility audit](docs/mcp-compatibility.md). These changes are local and await release and installed-client adoption.
 
 Release 0.1.0 adds native SSH, HTTP, SFTP, TCP/Telnet/MQTT and serial access, automatic local proxy evaluation and per-call summaries: 24 tools total, retaining all 19 v0.0.5 tools and their published fields. Windows/Linux native and MCP gates, real protocol fixtures and portable packages pass; signed tagged publication and public readback are recorded in [HANDOFF.md](HANDOFF.md).
 
@@ -108,6 +110,11 @@ The memory workspace belongs to one running session. MCP keeps that process aliv
 | `execute_program` | Literal argv execution with bounded output, timeout and owned-process cleanup |
 | `query_processes` | Read-only Windows PID/parent/creation-time/original-command-line snapshots; Linux reports not_supported |
 | `search_text` | Parse JSON results from an explicitly supplied ripgrep executable |
+| `find_files` | Sort and page a complete bounded ripgrep file scan |
+| `data_query` | Project, filter, count and group JSON, JSONL or CSV from strict file decoding or inline text |
+| `hash_file` | Stream SHA-256 over exact binary file bytes |
+| `copy_file` | Copy a regular file to a new destination without replacement |
+| `move_file` | Atomically rename a regular file within a supported filesystem without replacement |
 | `git_status` | Parse Git porcelain v2 NUL records, including both rename paths |
 | `create_file` | Create a new text file with strict encoding and no overwrite; parent directory must exist |
 | `create_directory` | Create a directory and return its absolute path; explicitly opt into missing parents and existing directories |

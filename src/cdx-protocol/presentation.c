@@ -184,6 +184,13 @@ void cdx_summarize_call(const char *operation, const cdx_json *json, int argumen
     else if (!strcmp(operation, "verify_encoding")) action = "验证文件编码";
     else if (!strcmp(operation, "query_processes")) action = "查询 Windows 进程";
     else if (!strcmp(operation, "screenshot")) action = "截取窗口或屏幕";
+    else if (!strcmp(operation, "data_query")) action = "查询结构化数据";
+    else if (!strcmp(operation, "find_files")) { action = "查找文件"; short_path(target, sizeof(target), arg_text(json, first_arg(json, arguments, "roots")), 2); }
+    else if (!strcmp(operation, "hash_file")) action = "计算文件 SHA-256";
+    else if (!strcmp(operation, "copy_file") || !strcmp(operation, "move_file")) {
+        action = !strcmp(operation, "copy_file") ? "复制文件" : "移动文件";
+        short_path(target, sizeof(target), text_arg(json, arguments, "source"), 2);
+    }
     else if (!strcmp(operation, "tool_info")) action = "查看 Cordonix 版本和会话状态";
     else if (!strcmp(operation, "ssh")) action = "远程 SSH 操作";
     if (!strcmp(operation, "workspace_edit") || !strcmp(operation, "workspace_convert_encoding")) {
