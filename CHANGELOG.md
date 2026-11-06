@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.3.1 - 2026-11-06
+
+- Fixed explicit executable candidates being skipped when inherited PATH is absent on Windows/Linux.
+- Preserved POSIX executable launch spelling so Python virtual environments keep their identity; symlinks and dot segments retain actual filesystem traversal.
+- Fixed POSIX stat returning a path for a different entry after intermediate symlink/`..` traversal. The returned absolute spelling now identifies the entry queried, while final links remain links.
+- Restored representable pre-1970 Windows FILETIME values as signed Unix nanoseconds.
+- Excluded legacy DOS/16-bit formats from Windows native executable discovery. Propagated normalization failures and rechecked cancellation/deadlines after the last unsuccessful probe.
+- Added native boundary regressions and real interpreter-launch acceptance to Windows/Linux CI and tagged gates. WinGet's separate Defender installation failure for immutable 0.3.0 is documented in `docs/winget.md`; upstream acceptance is not implied by local manifest validation.
+
 ## 0.3.0 - 2026-11-06
 
 - Published from clean source `5b43630` on GitHub and Gitee after Windows/Linux CI. All 12 uploaded assets match across hosts; four original archives pass exact-tag OIDC verification and four tampered copies fail. Downloaded binaries expose all 34 tools and pass 165 Windows / 166 Linux real MCP checks; v0.2.0 assets remain unchanged.

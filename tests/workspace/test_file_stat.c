@@ -87,11 +87,42 @@ static void stat_cases(const cdx_path_char *root) {
     cdx_stat_result_free(&result);
 #ifdef _WIN32
     check(SetFileAttributesW(file_path, FILE_ATTRIBUTE_HIDDEN) != 0, "hidden attribute fixture set");
+    {
+        SYSTEMTIME time = {0};
+        FILETIME expected, observed;
+        HANDLE file = CreateFileW(file_path, FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES,
+                                  FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
+                                  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        time.wYear = 1960; time.wMonth = 1; time.wDay = 1;
+        check(file != INVALID_HANDLE_VALUE && SystemTimeToFileTime(&time, &expected) &&
+              SetFileTime(file, NULL, NULL, &expected) && GetFileTime(file, NULL, NULL, &observed) &&
+              CompareFileTime(&expected, &observed) == 0, "real file retains a pre-epoch timestamp");
+        if (file != INVALID_HANDLE_VALUE) CloseHandle(file);
+        check(cdx_stat_query(&request, &result) == CDX_FS_OK && result.modification_time_known &&
+              result.modification_time_ns == -315619200000000000LL,
+              "pre-epoch Windows timestamp reports signed nanoseconds");
+        cdx_stat_result_free(&result);
+    }
 #endif
     check(cdx_stat_query(&request, &result) == CDX_FS_OK && result.hidden_known && result.hidden,
           "Unicode space path preserves hidden metadata");
     cdx_stat_result_free(&result);
 #ifndef _WIN32
+    {
+        cdx_path_char child[2048], traversal[2048];
+        struct stat observed;
+        if (join_path(child, dir_path, "child") && join_path(link_path, root, "directory-link") &&
+            join_path(traversal, link_path, "../child") && mkdir(child, 0700) == 0 &&
+            symlink(child, link_path) == 0) {
+            request.path = traversal;
+            check(cdx_stat_query(&request, &result) == CDX_FS_OK && result.kind == CDX_FS_DIRECTORY &&
+                  result.path && strcmp(result.path, traversal) == 0 && lstat(result.path, &observed) == 0 &&
+                  S_ISDIR(observed.st_mode), "stat returned path preserves symlink parent traversal");
+            cdx_stat_result_free(&result);
+            check(unlink(link_path) == 0 && rmdir(child) == 0, "traversal fixtures removed");
+            request.path = file_path;
+        } else check(0, "symlink parent traversal fixture created");
+    }
     {
         const struct timespec times[2] = {{10000000000LL, 123}, {10000000000LL, 456}};
         struct stat observed;

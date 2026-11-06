@@ -6,7 +6,7 @@ The user authorized multiple agents to implement the measured gaps in sequence. 
 
 ## Known 0.3.0 regressions (2026-11-06)
 
-Post-publication review reproduced four 0.3.0 regressions with real fixtures: an absent PATH skips valid explicit candidates on both platforms; Windows stat omits a representable pre-1970 timestamp; POSIX stat can return a normalized path for a different entry after symlink/`..` traversal; physical executable paths lose Python virtual-environment identity. These repairs remain open pending the follow-up patch scope; published 0.3.0 artifacts remain immutable. Three additional automated comments about final-probe deadlines, normalization-error propagation and legacy Windows executable types still require independent reproduction. See HANDOFF.md for the exact cases and receipts.
+Post-publication review reproduced four 0.3.0 regressions with real fixtures: an absent PATH skips valid explicit candidates on both platforms; Windows stat omits a representable pre-1970 timestamp; POSIX stat can return a normalized path for a different entry after symlink/`..` traversal; physical executable paths lose Python virtual-environment identity. The user authorized a 0.3.1 patch; current source repairs all four while preserving published 0.3.0 artifacts. A real DOS fixture additionally reproduces unsupported executable selection. A focused harness injects normalization failures and interruption at the final missing probe, exercising the actual scan implementation. These cases now retain incomplete/error outcomes. See HANDOFF.md for validation and publication gates.
 
 ## Native screenshot gap (2026-11-06)
 

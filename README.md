@@ -4,7 +4,7 @@ Version 0.3.0 adds `stat` and `find_program` to the existing data, discovery and
 
 Windows screenshot support provides native PNG capture for desktop, region, window and foreground targets, plus bounded window discovery. See [capture methods and outcomes](docs/native-screenshot.md). Existing installed connections keep their original tool schema until a new runtime is loaded.
 
-Known 0.3.0 metadata and executable-discovery regressions are recorded in [HANDOFF.md](HANDOFF.md): unset PATH with explicit candidates, Windows pre-1970 timestamps, POSIX symlink/`..` metadata paths and virtual-environment interpreter discovery.
+The 0.3.1 patch repairs unset PATH with explicit candidates, Windows pre-1970 timestamps, POSIX symlink/`..` metadata paths and virtual-environment interpreter discovery. It also retains discovery interruption/errors and rejects legacy Windows executable formats. Validation and publication states are recorded separately in [HANDOFF.md](HANDOFF.md).
 
 The [three-stage roadmap](ROADMAP.md#active-three-stage-program-2026-11-05) and [implementation/acceptance plan](docs/implementation-plan-2026-11-05.zh-CN.md) track local deliveries and later work on task execution, coding/data workflows, and design/office delivery. Remaining stages require their own evidence and acceptance.
 

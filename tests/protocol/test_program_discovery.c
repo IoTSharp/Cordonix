@@ -1,11 +1,11 @@
 #define _POSIX_C_SOURCE 200809L
 #include "cdx/operations.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #ifdef _WIN32
 #include <wchar.h>
 #else
-#include <stdlib.h>
 #include <unistd.h>
 #endif
 
@@ -63,6 +63,16 @@ static void fixture_cases(void) {
     cdx_json_raw(&request, "]}}");
     expect(call(request.data, "\"status\":\"ok\"", "\"checked\":2"),
            "Unicode candidates resolve without execution");
+#ifndef _WIN32
+    {
+        cdx_json_output quoted;
+        cdx_json_output_init(&quoted);
+        cdx_json_quote(&quoted, path, strlen(path));
+        expect(call(request.data, "\"status\":\"ok\"", quoted.data),
+               "symlink launch path retains interpreter identity");
+        cdx_json_output_free(&quoted);
+    }
+#endif
     {
         cdx_json json, response;
         cdx_json_output output;
@@ -82,6 +92,20 @@ static void fixture_cases(void) {
     }
     cdx_json_output_free(&request);
 #ifdef _WIN32
+    {
+        unsigned char dos[128] = {0};
+        FILE *file = NULL;
+        dos[0] = 'M'; dos[1] = 'Z'; dos[2] = 128; dos[4] = 1; dos[8] = 4; dos[24] = 64;
+        ready = !_wfopen_s(&file, fixture, L"wb") && file != NULL;
+        if (ready) { ready = fwrite(dos, 1u, sizeof(dos), file) == sizeof(dos); ready = !fclose(file) && ready; }
+        cdx_json_output_init(&request);
+        cdx_json_raw(&request, "{\"arguments\":{\"name\":\"fixture\",\"search_path\":false,\"candidates\":[");
+        cdx_json_quote(&request, path, strlen(path));
+        cdx_json_raw(&request, "]}}");
+        expect(ready && call(request.data, "\"status\":\"not_found\"", "\"scan_complete\":true"),
+               "legacy DOS executable is excluded from native candidates");
+        cdx_json_output_free(&request);
+    }
     expect(DeleteFileW(fixture) && RemoveDirectoryW(directory), "program fixtures cleaned");
 #else
     expect(unlink(path) == 0 && rmdir(directory) == 0, "program fixtures cleaned");
@@ -174,6 +198,26 @@ int main(void) {
     }
 #endif
     fixture_cases();
+    {
+#ifdef _WIN32
+        DWORD size = GetEnvironmentVariableW(L"PATH", NULL, 0);
+        wchar_t *saved = size ? (wchar_t *)malloc((size_t)size * sizeof(*saved)) : NULL;
+        int ready = !size || (saved && GetEnvironmentVariableW(L"PATH", saved, size) < size);
+        expect(ready && SetEnvironmentVariableW(L"PATH", NULL), "inherited PATH removed for regression");
+        expect(ready && call("{\"arguments\":{\"name\":\"where\",\"candidates\":[\"C:\\\\Windows\\\\System32\\\\where.exe\"]}}",
+                            "\"status\":\"ok\"", "\"checked\":1"), "unset PATH preserves explicit candidate lookup");
+        expect(ready && SetEnvironmentVariableW(L"PATH", saved), "inherited PATH restored");
+#else
+        const char *inherited = getenv("PATH");
+        char *saved = inherited ? strdup(inherited) : NULL;
+        int ready = !inherited || saved != NULL;
+        expect(ready && unsetenv("PATH") == 0, "inherited PATH removed for regression");
+        expect(ready && call("{\"arguments\":{\"name\":\"sh\",\"candidates\":[\"/bin/sh\"]}}",
+                            "\"status\":\"ok\"", "\"checked\":1"), "unset PATH preserves explicit candidate lookup");
+        expect(ready && (saved ? setenv("PATH", saved, 1) : unsetenv("PATH")) == 0, "inherited PATH restored");
+#endif
+        free(saved);
+    }
     (void)printf("program discovery checks: %d, failures: %d\n", checks, failures);
     return failures ? 1 : 0;
 }

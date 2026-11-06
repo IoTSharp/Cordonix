@@ -65,13 +65,15 @@ void cdx_stat_platform_query(const cdx_stat_request *request, cdx_stat_result *r
         result->native_error = native_error;
         return;
     }
+    /* The normalizer allocates input length + 1; keep .. traversal through links. */
+    memcpy(normalized, request->path, strlen(request->path) + 1u);
     result->path = normalized;
     if (stopped(request->cancellation, deadline)) {
         result->status = request->cancellation && atomic_load(request->cancellation) ? CDX_FS_CANCELLED : CDX_FS_TIMED_OUT;
         result->native_error = result->status == CDX_FS_CANCELLED ? ECANCELED : ETIMEDOUT;
         return;
     }
-    /* lstat keeps the lexical path and reports a link itself instead of following it. */
+    /* The final link itself is queried; intermediate links retain POSIX traversal. */
     if (lstat(request->path, &metadata)) {
         result->status = status_from_error(errno);
         result->native_error = (unsigned long)errno;

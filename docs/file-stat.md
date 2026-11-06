@@ -1,6 +1,6 @@
 # File metadata with `stat`
 
-The `stat` tool reads metadata for one absolute path without changing the filesystem. It preserves the normalized path in both successful and missing-path responses.
+The `stat` tool reads metadata for one absolute path without changing the filesystem. Both successful and missing-path responses retain path context. POSIX returns the supplied absolute spelling, including dot segments, so the returned path identifies the entry actually queried through intermediate symbolic links. Windows returns its normalized path.
 
 Arguments:
 
@@ -16,7 +16,7 @@ A successful response reports:
 - `creation_time_ns`, `access_time_ns`, `modification_time_ns`: signed Unix epoch nanoseconds, with null for unavailable or unrepresentable values. JSON uses nullability for these fields; the C API has separate known flags. Preserve integer precision when parsing them.
 - `time_precision_ns`: native timestamp representation unit, 1 on POSIX and 100 on Windows. This does not measure the underlying filesystem's effective resolution or clock accuracy.
 
-POSIX uses `lstat`, so a symbolic link is reported as a link and its final target is not followed. Windows classifies all reparse-point entries as `link` and omits their timestamps. Intermediate path components retain platform traversal behavior. A missing entry returns `status:"not_found"` with the normalized `path` when normalization succeeded. Timeout and cancellation remain distinct from an I/O failure. Synchronous filesystem calls can block; the deadline is checked between calls and MCP uses its owned cancellable worker.
+POSIX uses `lstat`, so a symbolic link is reported as a link and its final target is not followed. Windows classifies all reparse-point entries as `link` and omits their timestamps. Representable Windows timestamps before 1970 use negative Unix nanoseconds. Intermediate path components retain platform traversal behavior. A missing entry returns `status:"not_found"` with `path` when validation succeeded. Timeout and cancellation remain distinct from an I/O failure. Synchronous filesystem calls can block; the deadline is checked between calls and MCP uses its owned cancellable worker.
 
 Example:
 
