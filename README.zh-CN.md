@@ -1,8 +1,10 @@
 # Cordonix
 
-0.3.0 候选版新增 `stat` 和 `find_program`，接入既有数据查询、发现和文件操作能力，MCP 共 34 个工具。先看[工具选择与客户端发现指南](docs/mcp-tool-guide.md)，再看[缺口实施与验收](docs/capability-gaps-20261106.zh-CN.md)、[数据查询](docs/data-query.md)、[文件元数据](docs/file-stat.md)、[程序发现](docs/program-discovery.md)、[文件发现](docs/file-discovery.md)和[文件操作](docs/file-operations.md)。
+0.3.0 新增 `stat` 和 `find_program`，接入既有数据查询、发现和文件操作能力，MCP 共 34 个工具。先看[工具选择与客户端发现指南](docs/mcp-tool-guide.md)，再看[缺口实施与验收](docs/capability-gaps-20261106.zh-CN.md)、[数据查询](docs/data-query.md)、[文件元数据](docs/file-stat.md)、[程序发现](docs/program-discovery.md)、[文件发现](docs/file-discovery.md)和[文件操作](docs/file-operations.md)。
 
 Windows 原生 `screenshot` 提供桌面、区域、指定窗口和前台窗口 PNG 截图，以及有界窗口列表。参见[截图方法与结果边界](docs/native-screenshot.md)。已有安装版连接需要加载新运行时后才会显示新增工具。
+
+0.3.0 已确认的元数据与程序发现问题见 [HANDOFF.md](HANDOFF.md)：未设置 PATH 时的显式候选、Windows 1970 年前时间、POSIX 符号链接/`..` 元数据路径及虚拟环境解释器发现。
 
 后续工作见[三阶段路线图](ROADMAP.md#active-three-stage-program-2026-11-05)和[实施与验收计划](docs/implementation-plan-2026-11-05.zh-CN.md)：依次改善上下文成本、编程与数据任务、设计与办公交付。每项以实际需求和验证结果决定取舍；计划不代表功能已经可用。
 
@@ -18,7 +20,7 @@ Windows 原生 `screenshot` 提供桌面、区域、指定窗口和前台窗口 
 
 WinGet 发行正在以 `IoTSharp.Cordonix` 提交收录；安装边界、入库状态和新版本自动提交 PR 的流程见 [WinGet 说明](docs/winget.md)。
 
-已验收发行版：[GitHub v0.1.0](https://github.com/IoTSharp/Cordonix/releases/tag/v0.1.0) / [Gitee v0.1.0](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.1.0)。两端 12 个上传附件的 SHA-256 完全一致，精确标签 OIDC 签名及篡改负例验证均通过。下载的两平台程序均报告 0.1.0、干净发行源码及全部 24 个 MCP 工具；公开 Windows 包另通过 108 项真实协议检查。本次证据见 [HANDOFF.md](HANDOFF.md)，早期客户端安装验收保留在[历史清单](docs/successor-acceptance.md)。
+已验收发行版：[GitHub v0.3.0](https://github.com/IoTSharp/Cordonix/releases/tag/v0.3.0) / [Gitee v0.3.0](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.3.0)，干净发行源码为 `5b43630`。两端 12 个上传附件的 SHA-256 完全一致，四份原始压缩包通过精确标签 OIDC 验签，四份篡改副本均被拒绝。下载的 Windows/Linux 程序均提供全部 34 个 MCP 工具，分别通过 165/166 项真实协议检查。本次证据见 [HANDOFF.md](HANDOFF.md)；安装版客户端采用单独验收，v0.2.0 附件保持不变。
 
 
 **面向 AI 编程代理的原生执行与内存工作区。**
@@ -59,7 +61,7 @@ Git、ripgrep、编译器和 Codex 的 `apply_patch` 仍是配套工具。Cordon
 | 原生 SSH 客户端 | Windows 实际回环 SSH 协议 27/27；ASan 客户端再次通过；libssh2 静态链接 CNG | 实际部署跳板验收 NOT_RUN；Linux SSH NOT_SUPPORTED；当前后端不支持 Ed25519 |
 | 新文本文件 | 两平台各 20 项原生检查，以及 8 项共享 MCP 检查 | 已有路径不覆盖，父目录必须存在 |
 | Linux | 既有 CI 证据包含 276 项完整检查（含 Git/rg 适配器）；10 月 31 日 WSL 重跑通过 102 项 MCP、17/17 项 Git 适配器，因本机没有原生 rg 将 rg 标记为 `NOT_RUN` | Linux Codex 模型调用仍需认证。ACL/xattr 不支持，多发行版和更长时段仍单独验收 |
-| Windows/Linux 便携包 | v0.1.0 ZIP/tar.gz、校验和、干净构建 revision、官方 SPDX 验证及独立验签的 OIDC provenance | Windows Authenticode 与更广目标环境另行验收；已发布标签和附件保持不可变 |
+| Windows/Linux 便携包 | v0.3.0 ZIP/tar.gz、校验和、干净构建 revision、官方 SPDX 验证及独立验签的 OIDC provenance | Windows Authenticode 与更广目标环境另行验收；已发布标签和附件保持不可变 |
 
 上述结果是本地验证，不是性能基准，也不代表不会发生错误。各项验收边界见[质量门禁](docs/quality-gates.md)。
 
