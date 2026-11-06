@@ -4,6 +4,8 @@ Version 0.3.0 adds `stat` and `find_program` to the existing data, discovery and
 
 Windows screenshot support provides native PNG capture for desktop, region, window and foreground targets, plus bounded window discovery. See [capture methods and outcomes](docs/native-screenshot.md). Existing installed connections keep their original tool schema until a new runtime is loaded.
 
+Known 0.3.0 metadata and executable-discovery regressions are recorded in [HANDOFF.md](HANDOFF.md): unset PATH with explicit candidates, Windows pre-1970 timestamps, POSIX symlink/`..` metadata paths and virtual-environment interpreter discovery.
+
 The [three-stage roadmap](ROADMAP.md#active-three-stage-program-2026-11-05) and [implementation/acceptance plan](docs/implementation-plan-2026-11-05.zh-CN.md) track local deliveries and later work on task execution, coding/data workflows, and design/office delivery. Remaining stages require their own evidence and acceptance.
 
 Version 0.2.0 also includes native `create_directory` and bounded sequential `read_files` on Windows/Linux. HTTP adds optional `representation=both|text|base64`, retaining `both` by default and preserving raw Base64 when text decoding fails. See [batch read limits](docs/batch-read.md), [HTTP representation](docs/native-http.md) and the [MCP compatibility audit](docs/mcp-compatibility.md). Release publication and installed-client adoption have separate evidence in HANDOFF.md.

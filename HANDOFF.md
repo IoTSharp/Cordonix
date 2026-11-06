@@ -17,7 +17,18 @@ Releases: [GitHub v0.3.0](https://github.com/IoTSharp/Cordonix/releases/tag/v0.3
 
 The first two Gitee upload attempts timed out after 30 seconds. State readback confirmed nine uploaded assets and three missing Windows files. A bounded local recovery used the user's existing `maikebing` GCM credential in process memory, checked the release/tag/commit and downloaded GitHub hashes, then uploaded only the missing original files without replacement. The final CI attempt read back the complete release and passed. A local form-token attempt failed before publication; subsequent release readback preceded the successful header-authenticated upload. Failure logs remain available; no release was rebuilt or retagged.
 
-Ignored receipts remain under `build/capability-gaps-next/`: `acceptance-local.json`, `release-readback/receipt.json`, `release-signature-v0.3.0.json`, `windows-public-info.json`, `linux-public-info.json` and `linux-public-mcp.log`. The connected desktop session remains 0.2.0; no shared runtime was replaced. Fresh desktop adoption, Windows Authenticode, broader deployments and unmeasured token/cost/RSS/physical-IO claims retain their separate status. This documentation follow-up records completed publication after the immutable release tag.
+Ignored receipts remain under `build/capability-gaps-next/`: `acceptance-local.json`, `acceptance-release.json`, `release-readback/receipt.json`, `release-signature-v0.3.0.json`, `windows-public-info.json`, `linux-public-info.json` and `linux-public-mcp.log`. The connected desktop session remains 0.2.0; no shared runtime was replaced. Fresh desktop adoption, Windows Authenticode, broader deployments and unmeasured token/cost/RSS/physical-IO claims retain their separate status. This documentation follow-up records completed publication after the immutable release tag.
+
+### Confirmed 0.3.0 regressions found after publication
+
+The automated review on PR #1 prompted independent checks against the downloaded clean release binaries. The publication and cryptographic gates above remain PASS; they do not close these behavior defects:
+
+- Both platforms: removing inherited PATH and supplying the existing absolute `cdx` candidate returns `io_error`, `checked:0`; explicit candidates are skipped. A missing PATH should act as an empty inherited search list.
+- Windows: a real file's modification time was set and read back as `1960-01-01T00:00:00Z`; `stat` reports `modification_time_ns:null` although `-315619200000000000` is representable by its signed-epoch contract.
+- POSIX: with `a/link -> b/child`, querying `a/link/../file` reports path `a/file` but the metadata of `b/file`. The real fixture returns size 15 while the returned path identifies a size-1 file.
+- POSIX: discovering a real venv's symlinked `bin/python3` selects `/usr/bin/python3.12`; launching that result changes `sys.prefix` from the venv to `/usr`. Physical-path output follows the current schema but breaks the discovery-to-launch workflow for that interpreter.
+
+Linux reproductions and all inputs are retained in `review-repro-linux.json` and the isolated ext4 `build/review-repro-v0.3.0/`; Windows uses `review-no-path.json`, `review-pre-epoch.json`, `review-pre-epoch.txt` and `review-set-time.ps1`. The combined result is `known-regressions.json`. Final-probe cancellation/deadline, normalization-error propagation and native-versus-legacy Windows executable-type comments remain unverified. No fix or v0.3.1 release is claimed; the user was asked whether to add that patch release beyond the specified v0.3.0 delivery. Published tags and attachments remain unchanged.
 
 ### 0.3.0 local acceptance and delivery candidate
 
