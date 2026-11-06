@@ -1,4 +1,5 @@
 #!/bin/sh
+# Cordonix updater generation: 3
 set -eu
 
 command -v python3 >/dev/null 2>&1 || { echo 'Python 3 is required by the installer; the cdx runtime itself does not require Python.' >&2; exit 2; }
@@ -7,6 +8,7 @@ script_path=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/$(basename -- "$0")
 exec timeout --kill-after=5s 180s python3 - "$script_path" "$@" <<'PY'
 import argparse
 import datetime
+import fcntl
 import hashlib
 import json
 import os
@@ -27,6 +29,9 @@ import urllib.request
 SCRIPT = Path(sys.argv[1])
 START = time.monotonic()
 DEADLINE = START + 170
+UPDATE_LOCK = None
+ATTEMPT_PATH = None
+SOURCE_DEADLINE = DEADLINE
 STABLE = re.compile(r"^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 GITHUB = "https://api.github.com/repos/IoTSharp/Cordonix/releases/latest"
 GITEE = "https://gitee.com/api/v5/repos/IoTSharp/Cordonix/releases?page=1&per_page=20"
@@ -62,7 +67,7 @@ def download(url, target, limit, test_http):
     budget()
     check_url(url, test_http)
     request = urllib.request.Request(url, headers={"User-Agent": "Cordonix-installer", "Accept": "application/json, application/octet-stream"})
-    with urllib.request.urlopen(request, timeout=min(20, max(1, DEADLINE - time.monotonic()))) as response:
+    with urllib.request.urlopen(request, timeout=min(20, max(0.1, SOURCE_DEADLINE - time.monotonic()))) as response:
         check_url(response.url, test_http)
         if int(response.headers.get("Content-Length", "0")) > limit:
             raise ValueError("Download exceeds its byte limit")
@@ -113,6 +118,7 @@ def verify_runtime(directory, version, work):
     info = json.loads(run([str(binary), "--request", str(request)]))
     if any(info.get(key) != value for key, value in {"status": "ok", "name": "Cordonix", "version": version, "platform": "linux", "runtime": "C11"}.items()):
         raise ValueError("Downloaded executable tool_info contract does not match")
+    return info
 
 
 def extract_archive(archive, destination):
@@ -186,15 +192,11 @@ def systemd(root, source, mode, definition_only):
             run(["systemctl", "--user", "daemon-reload"], 15)
         return "disabled"
     updater = root / "updater/install.sh"
-    updater.parent.mkdir(parents=True, exist_ok=True)
-    temporary = updater.with_suffix(".new")
-    shutil.copyfile(SCRIPT, temporary)
-    os.replace(temporary, updater)
     def quote(text):
         return '"' + text.replace("\\", "\\\\").replace('"', '\\"').replace("%", "%%").replace("$", "$$") + '"'
     marker = "# Cordonix installer: " + str(root) + "\n"
-    service = marker + "[Unit]\nDescription=Check and update Cordonix for this user\n[Service]\nType=oneshot\nTimeoutStartSec=190\nKillMode=control-group\nExecStart=/bin/sh " + quote(str(updater)) + " --root " + quote(str(root)) + " --source " + source + "\n"
-    timer = marker + "[Unit]\nDescription=Check Cordonix releases hourly\n[Timer]\nOnBootSec=5min\nOnUnitActiveSec=1h\nPersistent=true\n[Install]\nWantedBy=timers.target\n"
+    service = marker + "[Unit]\nDescription=Check and update Cordonix for this user\n[Service]\nType=oneshot\nTimeoutStartSec=190\nKillMode=control-group\nExecStart=/bin/sh " + quote(str(updater)) + " --root " + quote(str(root)) + " --automatic\n"
+    timer = marker + "[Unit]\nDescription=Check Cordonix releases daily\n[Timer]\nOnBootSec=5min\nOnUnitActiveSec=1d\nPersistent=true\n[Install]\nWantedBy=timers.target\n"
     directory.mkdir(parents=True, exist_ok=True)
     for suffix, text in ((".service", service), (".timer", timer)):
         path = directory / (unit + suffix)
@@ -213,6 +215,7 @@ def systemd(root, source, mode, definition_only):
 
 
 def main():
+    global DEADLINE, SOURCE_DEADLINE, UPDATE_LOCK, ATTEMPT_PATH
     parser = argparse.ArgumentParser(description="Install/update Cordonix Linux x64 using Python 3 standard library and GNU timeout")
     parser.add_argument("--root", default=str(Path.home() / ".local/opt/cordonix"))
     parser.add_argument("--source", choices=("auto", "github", "gitee"), default="auto")
@@ -221,10 +224,16 @@ def main():
     schedule.add_argument("--enable-auto-update", action="store_true")
     schedule.add_argument("--disable-auto-update", action="store_true")
     parser.add_argument("--schedule-dry-run", action="store_true", help="Write isolated unit definitions under the install root without registering a user timer")
+    parser.add_argument("--automatic", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--startup-check", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--time-budget", type=int, default=170, help=argparse.SUPPRESS)
     parser.add_argument("--github-api", default=GITHUB, help=argparse.SUPPRESS)
     parser.add_argument("--gitee-api", default=GITEE, help=argparse.SUPPRESS)
     parser.add_argument("--allow-test-http", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(sys.argv[2:])
+    if not 1 <= args.time_budget <= 170:
+        raise ValueError("Time budget must be between 1 and 170 seconds")
+    DEADLINE = START + args.time_budget
     if args.check and (args.enable_auto_update or args.disable_auto_update):
         raise ValueError("--check cannot change the auto-update schedule")
     if sys.platform != "linux" or platform.machine() not in ("x86_64", "amd64"):
@@ -235,8 +244,40 @@ def main():
     if root == Path("/"):
         raise ValueError("Install root must be a dedicated directory")
     root.mkdir(parents=True, exist_ok=True)
+    settings_path = root / "update-settings.json"
+    attempt_path = root / "last-update-check.json"
+    settings = json.loads(settings_path.read_text(encoding="utf-8")) if settings_path.exists() else {"enabled": True, "source": args.source, "github_api": args.github_api, "gitee_api": args.gitee_api, "allow_test_http": args.allow_test_http, "proxy_env": {key: os.environ[key] for key in ("HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "no_proxy") if key in os.environ}}
+    if args.automatic:
+        if not settings["enabled"]:
+            return {"status": "PASS", "operation": "auto_update_disabled"}, 0
+        args.source = settings["source"]
+        args.github_api = settings["github_api"]
+        args.gitee_api = settings["gitee_api"]
+        args.allow_test_http = settings["allow_test_http"]
+        os.environ.update(settings["proxy_env"])
+    if not args.check:
+        UPDATE_LOCK = (root / ".update.lock").open("a")
+        try:
+            fcntl.flock(UPDATE_LOCK, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            if args.automatic:
+                return {"status": "PASS", "operation": "update_in_progress"}, 0
+            raise RuntimeError("Another updater owns this installation")
+        if args.automatic and args.startup_check and attempt_path.exists():
+            last = json.loads(attempt_path.read_text(encoding="utf-8"))
+            if time.localtime(last["checked_unix"])[:3] == time.localtime()[:3]:
+                return {"status": "PASS", "operation": "check_throttled"}, 0
     if args.disable_auto_update:
+        settings["enabled"] = False
+        atomic_json(settings_path, settings)
         return {"status": "PASS", "operation": "disable_auto_update", "auto_update": systemd(root, args.source, "disable", args.schedule_dry_run)}, 0
+    if args.enable_auto_update:
+        settings["enabled"] = True
+    if not args.automatic and not args.check:
+        settings.update(source=args.source, github_api=args.github_api, gitee_api=args.gitee_api, allow_test_http=args.allow_test_http)
+    if not args.check:
+        ATTEMPT_PATH = attempt_path
+        atomic_json(attempt_path, {"status": "checking", "checked_unix": time.time()})
     current = root / "current"
     if current.exists() and not current.is_symlink():
         raise ValueError("The current installation entry must be an installer-managed symlink")
@@ -247,12 +288,13 @@ def main():
         if report != "Cordonix cdx " + previous or version_tuple("v" + previous) is None:
             raise ValueError("Current installation has an unknown version")
     sources = ("github", "gitee") if args.source == "auto" else (args.source,)
-    receipt = {"status": "PASS", "operation": "install", "source": "none", "previous_version": previous, "config_updated": False, "auto_update": "not_enabled", "command": str(current / "cdx")}
+    receipt = {"status": "PASS", "operation": "install", "source": "none", "previous_version": previous, "config_updated": False, "auto_update": "disabled" if not settings["enabled"] else "daily_startup", "command": str(root / "launch.sh")}
     with tempfile.TemporaryDirectory(prefix=".install-", dir=root) as temporary:
         work = Path(temporary)
         failures = []
         for source in sources:
             try:
+                SOURCE_DEADLINE = time.monotonic() + (DEADLINE - time.monotonic()) / 2 if args.automatic and args.source == "auto" and source == "github" else DEADLINE
                 endpoint = args.github_api if source == "github" else args.gitee_api
                 download(endpoint, work / "release.json", 1048576, args.allow_test_http)
                 version, asset, urls = release_candidate(json.loads((work / "release.json").read_text(encoding="utf-8")))
@@ -281,7 +323,8 @@ def main():
                 payload = work / "payload"
                 payload.mkdir()
                 extract_archive(work / asset, payload)
-                verify_runtime(payload, version, work)
+                info = verify_runtime(payload, version, work)
+                settings['supports_checkupgrade'] = info.get('update_command') == '--checkupgrade'
                 destination = root / "versions" / version
                 destination.parent.mkdir(exist_ok=True)
                 if destination.exists():
@@ -303,18 +346,87 @@ def main():
         else:
             raise RuntimeError("No source completed installation: " + "; ".join(failures))
         receipt["fallback_reasons"] = failures
-        if args.enable_auto_update:
-            if args.allow_test_http and not args.schedule_dry_run:
-                raise ValueError("Test HTTP endpoints cannot be registered for automatic updates")
+        if not args.check:
+            updater = root / "updater/install.sh"
+            updater.parent.mkdir(parents=True, exist_ok=True)
+            updater_text = SCRIPT.read_text(encoding="utf-8")
+            for packaged in (current / "install/install.sh", updater):
+                if packaged.is_file():
+                    packaged_text = packaged.read_text(encoding="utf-8")
+                    pattern = r"(?m)^# Cordonix updater generation: ([0-9]+)$"
+                    generation = re.search(pattern, updater_text)
+                    packaged_generation = re.search(pattern, packaged_text)
+                    if packaged_generation and int(packaged_generation[1]) > int(generation[1]):
+                        updater_text = packaged_text
+            temporary_updater = updater.with_suffix(".new")
+            temporary_updater.write_text(updater_text, encoding="utf-8")
+            os.replace(temporary_updater, updater)
+            python_updater = updater.with_suffix('.py')
+            python_source = updater_text.split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+            temporary_python = python_updater.with_suffix('.new')
+            temporary_python.write_text(python_source, encoding='utf-8')
+            os.replace(temporary_python, python_updater)
+            launcher = root / "launch.sh"
+            temporary_launcher = launcher.with_suffix(".new")
+            temporary_launcher.write_text('''#!/bin/sh
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+python3 - "$root" <<'LAUNCH' || :
+import fcntl, json, os, subprocess, sys, time
+from pathlib import Path
+root = Path(sys.argv[1])
+try:
+    settings = json.loads((root / "update-settings.json").read_text(encoding="utf-8"))
+    if settings["enabled"]:
+        with (root / ".update-launch.lock").open("a") as lease:
+            fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            due = True
+            for name, key in (("last-update-check.json", "checked_unix"), ("last-update-launch.json", "started_unix")):
+                path = root / name
+                if path.exists() and time.localtime(json.loads(path.read_text(encoding="utf-8"))[key])[:3] == time.localtime()[:3]:
+                    due = False
+            if due:
+                arguments = [str(root / "current/cdx"), "--checkupgrade"] if settings.get("supports_checkupgrade") else ["/bin/sh", str(root / "updater/install.sh"), "--root", str(root), "--automatic", "--startup-check"]
+                with (root / "upgrade-worker.stdout.json").open("wb") as output, (root / "upgrade-worker.stderr.log").open("wb") as errors:
+                    worker = subprocess.Popen(arguments, stdin=subprocess.DEVNULL, stdout=output, stderr=errors, start_new_session=True)
+                audit = {"pid": worker.pid, "parent_pid": os.getpid(), "started_unix": time.time(), "arguments": arguments}
+                stat = Path("/proc") / str(worker.pid) / "stat"
+                try:
+                    audit["start_ticks"] = stat.read_text().rsplit(") ", 1)[1].split()[19]
+                except (FileNotFoundError, ProcessLookupError):
+                    audit["start_ticks"] = None
+                temporary = root / "last-update-launch.new"
+                temporary.write_text(json.dumps(audit), encoding="utf-8")
+                os.replace(temporary, root / "last-update-launch.json")
+except (OSError, ValueError, KeyError) as error:
+    print("Cordonix background update check could not start: " + str(error), file=sys.stderr)
+LAUNCH
+exec "$root/current/cdx" "$@"
+''', encoding="utf-8")
+            temporary_launcher.chmod(0o755)
+            os.replace(temporary_launcher, launcher)
+            atomic_json(settings_path, settings)
+            atomic_json(root / 'update-request.json', {"operation": "execute_program", "arguments": {"program": sys.executable, "args": [str(python_updater), str(updater), "--root", str(root), "--automatic", "--startup-check"], "cwd": str(root), "timeout_ms": 180000, "output_limit_bytes": 262144, "expected_exit_codes": [0]}})
+        if args.enable_auto_update and settings["enabled"] and not args.automatic and not args.check:
             try:
+                if args.allow_test_http and not args.schedule_dry_run:
+                    raise RuntimeError("Test HTTP endpoints cannot be registered for automatic updates")
                 receipt["auto_update"] = systemd(root, args.source, "enable", args.schedule_dry_run)
             except (OSError, RuntimeError, subprocess.SubprocessError) as error:
-                receipt.update(status="FAIL", auto_update="UNKNOWN", auto_update_error=str(error))
+                receipt.update(auto_update="startup_fallback", schedule_registration="FAIL", auto_update_error=str(error))
         if not args.check:
+            receipt.update(auto_update_enabled=settings["enabled"], checked_unix=time.time())
+            atomic_json(attempt_path, receipt)
             saved = work / "receipt.json"
             saved.write_text(json.dumps(receipt, ensure_ascii=False) + "\n", encoding="utf-8")
             os.replace(saved, root / "install-receipt.json")
     return receipt, 0 if receipt["status"] == "PASS" else 1
+
+
+def atomic_json(path, value):
+    temporary = path.with_suffix(".new")
+    temporary.write_text(json.dumps(value, ensure_ascii=False) + "\n", encoding="utf-8")
+    os.replace(temporary, path)
 
 
 try:
@@ -323,6 +435,11 @@ except InterruptedError as error:
     result, code = {"status": "UNKNOWN", "operation": "cancelled", "error": str(error), "config_updated": False}, 130
 except (OSError, ValueError, RuntimeError, EOFError, subprocess.SubprocessError, tarfile.TarError) as error:
     result, code = {"status": "FAIL", "error": str(error), "config_updated": False}, 1
+    if ATTEMPT_PATH is not None:
+        atomic_json(ATTEMPT_PATH, dict(result, checked_unix=time.time()))
+finally:
+    if UPDATE_LOCK is not None:
+        UPDATE_LOCK.close()
 print(json.dumps(result, ensure_ascii=False))
 sys.exit(code)
 PY

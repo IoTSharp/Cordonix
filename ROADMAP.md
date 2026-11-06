@@ -1,5 +1,9 @@
 # Cordonix Roadmap
 
+## Automatic update triggering (2026-11-07)
+
+The user reported stale installations, authorized installation and requested a separate `cdx --checkupgrade` instance on the first startup each day. Windows/Linux now provide that native command and advertise `tool_info.update_command`; stable launchers claim the local calendar day and start a bounded background worker while the main runtime continues. Daily startup is enabled by default without a scheduler, explicit opt-out persists, and optional legacy enable flags can add daily backup tasks. Future package gates must exercise the native command. This machine now has clean formal 0.3.1, a migrated launcher and a fresh 34-tool MCP readback; 0.3.1 uses the script-worker compatibility path until the new native command is published. The failing optional Windows task is disabled; the installed background startup check and same-day suppression pass. HANDOFF.md records gates and the retained active connection. The MCP tool count remains unchanged.
+
 ## Measured capability gaps (2026-11-06)
 
 The user authorized multiple agents to implement the measured gaps in sequence. Release 0.3.0 adds native `stat` (general file metadata) and `find_program` (bounded executable discovery) to the existing JSON/JSONL/CSV `data_query`, rg-backed `find_files`, binary hash and no-replace file operations. The published schema has 34 tools. PR #1 merged at `5b43630`; Windows/Linux CI, tagged publication, all 12 mirrored asset hashes and exact-tag OIDC verification pass. [Scope, measured demand and gates](docs/capability-gaps-20261106.zh-CN.md) distinguish these slices from remaining SQLite, grouped search/context, snapshot cursors, archive, browser, image and Office workflows. HANDOFF.md records the delivery receipts. Installed runtime adoption remains a separate delivery.

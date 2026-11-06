@@ -1,4 +1,5 @@
 #requires -Version 7.0
+# Cordonix updater generation: 3
 [CmdletBinding()]
 param(
     [string]$InstallRoot = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Cordonix'),
@@ -7,6 +8,10 @@ param(
     [switch]$EnableAutoUpdate,
     [switch]$DisableAutoUpdate,
     [switch]$TaskDefinitionOnly,
+    [switch]$ScheduleDryRun,
+    [switch]$Automatic,
+    [switch]$StartupCheck,
+    [ValidateRange(1, 150)][int]$TimeBudgetSeconds = 150,
     [uri]$Proxy,
     [uri]$GitHubApi = 'https://api.github.com/repos/IoTSharp/Cordonix/releases/latest',
     [uri]$GiteeApi = 'https://gitee.com/api/v5/repos/IoTSharp/Cordonix/releases?page=1&per_page=20'
@@ -14,21 +19,24 @@ param(
 
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
-$deadline = [datetime]::UtcNow.AddSeconds(150)
+$deadline = [datetime]::UtcNow.AddSeconds($TimeBudgetSeconds)
 $utf8 = [Text.UTF8Encoding]::new($false, $true)
 $stablePattern = '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
 $taskRoot = $null
 $http = $null
+$updateLock = $null
+$recordAttempt = $false
+$sourceDeadline = $deadline
 
 function Assert-Budget {
-    if ([datetime]::UtcNow -ge $deadline) { throw 'Installation exceeded its 150-second time budget.' }
+    if ([datetime]::UtcNow -ge $deadline) { throw 'Installation exceeded its time budget.' }
 }
 
 function Read-Download {
     param([uri]$Uri, [long]$MaximumBytes, [string]$Path)
     Assert-Budget
     if ($Uri.Scheme -ne 'https' -and -not ($Uri.Scheme -eq 'http' -and $Uri.IsLoopback)) { throw 'Downloads require HTTPS; HTTP is allowed only for loopback tests.' }
-    $remaining = [Math]::Min(20000, [Math]::Max(1, ($deadline - [datetime]::UtcNow).TotalMilliseconds))
+    $remaining = [Math]::Min(20000, [Math]::Max(1, ($sourceDeadline - [datetime]::UtcNow).TotalMilliseconds))
     $cancel = [Threading.CancellationTokenSource]::new([int]$remaining)
     $response = $null; $inputStream = $null; $outputStream = $null
     try {
@@ -76,7 +84,8 @@ function Invoke-InstalledProgram {
         $audit = [ordered]@{ pid = $process.Id; started_utc = $process.StartTime.ToUniversalTime().ToString('o'); parent_pid = $PID; program = $Program; args = $Arguments; cleanup_complete = $false }
         [IO.File]::AppendAllText((Join-Path $taskRoot 'processes.jsonl'), (($audit | ConvertTo-Json -Compress) + "`n"), $utf8)
         $stdout = $process.StandardOutput.ReadToEndAsync(); $stderr = $process.StandardError.ReadToEndAsync()
-        if (-not $process.WaitForExit(10000)) { throw 'Downloaded runtime validation timed out.' }
+        $remaining = [int][Math]::Min(10000, [Math]::Max(1, ($deadline - [datetime]::UtcNow).TotalMilliseconds))
+        if (-not $process.WaitForExit($remaining)) { throw 'Downloaded runtime validation timed out.' }
         if (-not $stdout.Wait(1000) -or -not $stderr.Wait(1000)) { throw 'Downloaded runtime output did not close.' }
         if ($process.ExitCode -ne 0 -or $stdout.Result.Length + $stderr.Result.Length -gt 1048576) { throw 'Downloaded runtime validation failed.' }
         return $stdout.Result.Trim()
@@ -102,18 +111,17 @@ function Write-AtomicText {
 function Get-UpdateTaskXml {
     param([string]$TaskProgram, [string]$UpdaterPath, [string]$Root)
     $escape = { param($Text) [Security.SecurityElement]::Escape($Text) }
-    $arguments = '-NoLogo -NoProfile -NonInteractive -File "' + $UpdaterPath + '" -InstallRoot "' + $Root + '" -Source ' + $Source
-    if ($Proxy) { $arguments += ' -Proxy "' + $Proxy.AbsoluteUri + '"' }
+    $arguments = '-NoLogo -NoProfile -NonInteractive -File "' + $UpdaterPath + '" -InstallRoot "' + $Root + '" -Automatic'
     $user = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
     $boundary = [datetime]::Now.AddMinutes(1).ToString('yyyy-MM-ddTHH:mm:ss')
     return @"
 <?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo><Description>Cordonix user update check; keeps previous versions.</Description></RegistrationInfo>
-  <Triggers><TimeTrigger><Repetition><Interval>PT1H</Interval><StopAtDurationEnd>false</StopAtDurationEnd></Repetition><StartBoundary>$boundary</StartBoundary><Enabled>true</Enabled></TimeTrigger></Triggers>
+  <Triggers><LogonTrigger><UserId>$user</UserId><Delay>PT1M</Delay><Enabled>true</Enabled></LogonTrigger><TimeTrigger><Repetition><Interval>P1D</Interval><StopAtDurationEnd>false</StopAtDurationEnd></Repetition><StartBoundary>$boundary</StartBoundary><Enabled>true</Enabled></TimeTrigger></Triggers>
   <Principals><Principal id="Author"><UserId>$user</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
   <Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><StartWhenAvailable>true</StartWhenAvailable><RunOnlyIfNetworkAvailable>true</RunOnlyIfNetworkAvailable><ExecutionTimeLimit>PT3M</ExecutionTimeLimit><Enabled>true</Enabled></Settings>
-  <Actions Context="Author"><Exec><Command>$(& $escape $TaskProgram)</Command><Arguments>$(& $escape $arguments)</Arguments></Exec></Actions>
+  <Actions Context="Author"><Exec><Command>$(& $escape $TaskProgram)</Command><Arguments>$(& $escape $arguments)</Arguments><WorkingDirectory>$(& $escape $Root)</WorkingDirectory></Exec></Actions>
 </Task>
 "@
 }
@@ -144,7 +152,32 @@ try {
         [ordered]@{ status = 'PASS'; operation = 'task_definition'; task_name = $taskName; task_xml = $taskXml; registered = $false } | ConvertTo-Json -Depth 5
         return
     }
+    $settingsPath = Join-Path $InstallRoot 'update-settings.json'
+    $attemptPath = Join-Path $InstallRoot 'last-update-check.json'
+    $settings = if ([IO.File]::Exists($settingsPath)) { [IO.File]::ReadAllText($settingsPath, $utf8) | ConvertFrom-Json -AsHashtable } else { @{ enabled = $true; source = $Source; proxy = if ($Proxy) { $Proxy.AbsoluteUri } else { $null }; github_api = $GitHubApi.AbsoluteUri; gitee_api = $GiteeApi.AbsoluteUri } }
+    if ($Automatic) {
+        if (-not $settings.enabled) { return }
+        $Source = $settings.source
+        $Proxy = if ($settings.proxy) { [uri]$settings.proxy } else { $null }
+        $GitHubApi = [uri]$settings.github_api
+        $GiteeApi = [uri]$settings.gitee_api
+    }
+    if (-not $CheckOnly) {
+        [void][IO.Directory]::CreateDirectory($InstallRoot)
+        try { $updateLock = [IO.File]::Open((Join-Path $InstallRoot '.update.lock'), [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None) }
+        catch [IO.IOException] { if ($Automatic) { return }; throw }
+        if ($Automatic -and $StartupCheck -and [IO.File]::Exists($attemptPath)) {
+            $last = [IO.File]::ReadAllText($attemptPath, $utf8) | ConvertFrom-Json
+            if (([datetime]$last.checked_utc).ToLocalTime().Date -eq [datetime]::Now.Date) { return }
+        }
+    }
     if ($DisableAutoUpdate) {
+        $settings.enabled = $false
+        Write-AtomicText $settingsPath ($settings | ConvertTo-Json -Compress)
+        if ($ScheduleDryRun) {
+            [ordered]@{ status = 'PASS'; operation = 'disable_auto_update'; registered = $false; schedule = 'NOT_RUN' } | ConvertTo-Json -Compress
+            return
+        }
         $scheduler = New-Object -ComObject 'Schedule.Service'
         $scheduler.Connect(); $folder = $scheduler.GetFolder('\')
         $task = Get-ExistingUpdateTask $folder $taskName
@@ -155,6 +188,17 @@ try {
         }
         [ordered]@{ status = 'PASS'; operation = 'disable_auto_update'; task_name = $taskName; registered = $false } | ConvertTo-Json -Compress
         return
+    }
+    if ($EnableAutoUpdate) { $settings.enabled = $true }
+    if (-not $Automatic -and -not $CheckOnly) {
+        $settings.source = $Source
+        $settings.proxy = if ($Proxy) { $Proxy.AbsoluteUri } else { $null }
+        $settings.github_api = $GitHubApi.AbsoluteUri
+        $settings.gitee_api = $GiteeApi.AbsoluteUri
+    }
+    if (-not $CheckOnly) {
+        $recordAttempt = $true
+        Write-AtomicText $attemptPath (@{ status = 'checking'; checked_utc = [datetime]::UtcNow.ToString('o') } | ConvertTo-Json -Compress)
     }
     $previous = $null
     $currentPath = Join-Path $InstallRoot 'current.json'
@@ -172,6 +216,7 @@ try {
     $sourceErrors = [Collections.Generic.List[string]]::new()
     foreach ($candidate in $sources) {
         try {
+            $sourceDeadline = if ($Automatic -and $Source -eq 'auto' -and $candidate -eq 'github') { [datetime]::UtcNow.AddMilliseconds([Math]::Max(1, ($deadline - [datetime]::UtcNow).TotalMilliseconds / 2)) } else { $deadline }
             $uri = if ($candidate -eq 'github') { $GitHubApi } else { $GiteeApi }
             $releases = @(Read-Download $uri 1048576 | ConvertFrom-Json)
             if ($releases.Count -gt 100) { throw 'Release metadata contains more than 100 releases.' }
@@ -234,8 +279,16 @@ try {
         [void][IO.Directory]::CreateDirectory($versions)
         $versionPath = Join-Path $versions $version
         if ([IO.Directory]::Exists($versionPath)) { throw 'The candidate version directory already exists; inspect it before retrying.' }
-        [IO.Directory]::Move($staging, $versionPath)
-        $state = [ordered]@{ format_version = 1; version = $version; tag = $release.tag_name; source = $selected; asset = $assetName; sha256 = $expectedHash; installed_utc = [datetime]::UtcNow.ToString('o') }
+        for ($publishAttempt = 0; $publishAttempt -lt 6; $publishAttempt++) {
+            Assert-Budget
+            try { [IO.Directory]::Move($staging, $versionPath); break }
+            catch {
+                $cause = $_.Exception.InnerException
+                if ($publishAttempt -eq 5 -or -not $cause -or ($cause.HResult -band 0xffff) -notin @(5, 32) -or -not [IO.Directory]::Exists($staging) -or [IO.Directory]::Exists($versionPath)) { throw }
+                Start-Sleep -Milliseconds 200
+            }
+        }
+        $state = [ordered]@{ format_version = 1; version = $version; tag = $release.tag_name; source = $selected; asset = $assetName; sha256 = $expectedHash; installed_utc = [datetime]::UtcNow.ToString('o'); supports_checkupgrade = $info.update_command -ceq '--checkupgrade' }
         Write-AtomicText $currentPath ($state | ConvertTo-Json -Compress)
     }
     [void][IO.Directory]::CreateDirectory($InstallRoot)
@@ -243,6 +296,36 @@ try {
 #requires -Version 7.0
 param([Parameter(ValueFromRemainingArguments = $true)][string[]]$CdxArguments)
 $ErrorActionPreference = 'Stop'
+function Start-DailyUpgrade {
+    $lease = $null
+    try {
+        $settings = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'update-settings.json')) | ConvertFrom-Json
+        if (-not $settings.enabled) { return }
+        try { $lease = [IO.File]::Open((Join-Path $PSScriptRoot '.update-launch.lock'), [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None) }
+        catch [IO.IOException] { return }
+        foreach ($name in @('last-update-check.json', 'last-update-launch.json')) {
+            $path = Join-Path $PSScriptRoot $name
+            if ([IO.File]::Exists($path)) {
+                $record = [IO.File]::ReadAllText($path) | ConvertFrom-Json
+                $when = if ($name -eq 'last-update-check.json') { $record.checked_utc } else { $record.started_utc }
+                if (([datetime]$when).ToLocalTime().Date -eq [datetime]::Now.Date) { return }
+            }
+        }
+        $pointer = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'current.json')) | ConvertFrom-Json
+        if ($pointer.version -cnotmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') { throw 'Invalid Cordonix current version.' }
+        $program = if ($pointer.supports_checkupgrade) { Join-Path $PSScriptRoot ('versions/' + $pointer.version + '/cdx.exe') } else { Join-Path $PSHOME 'pwsh.exe' }
+        $arguments = if ($pointer.supports_checkupgrade) { '--checkupgrade' } else { '-NoLogo -NoProfile -NonInteractive -File "' + (Join-Path $PSScriptRoot 'update.ps1') + '" -InstallRoot "' + $PSScriptRoot + '" -Automatic -StartupCheck' }
+        $worker = Start-Process -FilePath $program -ArgumentList $arguments -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -PassThru
+        try {
+            $audit = @{ pid = $worker.Id; parent_pid = $PID; started_utc = $worker.StartTime.ToUniversalTime().ToString('o'); program = $program; arguments = $arguments }
+            $temporary = Join-Path $PSScriptRoot 'last-update-launch.new'
+            [IO.File]::WriteAllText($temporary, ($audit | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
+            [IO.File]::Move($temporary, (Join-Path $PSScriptRoot 'last-update-launch.json'), $true)
+        } finally { $worker.Dispose() }
+    } catch { [Console]::Error.WriteLine('Cordonix could not start its background update check; using the installed version.') }
+    finally { if ($lease) { $lease.Dispose() } }
+}
+Start-DailyUpgrade
 $current = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'current.json')) | ConvertFrom-Json
 if ($current.version -cnotmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') { throw 'Invalid Cordonix current version.' }
 $binary = Join-Path $PSScriptRoot ('versions/' + $current.version + '/cdx.exe')
@@ -251,9 +334,26 @@ if (-not $CdxArguments -or $CdxArguments.Count -eq 0) { $CdxArguments = @('--mcp
 exit $LASTEXITCODE
 '@
     Write-AtomicText (Join-Path $InstallRoot 'launch.ps1') $launcher
-    if ([IO.Path]::GetFullPath($PSCommandPath) -ine $updaterPath) { Write-AtomicText $updaterPath ([IO.File]::ReadAllText($PSCommandPath, $utf8)) }
+    $updaterText = [IO.File]::ReadAllText($PSCommandPath, $utf8)
+    $installedVersion = if ($operation -eq 'older_release') { $previous.version } else { $version }
+    $packagedUpdater = Join-Path $InstallRoot ('versions/' + $installedVersion + '/install/install.ps1')
+    foreach ($candidateUpdater in @($packagedUpdater, $updaterPath)) {
+      if ([IO.File]::Exists($candidateUpdater)) {
+        $packagedText = [IO.File]::ReadAllText($candidateUpdater, $utf8)
+        $pattern = '(?m)^# Cordonix updater generation: ([0-9]+)\r?$'
+        $generation = [regex]::Match($updaterText, $pattern)
+        $packagedGeneration = [regex]::Match($packagedText, $pattern)
+        if ($packagedGeneration.Success -and [int]$packagedGeneration.Groups[1].Value -gt [int]$generation.Groups[1].Value) { $updaterText = $packagedText }
+      }
+    }
+    Write-AtomicText $updaterPath $updaterText
+    Write-AtomicText $settingsPath ($settings | ConvertTo-Json -Compress)
+    $updateRequest = @{ operation = 'execute_program'; arguments = @{ program = $taskProgram; args = @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', $updaterPath, '-InstallRoot', $InstallRoot, '-Automatic', '-StartupCheck'); cwd = $InstallRoot; timeout_ms = 170000; output_limit_bytes = 262144; expected_exit_codes = @(0) } }
+    Write-AtomicText (Join-Path $InstallRoot 'update-request.json') ($updateRequest | ConvertTo-Json -Depth 5 -Compress)
     $registered = $false
-    if ($EnableAutoUpdate) {
+    $scheduleError = $null
+    if ($EnableAutoUpdate -and $settings.enabled -and -not $Automatic -and -not $ScheduleDryRun) {
+      try {
         if ($GitHubApi.IsLoopback -or $GiteeApi.IsLoopback) { throw 'Loopback test sources cannot be registered for unattended updates.' }
         $scheduler = New-Object -ComObject 'Schedule.Service'
         $scheduler.Connect(); $folder = $scheduler.GetFolder('\')
@@ -264,9 +364,16 @@ exit $LASTEXITCODE
         }
         [void]$folder.RegisterTask($taskName, $taskXml, 6, $null, $null, 3)
         $registered = $true
+      } catch { $scheduleError = $_.Exception.Message }
     }
-    [ordered]@{ status = 'PASS'; operation = $operation; source = $selected; tag = $release.tag_name; previous_version = $previous.version; installed_version = if ($operation -eq 'older_release') { $previous.version } else { $version }; install_root = $InstallRoot; launcher = Join-Path $InstallRoot 'launch.ps1'; task_name = $taskName; auto_update_registered = $registered; config_updated = $false; source_errors = @($sourceErrors) } | ConvertTo-Json -Depth 5
+    $receipt = [ordered]@{ status = 'PASS'; operation = $operation; source = $selected; tag = $release.tag_name; previous_version = $previous.version; installed_version = $installedVersion; install_root = $InstallRoot; launcher = Join-Path $InstallRoot 'launch.ps1'; task_name = $taskName; auto_update_enabled = [bool]$settings.enabled; auto_update_registered = $registered; schedule_error = $scheduleError; schedule_registration = if ($Automatic -or $ScheduleDryRun) { 'NOT_RUN' } elseif ($registered) { 'PASS' } elseif ($scheduleError) { 'FAIL' } else { 'not_requested' }; config_updated = $false; source_errors = @($sourceErrors); checked_utc = [datetime]::UtcNow.ToString('o') }
+    Write-AtomicText $attemptPath ($receipt | ConvertTo-Json -Depth 5 -Compress)
+    $receipt | ConvertTo-Json -Depth 5
+} catch {
+    if ($recordAttempt) { Write-AtomicText $attemptPath (@{ status = 'FAIL'; checked_utc = [datetime]::UtcNow.ToString('o'); error = $_.Exception.Message } | ConvertTo-Json -Compress) }
+    throw
 } finally {
+    if ($updateLock) { $updateLock.Dispose() }
     if ($http) { $http.Dispose() }
     if ($taskRoot -and [IO.Path]::GetFullPath($taskRoot).StartsWith($InstallRoot + '\.install-', [StringComparison]::OrdinalIgnoreCase) -and [IO.Directory]::Exists($taskRoot)) { Remove-Item -LiteralPath $taskRoot -Recurse -Force }
 }

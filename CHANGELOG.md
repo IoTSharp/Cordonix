@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added native `cdx --checkupgrade [--install-root absolute-directory]` and `tool_info.update_command` on Windows/Linux. Stable launchers start a separate background instance on the first launch of each local calendar day, retain the main process and preserve explicit opt-out. Installed 0.3.1 uses the existing updater-script compatibility path until the native command is published.
+- Made daily startup checks the default without requiring a scheduler; legacy explicit enable flags can additionally register daily backup tasks. Added shared updater ownership, persisted source/proxy settings, worker identity and last-attempt receipts. GitHub remains preferred with a reserved Gitee request budget. Confirmed Windows directory-publication access/sharing failures receive a bounded retry only while the source remains and the destination is absent.
+- Adopt newer updater generations from verified release packages. Documented one-time migration for existing installations, portable/package-manager boundaries and current-session versus next-start adoption. Extended real installer/launcher fixtures on both platforms.
+- Require future Windows/Linux portable packages to advertise and execute the native update command with real process cleanup. Linux generates its Python updater from the shell installer source, retaining the process core's shell prohibition.
+
 ## 0.3.1 - 2026-11-06
 
 - Published from clean source `0c50aab` on GitHub and Gitee after Windows/Linux CI and tagged gates. All 12 uploaded assets match across hosts; four original archives pass exact-tag OIDC verification and four altered copies are rejected. Downloaded binaries pass 165 Windows / 166 Linux MCP checks and real patch regressions. Published 0.3.0/0.2.0 tags and GitHub asset metadata remain unchanged. Automatic WinGet submission #472267 remains a separate upstream validation and review gate.

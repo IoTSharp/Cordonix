@@ -4,6 +4,7 @@
 #include "cdx/version.h"
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <poll.h>
 #include <pthread.h>
 #include <signal.h>
@@ -344,13 +345,13 @@ done:
     return atomic_load(&output_failed) ? 1 : result;
 }
 
-static int run_request(const char *path) {
+static int run_request(const char *path, int upgrade) {
     FILE *file = fopen(path, "rb");
     char *data;
     size_t length;
     cdx_json json;
     cdx_json_output output;
-    int name, arguments;
+    int name, arguments, result = 0;
     if (!file) return 2;
     data = (char *)malloc(INPUT_LIMIT + 1u);
     if (!data) { (void)fclose(file); return 1; }
@@ -361,13 +362,46 @@ static int run_request(const char *path) {
     name = cdx_json_get(&json, 0, "operation");
     arguments = cdx_json_get(&json, 0, "arguments");
     if (name < 0 || json.nodes[name].type != CDX_JSON_STRING) { cdx_json_free(&json); return 2; }
+    if (upgrade && strcmp(json.nodes[name].string, "execute_program")) { cdx_json_free(&json); return 2; }
     cdx_json_output_init(&output);
     cdx_call(json.nodes[name].string, &json, arguments, &request_cancel, &output);
+    if (upgrade) {
+        cdx_json response;
+        result = !cdx_json_parse(&response, output.data, output.size) ||
+            !string_node(&response, cdx_json_get(&response, 0, "status"), "completed");
+        cdx_json_free(&response);
+    }
     send_output(&output);
     cdx_json_output_free(&output);
     cdx_json_free(&json);
     cdx_workspace_clear();
-    return atomic_load(&output_failed) ? 1 : 0;
+    return atomic_load(&output_failed) ? 1 : result;
+}
+
+static int check_upgrade(const char *root) {
+    char path[PATH_MAX], *part;
+    ssize_t length;
+    size_t used;
+    if (root) {
+        used = strlen(root);
+        if (root[0] != '/' || used + sizeof("/update-request.json") > sizeof(path)) return 2;
+        memcpy(path, root, used + 1u);
+    } else {
+        length = readlink("/proc/self/exe", path, sizeof(path) - 1u);
+        if (length <= 0 || (size_t)length >= sizeof(path) - 1u) return 2;
+        path[length] = '\0';
+        part = strrchr(path, '/'); if (!part) return 2; *part = '\0';
+        part = strrchr(path, '/'); if (!part) return 2; *part = '\0';
+        part = strrchr(path, '/');
+        if (!part || strcmp(part + 1, "versions")) {
+            (void)fputs("Cordonix updates require an installed runtime or --install-root.\n", stderr); return 2;
+        }
+        *part = '\0';
+    }
+    used = strlen(path);
+    if (used + sizeof("/update-request.json") > sizeof(path)) return 2;
+    memcpy(path + used, "/update-request.json", sizeof("/update-request.json"));
+    return run_request(path, 1);
 }
 
 int main(int argc, char **argv) {
@@ -384,7 +418,13 @@ int main(int argc, char **argv) {
     (void)sigaction(SIGPIPE, &action, NULL);
     if (flags < 0 || fcntl(STDOUT_FILENO, F_SETFL, flags | O_NONBLOCK) < 0) return 1;
     if (argc == 2 && !strcmp(argv[1], "--mcp")) result = run_mcp();
-    else if (argc == 3 && !strcmp(argv[1], "--request")) result = run_request(argv[2]);
+    else if (argc == 3 && !strcmp(argv[1], "--request")) result = run_request(argv[2], 0);
+    else if (argc == 2 && !strcmp(argv[1], "--checkupgrade")) result = check_upgrade(NULL);
+    else if (argc == 4 && !strcmp(argv[1], "--checkupgrade") && !strcmp(argv[2], "--install-root")) result = check_upgrade(argv[3]);
+    else if (argc == 2 && !strcmp(argv[1], "--help")) {
+        static const char help[] = "Usage: cdx --mcp | --request absolute-request.json | --checkupgrade [--install-root absolute-directory] | --version\n";
+        result = write_output(help, sizeof(help) - 1u) ? 0 : 1;
+    }
     else if (argc == 2 && !strcmp(argv[1], "--version")) {
         static const char version[] = CDX_VERSION_TEXT "\n";
         result = write_output(version, sizeof(version) - 1u) ? 0 : 1;

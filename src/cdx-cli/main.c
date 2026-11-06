@@ -287,13 +287,13 @@ static int run_mcp(void) {
     CloseHandle(reader.available); CloseHandle(reader.consumed); CloseHandle(reader.stop);
     return reader.oversized ? 2 : 0;
 }
-static int run_request(const wchar_t *path) {
+static int run_request(const wchar_t *path, int upgrade) {
     FILE *file = NULL;
     char *data;
     size_t length;
     cdx_json json;
     cdx_json_output output;
-    int name, arguments;
+    int name, arguments, result = 0;
     if (_wfopen_s(&file, path, L"rb") || !file) return 2;
     data = (char *)malloc(INPUT_LIMIT + 1u);
     if (!data) { fclose(file); return 1; }
@@ -301,8 +301,15 @@ static int run_request(const wchar_t *path) {
     if (!cdx_json_parse(&json, data, length)) { (void)fprintf(stderr, "%s\n", json.error); free(data); cdx_json_free(&json); return 2; }
     free(data); name = cdx_json_get(&json, 0, "operation"); arguments = cdx_json_get(&json, 0, "arguments");
     if (name < 0 || json.nodes[name].type != CDX_JSON_STRING) { cdx_json_free(&json); return 2; }
+    if (upgrade && strcmp(json.nodes[name].string, "execute_program")) { cdx_json_free(&json); return 2; }
     cdx_json_output_init(&output); cdx_call(json.nodes[name].string, &json, arguments, NULL, &output);
-    send_output(&output); cdx_json_output_free(&output); cdx_json_free(&json); cdx_workspace_clear(); return 0;
+    if (upgrade) {
+        cdx_json response;
+        result = !cdx_json_parse(&response, output.data, output.size) ||
+            !string_node(&response, cdx_json_get(&response, 0, "status"), "completed");
+        cdx_json_free(&response);
+    }
+    send_output(&output); cdx_json_output_free(&output); cdx_json_free(&json); cdx_workspace_clear(); return result;
 }
 static int run_phone_helper(void) {
     char input[2048];
@@ -316,6 +323,35 @@ static int run_phone_helper(void) {
     send_output(&out); cdx_json_output_free(&out); cdx_json_free(&json); return 0;
 }
 
+static int check_upgrade(const wchar_t *root) {
+    wchar_t *path = (wchar_t *)malloc(32768u * sizeof(wchar_t)), *part;
+    DWORD length;
+    size_t used;
+    int result = 2;
+    if (!path) return 1;
+    if (root) {
+        used = wcslen(root);
+        if (used > 32740u || !((used > 2u && root[1] == L':' && (root[2] == L'\\' || root[2] == L'/')) || (used > 2u && root[0] == L'\\' && root[1] == L'\\')))
+            goto done;
+        (void)wcscpy_s(path, 32768u, root);
+    } else {
+        length = GetModuleFileNameW(NULL, path, 32768u);
+        if (!length || length >= 32768u) goto done;
+        part = wcsrchr(path, L'\\'); if (!part) goto done; *part = L'\0';
+        part = wcsrchr(path, L'\\'); if (!part) goto done; *part = L'\0';
+        part = wcsrchr(path, L'\\');
+        if (!part || _wcsicmp(part + 1, L"versions")) {
+            (void)fputs("Cordonix updates require an installed runtime or --install-root.\n", stderr); goto done;
+        }
+        *part = L'\0';
+    }
+    if (wcscat_s(path, 32768u, L"\\update-request.json")) goto done;
+    result = run_request(path, 1);
+done:
+    free(path);
+    return result;
+}
+
 int wmain(int argc, wchar_t **argv) {
     int result;
     (void)_setmode(_fileno(stdin), _O_BINARY); (void)_setmode(_fileno(stdout), _O_BINARY);
@@ -326,7 +362,10 @@ int wmain(int argc, wchar_t **argv) {
     else if ((argc == 2 || argc == 3) && !wcscmp(argv[1], L"--phone-ui")) { FreeConsole(); result = cdx_phone_ui(argc == 3 ? argv[2] : L"", 0); }
     else if ((argc == 2 || argc == 3) && !wcscmp(argv[1], L"--phone-ui-tray")) { FreeConsole(); result = cdx_phone_ui_tray(argc == 3 ? argv[2] : L""); }
     else if (argc == 2 && !wcscmp(argv[1], L"--phone-ui-smoke")) result = cdx_phone_ui(L"", 1);
-    else if (argc == 3 && !wcscmp(argv[1], L"--request")) result = run_request(argv[2]);
+    else if (argc == 3 && !wcscmp(argv[1], L"--request")) result = run_request(argv[2], 0);
+    else if (argc == 2 && !wcscmp(argv[1], L"--checkupgrade")) result = check_upgrade(NULL);
+    else if (argc == 4 && !wcscmp(argv[1], L"--checkupgrade") && !wcscmp(argv[2], L"--install-root")) result = check_upgrade(argv[3]);
+    else if (argc == 2 && !wcscmp(argv[1], L"--help")) { (void)puts("Usage: cdx --mcp | --request absolute-request.json | --checkupgrade [--install-root absolute-directory] | --version"); result = 0; }
     else if (argc == 2 && !wcscmp(argv[1], L"--version")) { (void)puts(CDX_VERSION_TEXT); result = 0; }
     else { (void)fputs("Usage: cdx --mcp | --request absolute-request.json | --phone-ui [phone-name] | --phone-ui-tray [phone-name] | --version\n", stderr); result = 2; }
     DeleteCriticalSection(&output_lock); return result;

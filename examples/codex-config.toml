@@ -10,6 +10,6 @@ tool_timeout_sec = 300
 # No fixed allow-list: expose the tools advertised by the connected runtime.
 # If you add enabled_tools or disabled_tools, review them after every upgrade.
 # For a development build, set command to the absolute cdx.exe path and args=['--mcp'].
-# Linux installed alternative: command='/home/YOUR_USER/.local/opt/cordonix/current/cdx'
+# Linux installed alternative: command='/home/YOUR_USER/.local/opt/cordonix/launch.sh'
 # and args=['--mcp']; verify your install root instead of copying a versioned binary path.
 # See ../docs/mcp-tool-guide.md for selection, filters and fresh-client verification.

@@ -101,6 +101,14 @@ try {
     if ($requestResult.ExitCode -ne 0) { throw 'Packaged tool_info failed.' }
     $info = $requestResult.Stdout | ConvertFrom-Json
     if ($info.status -cne 'ok' -or $info.name -cne 'Cordonix' -or $info.version -cne $Version -or $info.platform -cne 'windows' -or $info.runtime -cne 'C11') { throw 'Packaged tool_info contract mismatch.' }
+    if ($info.update_command -cne '--checkupgrade') { throw 'Every release must advertise the native upgrade command.' }
+    $helpResult = Invoke-PackageProgram $executable @('--help') $extractRoot $auditPath $deadline
+    if ($helpResult.ExitCode -ne 0 -or $helpResult.Stdout -notlike '*--checkupgrade*') { throw 'Packaged CLI is missing --checkupgrade.' }
+    $updateRequest = @{operation='execute_program'; arguments=@{program=$executable; args=@('--version'); cwd=$extractRoot; timeout_ms=2000; output_limit_bytes=4096; expected_exit_codes=@(0)}} | ConvertTo-Json -Depth 5
+    Write-PackageText (Join-Path $extractRoot 'update-request.json') $updateRequest
+    $upgradeResult = Invoke-PackageProgram $executable @('--checkupgrade','--install-root',$extractRoot) $extractRoot $auditPath $deadline
+    $upgrade = $upgradeResult.Stdout | ConvertFrom-Json
+    if ($upgradeResult.ExitCode -ne 0 -or $upgrade.status -cne 'completed' -or -not $upgrade.cleanup_complete) { throw 'Packaged checkupgrade did not execute its bounded update request.' }
     $batchExample = [IO.File]::ReadAllText((Join-Path $extractRoot 'examples/read-files.json')) | ConvertFrom-Json
     $batchExample.arguments.files[0].path = Join-Path $extractRoot 'README.md'
     $batchExample.arguments.files[1].path = Join-Path $extractRoot 'docs/native-http.md'

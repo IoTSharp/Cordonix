@@ -21,7 +21,7 @@ not the current client's adoption.
 
 The [installation guide](install-update.md) provides stable Windows and Linux
 client configuration and the fresh-process procedure. Windows `launch.ps1`
-reads `current.json` for each launch. Linux follows `current/cdx`. Updating
+reads `current.json` for each launch. Both launchers start a separate update worker on the first launch each day. Linux uses `launch.sh`, then follows `current/cdx`; the older direct entry bypasses startup checks. Updating
 either pointer does not replace an existing MCP process. Start a new client
 connection under its lifecycle owner; do not terminate shared MCP services.
 

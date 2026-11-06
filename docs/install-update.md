@@ -1,6 +1,6 @@
 # Cordonix 安装与自动更新
 
-把[安装提示词](../examples/cordonix-install-update-prompt.md)复制给 AI，或让 AI 读取这个链接，就可以安装 Cordonix (cdx) 并开启每小时检查新版本。安装器能从零启动，不要求事先安装 cdx。运行时仍是纯 C；Windows 安装器及稳定启动器需要 PowerShell 7，Linux 安装器需要 Python 3.9+ 标准库和 GNU timeout。
+把[安装提示词](../examples/cordonix-install-update-prompt.md)复制给 AI，或让 AI 读取这个链接，就可以安装 Cordonix (cdx)。当前源码默认在每天首次启动时开启独立后台实例，自动检测和安装新版本；显式关闭后的选择会保留。安装器能从零启动，不要求事先安装 cdx。运行时仍是纯 C；Windows 安装器及启动器需要 PowerShell 7，Linux 安装器和更新辅助逻辑使用既有 Python 3.9+ 标准库及 GNU timeout。Linux 缺少更新解释器时仍继续启动原生程序。这些更新触发及原生命令改动尚未随正式版本发布。
 
 ## 下载入口
 
@@ -28,7 +28,7 @@ Linux 发布包由 Ubuntu 24.04 构建，动态链接 glibc；其他发行版需
 使用 PowerShell 7 执行已保存的脚本：
 
 ```powershell
-& 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -File 'C:\absolute\install.ps1' -EnableAutoUpdate
+& 'C:\Program Files\PowerShell\7\pwsh.exe' -NoLogo -NoProfile -File 'C:\absolute\install.ps1'
 ```
 
 默认安装根目录为 `%LOCALAPPDATA%\Cordonix`，版本位于 `versions\<version>`；`current.json` 记录当前版本，稳定启动器是 `launch.ps1`。有需要可传入 `-InstallRoot 'D:\Tools\Cordonix'`、`-Source gitee` 或 `-Proxy 'http://127.0.0.1:7890'`。默认 `-Source auto` 会在 GitHub 不通时转向 Gitee；自动任务也保留选定的 source 和显式代理。
@@ -45,7 +45,7 @@ tool_timeout_sec = 300
 
 若该表已存在，编辑原表，不要再追加同名表。自定义安装根目录时替换启动器路径，并核对 PowerShell 7 的实际绝对路径。启动器在每次启动时读取 `current.json` 的 `version`，选择 `versions/<version>/cdx.exe`，因此配置应指向稳定启动器。安装器回执中的 `config_updated=false` 表示它不会自动修改 Codex 配置。
 
--EnableAutoUpdate 通过 Windows Task Scheduler COM 注册当前用户任务，每小时检查一次，每次最多 3 分钟，重叠运行会跳过；需要该用户登录。任务名带安装目录哈希。脚本不调用 Windows PowerShell 5.1，也不修改系统 PATH。
+自动更新默认由稳定启动器触发，不需要计划任务。`-EnableAutoUpdate` 可重新启用曾关闭的更新，并按兼容行为额外注册每日及登录后的当前用户任务，单次最多 3 分钟。任务名带安装目录哈希；注册与执行是不同证据，不能用注册成功推断任务已经运行。注册失败时回执另报 `schedule_registration=FAIL` 和 `schedule_error`，每日启动检查仍可使用。脚本不调用 Windows PowerShell 5.1，也不修改系统 PATH。
 
 ```powershell
 # 只查询版本；手动更新；停止自动检查（保留安装文件）。
@@ -54,27 +54,27 @@ tool_timeout_sec = 300
 .\install.ps1 -DisableAutoUpdate
 ```
 
--TaskDefinitionOnly 只输出任务 XML，不注册任务，可用于审查计划任务定义。任务实际注册是否成功，与二进制安装是否成功分别报告。
+`-TaskDefinitionOnly` 只输出任务 XML，不注册任务，可用于审查计划任务定义。`-ScheduleDryRun` 执行安装但跳过任务注册，适用于隔离测试。任务实际注册是否成功，与二进制安装是否成功分别报告。
 
 ## Linux
 
 ```sh
-sh /absolute/install.sh --enable-auto-update
+sh /absolute/install.sh
 ```
 
-默认安装根目录是 `~/.local/opt/cordonix`，可用 `--root /absolute/path` 更换。版本位于 `versions/<version>`，稳定路径是 `<root>/current/cdx`；`current` 是验证通过后原子切换的符号链接。`--source gitee` 可固定来源，默认 `--source auto` 保留 GitHub 优先、Gitee 回退。网络代理采用进程环境的 `HTTPS_PROXY`/`HTTP_PROXY`。
+默认安装根目录是 `~/.local/opt/cordonix`，可用 `--root /absolute/path` 更换。版本位于 `versions/<version>`，稳定启动入口是 `<root>/launch.sh`；`current` 是验证通过后原子切换的符号链接。`--source gitee` 可固定来源，默认 `--source auto` 保留 GitHub 优先、Gitee 回退。网络代理采用进程环境的 `HTTPS_PROXY`/`HTTP_PROXY`，初次安装的代理环境会保存供自动任务使用；可在 `update-settings.json` 调整。不要在代理 URL 中写入凭据。
 
 ```toml
 [mcp_servers.cordonix]
-command = '/home/USER/.local/opt/cordonix/current/cdx'
+command = '/home/USER/.local/opt/cordonix/launch.sh'
 args = ['--mcp']
 startup_timeout_sec = 15
 tool_timeout_sec = 300
 ```
 
-Linux 使用 `current` 符号链接选择版本，没有 Windows 的 `current.json` 启动器；自定义安装根目录时，同样使用该根目录下的稳定绝对路径。
+Linux 启动器补查后通过 `current` 符号链接选择版本；自定义安装根目录时，同样使用该根目录下的稳定绝对路径。旧的 `<root>/current/cdx` 入口仍然有效，但绕过启动补查，只能依赖定时任务。
 
---enable-auto-update 保存安装器并启用当前用户的 systemd timer，每小时检查一次。服务单次最多 190 秒，安装器内部另有 170 秒预算及 180 秒外层超时。它不使用 sudo，也不修改全局 PATH。需要可用的用户 systemd 管理器；没有用户会话或用户管理器停止时，检查不会运行。需要退出登录后持续运行的机器，应由机器管理员按其策略配置用户管理器生命周期。
+默认 `auto_update=daily_startup`，无需用户 systemd 管理器。`--enable-auto-update` 可重新启用曾关闭的更新，并按兼容行为额外注册每日用户 timer。该备用服务单次最多 190 秒，安装器内部另有 170 秒预算及 180 秒外层超时。它不使用 sudo，也不修改全局 PATH。用户管理器不可用时回执报告 `auto_update=startup_fallback` 和注册错误，每日启动检查仍可使用。
 
 ```sh
 sh /absolute/install.sh --check
@@ -82,7 +82,38 @@ sh /absolute/install.sh
 sh /absolute/install.sh --disable-auto-update
 ```
 
-`--schedule-dry-run` 与 enable/disable 配合，只处理 `<root>/systemd` 中的定义，回执标记真实注册 `NOT_RUN`。缺少 systemd 或注册失败时，安装器会报告自动更新未启用，已验证的安装文件仍保留。
+`--schedule-dry-run` 只处理 `<root>/systemd` 中的定义，回执标记真实注册 `NOT_RUN`。
+
+## 自动触发、诊断和旧安装迁移
+
+两个平台都在安装根目录保存 `update-settings.json`（是否启用、下载源及网络设置）和 `last-update-check.json`（最近尝试的时间、结果、版本、来源或错误）。普通重装保留显式关闭的选择，enable 参数恢复自动更新。`CheckOnly`/`--check` 不改变设置和任务。自动任务从设置读取来源，不会继续使用过时的命令行来源。
+
+稳定启动器根据本地日历日期，在每天首次启动时开启一个独立后台实例，主程序继续启动。当日已有检查或后台启动记录时，后续启动跳过；次日首次启动重新检查。启动声明使用短期排他锁，避免并发启动重复开启实例。Windows 隐藏后台控制台，Linux 记录后台输出；检查结果不会混入 MCP 标准输出。
+
+新版本的原生命令是 `cdx --checkupgrade`，可用 `cdx --checkupgrade --install-root <绝对目录>` 指定安装根目录。它读取安装器生成的 `update-request.json`，复用 C 进程核心，以独立的 program、args、cwd、timeout 字段运行既有更新器；Windows 使用 PowerShell 7 保存脚本，Linux 使用从 `install.sh` 原样生成的 Python 安装器主体，不通过 shell 命令字符串执行。命令的非零退出码保留执行失败，进程核心负责子进程超时、取消及清理。`tool_info.update_command` 公布该能力。
+
+后台实例拥有完整更新预算：Windows 更新器 150 秒，进程核心 170 秒；Linux 更新器 170 秒，进程核心 180 秒。GitHub 优先，首源只使用剩余请求预算的一半，为 Gitee 留出时间。网络或更新失败后主程序继续使用已安装版本，错误保留在回执中。显式请求的备用定时任务独立于每日启动节流。
+
+已发布的 0.3.1 尚不包含原生 `--checkupgrade`，因此新启动器根据安装时实际读取的能力字段，使用独立的既有更新脚本作为过渡；安装到带有该字段的后续版本后会自动采用原生命令，不根据猜测的版本号选择能力。
+
+后台更新和备用定时任务共用安装目录的排他锁；已有更新正在执行时跳过重复写入。`last-update-launch.json` 保存工作进程 PID、创建时间及命令；最近检查保存在 `last-update-check.json`。超时或取消后不自动重放写入。回执若停留在 `checking`，表示该次尝试未完成，不能当作更新成功。
+
+更新器还会从已经校验并验证的版本包中采用更高 `Cordonix updater generation` 的安装脚本，后续版本可以更新更新逻辑本身。没有该标记或代数更低的旧包不会覆盖当前更新器。
+
+已经部署的旧安装器不会凭空获得新的触发逻辑。部署本次改动时，需由维护方统一运行一次新的安装脚本，刷新稳定启动器、保存设置并核对每日后台入口；备用任务可按需开启。这属于旧安装迁移。Linux 同时把 MCP 配置入口从 `current/cdx` 迁移到 `launch.sh`。此后的版本更新由后台实例触发。直接解压 ZIP/tar.gz 并运行二进制的便携安装不提供这些自动触发器，需采用安装器入口。
+
+## 同类工具的更新方式
+
+以下对照在 2026-11-07 查阅官方文档：
+
+| 工具 / 安装方式 | 检测和更新方式 | 对 Cordonix 的参考价值 |
+| --- | --- | --- |
+| [Claude Code 原生安装](https://code.claude.com/docs/en/setup#auto-updates) | 启动及运行期间检查，后台下载和安装，下次启动生效；包管理器安装有独立规则 | 自动检测、自动安装和当前会话采用新版本应分别处理 |
+| [VS Code Windows User Setup](https://code.visualstudio.com/docs/setup/windows#updates) | 支持后台更新，按提示安装；系统安装需要提权，ZIP 安装需手动更新 | 使用用户目录和稳定入口；明确安装渠道影响更新能力 |
+| [uv 独立安装](https://docs.astral.sh/uv/getting-started/installation/#upgrading-uv) | 提供 `uv self update`；其他渠道交给包管理器 | 有自更新命令仍需自动触发，不能把命令存在当作自动更新 |
+| [WinGet / Homebrew 等包管理器](https://code.claude.com/docs/en/setup#auto-updates) | 由包管理器执行升级；Claude Code 对 WinGet/Homebrew 另提供显式开启后台升级的选项 | 发布包到目录或包仓库本身不会自动更新现有用户 |
+
+Cordonix 复用现有安装器、版本目录和校验流程，默认每日首次启动开启独立后台更新实例；当前会话保留原进程，后续启动使用验证后的入口。Windows/Linux 的打包门禁必须验证原生更新命令、能力字段及真实的有界执行，防止后续发布漏掉自动更新入口。
 
 ## 校验、切换和回滚
 

@@ -1001,7 +1001,7 @@ void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx
         cdx_json_raw(output, ",\"commit_checks\":"); cdx_json_uint(output, commit_checks);
         cdx_json_raw(output, ",\"build_revision\":\"" CDX_BUILD_REVISION "\",\"build_dirty\":");
         cdx_json_raw(output, CDX_BUILD_DIRTY < 0 ? "null" : CDX_BUILD_DIRTY ? "true" : "false");
-        cdx_json_raw(output, ",\"counter_scope\":\"logical operations, not physical disk IO\",\"max_documents\":16,\"max_document_bytes\":8388608}"); return;
+        cdx_json_raw(output, ",\"update_command\":\"--checkupgrade\",\"counter_scope\":\"logical operations, not physical disk IO\",\"max_documents\":16,\"max_document_bytes\":8388608}"); return;
     }
     if (arguments < 0) { error_result(output, "validation_error", "arguments must be an object"); return; }
     if (!strcmp(operation, "execute_program")) { execute_program(request, arguments, cancellation, output); return; }

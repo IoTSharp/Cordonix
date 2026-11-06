@@ -164,6 +164,10 @@ try:
     info = json.loads(run([str(extracted / 'cdx'), '--request', str(request)]))
     require(info['status'] == 'ok' and info['name'] == 'Cordonix' and info['version'] == version and
             info['platform'] == 'linux' and info['runtime'] == 'C11', 'Packaged tool_info mismatch')
+    require(info.get('update_command') == '--checkupgrade' and b'--checkupgrade' in run([str(extracted / 'cdx'), '--help']), 'Every release must provide the native upgrade command')
+    (extracted / 'update-request.json').write_text(json.dumps({'operation':'execute_program', 'arguments':{'program':str(extracted / 'cdx'), 'args':['--version'], 'cwd':str(extracted), 'timeout_ms':2000, 'output_limit_bytes':4096, 'expected_exit_codes':[0]}}))
+    upgrade = json.loads(run([str(extracted / 'cdx'), '--checkupgrade', '--install-root', str(extracted)]))
+    require(upgrade['status'] == 'completed' and upgrade['cleanup_complete'], 'Packaged checkupgrade must execute its bounded update request')
     example = json.loads((extracted / 'examples/read-files.json').read_text())
     for item, target in zip(example['arguments']['files'], ['README.md', 'docs/native-http.md'], strict=True):
         item['path'] = str(extracted / target)

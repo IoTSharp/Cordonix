@@ -23,9 +23,56 @@ function Assert-Case {
 function Invoke-Installer {
     param([string]$Root, [string]$GitHubRoute = '/github', [string]$GiteeRoute = '/gitee', [switch]$Check)
     if ([datetime]::UtcNow -ge $deadline) { throw 'Installer fixture exceeded its deadline.' }
-    $parameters = @{ InstallRoot = $Root; GitHubApi = $serverUrl + $GitHubRoute; GiteeApi = $serverUrl + $GiteeRoute }
+    $parameters = @{ InstallRoot = $Root; GitHubApi = $serverUrl + $GitHubRoute; GiteeApi = $serverUrl + $GiteeRoute; ScheduleDryRun = $true }
     if ($Check) { $parameters.CheckOnly = $true }
     return (& (Join-Path $SourceRoot 'install/install.ps1') @parameters | ConvertFrom-Json)
+}
+
+function Invoke-Launcher {
+    param([string]$Root, [switch]$NoWait)
+    if ([datetime]::UtcNow -ge $deadline) { throw 'Launcher fixture exceeded its deadline.' }
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo.FileName = Join-Path $PSHOME 'pwsh.exe'
+    $process.StartInfo.UseShellExecute = $false
+    $process.StartInfo.CreateNoWindow = $true
+    $process.StartInfo.RedirectStandardOutput = $true
+    $process.StartInfo.RedirectStandardError = $true
+    foreach ($arg in @('-NoLogo','-NoProfile','-File',(Join-Path $Root 'launch.ps1'),'--version')) { [void]$process.StartInfo.ArgumentList.Add($arg) }
+    try {
+        $watch = [Diagnostics.Stopwatch]::StartNew()
+        if (-not $process.Start()) { throw 'Could not start stable launcher.' }
+        [IO.File]::AppendAllText((Join-Path $taskRoot 'launchers.jsonl'), ((@{pid=$process.Id; started_utc=$process.StartTime.ToUniversalTime().ToString('o'); parent_pid=$PID; program=$process.StartInfo.FileName; args=@($process.StartInfo.ArgumentList)} | ConvertTo-Json -Compress) + "`n"), $utf8)
+        $output = $process.StandardOutput.ReadToEndAsync(); $errors = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit(13000)) { throw 'Stable launcher timed out.' }
+        if ($process.ExitCode -ne 0 -or $output.Result.Trim() -cne ('Cordonix cdx ' + $binaryVersion)) { throw 'Stable launcher did not forward the installed runtime output.' }
+        $script:launchMilliseconds = $watch.ElapsedMilliseconds
+        if (-not $NoWait) { Wait-UpgradeWorker $Root }
+        return $errors.Result
+    } finally {
+        if (-not $process.HasExited) { $process.Kill($true); [void]$process.WaitForExit(3000) }
+        $process.Dispose()
+    }
+}
+
+function Wait-UpgradeWorker {
+    param([string]$Root)
+    $auditPath = Join-Path $Root 'last-update-launch.json'
+    if (-not [IO.File]::Exists($auditPath)) { return }
+    $audit = [IO.File]::ReadAllText($auditPath) | ConvertFrom-Json
+    for ($index = 0; $index -lt 200 -and [datetime]::UtcNow -lt $deadline; $index++) {
+        $worker = $null
+        try { $worker = [Diagnostics.Process]::GetProcessById($audit.pid) } catch [ArgumentException] { return }
+        try {
+            if ([Math]::Abs(($worker.StartTime.ToUniversalTime() - [datetime]$audit.started_utc).TotalMilliseconds) -gt 1) { return }
+            if ($worker.WaitForExit(50)) { return }
+        } finally { $worker.Dispose() }
+    }
+    throw 'Background upgrade worker did not finish within its fixture deadline.'
+}
+
+function Clear-UpgradeAttempt {
+    param([string]$Root)
+    foreach ($name in @('last-update-check.json','last-update-launch.json')) { [IO.File]::Delete((Join-Path $Root $name)) }
 }
 
 try {
@@ -36,6 +83,9 @@ try {
     $payload = Join-Path $taskRoot 'payload'
     [void][IO.Directory]::CreateDirectory($payload)
     Copy-Item -LiteralPath $binary -Destination (Join-Path $payload 'cdx.exe')
+    [void][IO.Directory]::CreateDirectory((Join-Path $payload 'install'))
+    $newerUpdater = [IO.File]::ReadAllText((Join-Path $SourceRoot 'install/install.ps1')).Replace('# Cordonix updater generation: 3', '# Cordonix updater generation: 4')
+    [IO.File]::WriteAllText((Join-Path $payload 'install/install.ps1'), $newerUpdater, $utf8)
     $assetName = "cordonix-$binaryVersion-win-x64.zip"
     $archive = Join-Path $taskRoot 'archive.zip'
     [IO.Compression.ZipFile]::CreateFromDirectory($payload, $archive)
@@ -66,6 +116,7 @@ try {
         $response = $context.Response
         try {
             $route = $context.Request.Url.AbsolutePath
+            if ($route -eq '/slow') { Start-Sleep -Seconds 3; $response.StatusCode = 503; $response.Close(); continue }
             if ($route -eq '/fail') { $response.StatusCode = 503; $response.Close(); continue }
             $version = if ($route -eq '/mismatch') { '999.0.0' } else { $data.version }
             $asset = 'cordonix-' + $version + '-win-x64.zip'
@@ -110,6 +161,8 @@ try {
     $root = Join-Path $taskRoot '安装 含空格'
     $result = Invoke-Installer $root '/fail'
     Assert-Case 'GitHub 503 falls back to Gitee and installs actual cdx' ($result.status -ceq 'PASS' -and $result.source -ceq 'gitee' -and $result.operation -ceq 'install' -and $result.installed_version -ceq $binaryVersion)
+    Assert-Case 'Automatic updates are enabled by default without registering a test task' ($result.auto_update_enabled -and $result.schedule_registration -ceq 'NOT_RUN' -and -not $result.auto_update_registered)
+    Assert-Case 'The verified package refreshes the updater generation' ([IO.File]::ReadAllText((Join-Path $root 'update.ps1')).Contains('# Cordonix updater generation: 4'))
     $pointer = [IO.File]::ReadAllText((Join-Path $root 'current.json'))
     $launcherProcess = [Diagnostics.Process]::new()
     $launcherProcess.StartInfo.FileName = Join-Path $PSHOME 'pwsh.exe'
@@ -131,6 +184,7 @@ try {
     }
     $result = Invoke-Installer $root
     Assert-Case 'Same version performs no replacement' ($result.operation -ceq 'up_to_date' -and $pointer -ceq [IO.File]::ReadAllText((Join-Path $root 'current.json')))
+    Assert-Case 'An older installer cannot downgrade the installed updater generation' ([IO.File]::ReadAllText((Join-Path $root 'update.ps1')).Contains('# Cordonix updater generation: 4'))
     $result = Invoke-Installer (Join-Path $taskRoot 'metadata-fallback') '/missing'
     Assert-Case 'Missing exact assets fall back to Gitee' ($result.source -ceq 'gitee')
     $result = Invoke-Installer (Join-Path $taskRoot 'truncated-fallback') '/truncated'
@@ -158,14 +212,66 @@ try {
     try { [void](Invoke-Installer $root '/mismatch') } catch { $failed = $_.Exception.Message -like '*executable version differs*' }
     Assert-Case 'Downloaded runtime must match the release tag before switching' ($failed -and $before -ceq [IO.File]::ReadAllText((Join-Path $root 'current.json')))
     [IO.File]::WriteAllText((Join-Path $root 'current.json'), $pointer, $utf8)
+    $autoRoot = Join-Path $taskRoot 'startup-update'
+    [void](Invoke-Installer $autoRoot '/fail')
+    [IO.Directory]::Move((Join-Path $autoRoot ('versions/' + $binaryVersion)), (Join-Path $autoRoot 'versions/0.0.0'))
+    [IO.File]::WriteAllText((Join-Path $autoRoot 'current.json'), '{"version":"0.0.0","format_version":1,"supports_checkupgrade":true}', $utf8)
+    Clear-UpgradeAttempt $autoRoot
+    $errors = Invoke-Launcher $autoRoot
+    $attempt = [IO.File]::ReadAllText((Join-Path $autoRoot 'last-update-check.json')) | ConvertFrom-Json
+    Assert-Case 'Launching performs an actual verified update through Gitee without updater output on stdout' ($errors.Length -eq 0 -and $attempt.operation -ceq 'update' -and $attempt.source -ceq 'gitee' -and $attempt.installed_version -ceq $binaryVersion)
+    $workerAudit = [IO.File]::ReadAllText((Join-Path $autoRoot 'last-update-launch.json')) | ConvertFrom-Json
+    Assert-Case 'The separate instance runs the native checkupgrade command' ($workerAudit.program -like '*cdx.exe' -and $workerAudit.arguments -ceq '--checkupgrade')
+    $before = [IO.File]::ReadAllText((Join-Path $autoRoot 'last-update-check.json'))
+    [void](Invoke-Launcher $autoRoot)
+    Assert-Case 'Repeated launches on the same day skip the update check' ($before -ceq [IO.File]::ReadAllText((Join-Path $autoRoot 'last-update-check.json')))
+    $yesterday = @{ checked_utc = [datetime]::UtcNow.AddDays(-1).ToString('o'); status = 'PASS' } | ConvertTo-Json -Compress
+    [IO.File]::WriteAllText((Join-Path $autoRoot 'last-update-check.json'), $yesterday, $utf8)
+    [IO.File]::Delete((Join-Path $autoRoot 'last-update-launch.json'))
+    [void](Invoke-Launcher $autoRoot)
+    $today = [IO.File]::ReadAllText((Join-Path $autoRoot 'last-update-check.json')) | ConvertFrom-Json
+    Assert-Case 'The first launch on a later calendar day starts another check' (([datetime]$today.checked_utc).ToLocalTime().Date -eq [datetime]::Now.Date)
+    $held = [IO.File]::Open((Join-Path $autoRoot '.update.lock'), [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    try { Clear-UpgradeAttempt $autoRoot; $errors = Invoke-Launcher $autoRoot }
+    finally { $held.Dispose() }
+    Assert-Case 'Concurrent updater ownership skips the startup check and still launches' ($errors.Length -eq 0 -and -not [IO.File]::Exists((Join-Path $autoRoot 'last-update-check.json')))
+    $settingsPath = Join-Path $autoRoot 'update-settings.json'
+    $settings = [IO.File]::ReadAllText($settingsPath) | ConvertFrom-Json
+    $settings.github_api = $serverUrl + '/slow'; $settings.gitee_api = $serverUrl + '/gitee'
+    [IO.File]::WriteAllText($settingsPath, ($settings | ConvertTo-Json -Compress), $utf8)
+    Clear-UpgradeAttempt $autoRoot
+    $errors = Invoke-Launcher $autoRoot -NoWait
+    Wait-UpgradeWorker $autoRoot
+    Assert-Case ('A slow update does not block the main launch (' + $script:launchMilliseconds + 'ms)') ($script:launchMilliseconds -lt 2500)
+    $attempt = [IO.File]::ReadAllText((Join-Path $autoRoot 'last-update-check.json')) | ConvertFrom-Json
+    Assert-Case 'The background instance falls back to Gitee after slow GitHub' ($errors.Length -eq 0 -and $attempt.status -ceq 'PASS' -and $attempt.source -ceq 'gitee')
+    Clear-UpgradeAttempt $autoRoot
+    $settings.github_api = $serverUrl + '/fail'; $settings.gitee_api = $serverUrl + '/fail'
+    [IO.File]::WriteAllText($settingsPath, ($settings | ConvertTo-Json -Compress), $utf8)
+    $errors = Invoke-Launcher $autoRoot
+    $attempt = [IO.File]::ReadAllText((Join-Path $autoRoot 'last-update-check.json')) | ConvertFrom-Json
+    Assert-Case 'Offline startup keeps the working runtime and records the failure' ($errors.Length -eq 0 -and $attempt.status -ceq 'FAIL')
+    $settings.gitee_api = $serverUrl + '/gitee'
+    [IO.File]::WriteAllText($settingsPath, ($settings | ConvertTo-Json -Compress), $utf8)
+    $scheduled = & (Join-Path $autoRoot 'update.ps1') -InstallRoot $autoRoot -Automatic | ConvertFrom-Json
+    Assert-Case 'A recent failed startup does not suppress the full scheduled update' ($scheduled.status -ceq 'PASS' -and $scheduled.source -ceq 'gitee')
+    $registrationFailure = & (Join-Path $SourceRoot 'install/install.ps1') -InstallRoot $autoRoot -EnableAutoUpdate -GitHubApi ($serverUrl + '/github') -GiteeApi ($serverUrl + '/gitee') | ConvertFrom-Json
+    Assert-Case 'A registration failure reports separately from a verified installation' ($registrationFailure.status -ceq 'PASS' -and $registrationFailure.schedule_registration -ceq 'FAIL' -and $registrationFailure.auto_update_enabled -and $registrationFailure.schedule_error)
+    [void](& (Join-Path $SourceRoot 'install/install.ps1') -InstallRoot $autoRoot -DisableAutoUpdate -ScheduleDryRun)
+    [IO.File]::Delete((Join-Path $autoRoot 'last-update-check.json'))
+    $errors = Invoke-Launcher $autoRoot
+    Assert-Case 'Disabling automatic updates persists across launches' ($errors.Length -eq 0 -and -not [IO.File]::Exists((Join-Path $autoRoot 'last-update-check.json')))
+    $result = Invoke-Installer $autoRoot
+    Assert-Case 'An ordinary reinstall preserves the explicit disabled preference' (-not $result.auto_update_enabled)
     $definition = & (Join-Path $SourceRoot 'install/install.ps1') -InstallRoot $root -TaskDefinitionOnly | ConvertFrom-Json
     [xml]$taskXml = $definition.task_xml
-    Assert-Case 'Hourly current-user task has a three-minute execution limit without registration' ($definition.registered -eq $false -and $taskXml.Task.Triggers.TimeTrigger.Repetition.Interval -ceq 'PT1H' -and $taskXml.Task.Settings.ExecutionTimeLimit -ceq 'PT3M' -and $taskXml.Task.Actions.Exec.Command -ceq (Join-Path $PSHOME 'pwsh.exe'))
+    Assert-Case 'Daily and logon current-user task has a three-minute execution limit without registration' ($definition.registered -eq $false -and $taskXml.Task.Triggers.TimeTrigger.Repetition.Interval -ceq 'P1D' -and $taskXml.Task.Triggers.LogonTrigger.Delay -ceq 'PT1M' -and $taskXml.Task.Settings.ExecutionTimeLimit -ceq 'PT3M' -and $taskXml.Task.Actions.Exec.Command -ceq (Join-Path $PSHOME 'pwsh.exe') -and $taskXml.Task.Actions.Exec.Arguments -like '*-Automatic')
     Assert-Case 'Temporary installer directories were cleaned' (@([IO.Directory]::EnumerateDirectories($root, '.install-*')).Count -eq 0)
     $summary = [ordered]@{status='PASS'; checks=$results.Count; cases=@($results); actual_task_registration='NOT_RUN'; actual_user_installation='NOT_RUN'}
     [IO.File]::WriteAllText((Join-Path $testBase 'results.json'), ($summary | ConvertTo-Json -Depth 6), $utf8)
     $summary | ConvertTo-Json -Depth 6
 } finally {
+    if ($autoRoot -and [IO.Directory]::Exists($autoRoot)) { Wait-UpgradeWorker $autoRoot }
     if ($server) {
         [IO.File]::WriteAllText((Join-Path $taskRoot 'stop'), 'stop')
         if (-not $server.HasExited -and -not $server.WaitForExit(2000)) { $server.Kill($true); [void]$server.WaitForExit(3000) }
