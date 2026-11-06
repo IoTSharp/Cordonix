@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Implemented the CDX-11E minimum MCP result mapping on Windows/POSIX stdio: malformed or unknown `tools/call` requests return JSON-RPC `-32602`, and deterministic domain failures add outer `isError: true` while preserving the inner status JSON. Partial, preview, no-match, unsupported-platform and unknown-outcome results remain text results. Added real stdio coverage for the envelope and error mapping; modern client compatibility remains open.
 - Added Windows native `screenshot` capture and bounded window discovery to CLI/MCP, bringing the development surface to 27 tools. Desktop/region/window/foreground targets use explicit visible-pixel or `PrintWindow` semantics, Unicode new-file PNG output, bounded owned-child execution, cancellation and independent write/cleanup results. Uses system GDI/WIC without PowerShell or .NET; Linux returns `not_supported`. Added native pixel/PNG/process fixtures, real MCP checks and packaged documentation/example; installed-client adoption remains separate.
 
 - Added optional HTTP `representation=both|text|base64`; the existing default, decoding status and outcome fields remain. Text mode omits duplicate Base64 only after strict decoding succeeds; binary/invalid text retains raw bytes without replay.

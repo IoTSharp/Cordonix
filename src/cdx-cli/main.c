@@ -32,16 +32,58 @@ static void response_start(cdx_json_output *output, const cdx_json *json, int id
     else if (json->nodes[id].type == CDX_JSON_STRING) cdx_json_quote(output, json->nodes[id].string, strlen(json->nodes[id].string));
     else cdx_json_rawn(output, json->nodes[id].number_text, json->nodes[id].number_length);
 }
+static void build_rpc_error(cdx_json_output *output, const cdx_json *json, int id, int code, const char *message);
 static void rpc_error(const cdx_json *json, int id, int code, const char *message) {
-    char number[24];
-    cdx_json_output output; cdx_json_output_init(&output);
-    response_start(&output, json, id); cdx_json_raw(&output, ",\"error\":{\"code\":");
-    (void)snprintf(number, sizeof(number), "%d", code); cdx_json_raw(&output, number);
-    cdx_json_raw(&output, ",\"message\":"); cdx_json_quote(&output, message, strlen(message)); cdx_json_raw(&output, "}}");
+    cdx_json_output output;
+    build_rpc_error(&output, json, id, code, message);
     send_output(&output); cdx_json_output_free(&output);
 }
 static int string_node(const cdx_json *json, int node, const char *value) {
     return node >= 0 && json->nodes[node].type == CDX_JSON_STRING && !strcmp(json->nodes[node].string, value);
+}
+static int supported_tool(const char *name) {
+    static const char *const names[] = {
+        "create_directory", "ssh", "phone", "query_processes", "search_text", "git_status",
+        "create_file", "tool_info", "execute_program", "workspace_open", "list_directory",
+        "resolve_path", "verify_encoding", "read_file", "workspace_read", "workspace_edit",
+        "workspace_commit", "workspace_convert_encoding", "workspace_status", "workspace_search",
+        "workspace_close", "sftp", "http", "serial", "network", "read_files", "screenshot"
+    };
+    size_t i;
+    if (!name) return 0;
+    for (i = 0; i < sizeof(names) / sizeof(names[0]); ++i) if (!strcmp(name, names[i])) return 1;
+    return 0;
+}
+static int asynchronous_tool(const char *name) {
+    return name && (!strcmp(name, "execute_program") || !strcmp(name, "search_text") ||
+        !strcmp(name, "git_status") || !strcmp(name, "query_processes") || !strcmp(name, "ssh") ||
+        !strcmp(name, "sftp") || !strcmp(name, "http") || !strcmp(name, "serial") ||
+        !strcmp(name, "network") || !strcmp(name, "phone") || !strcmp(name, "screenshot") ||
+        !strcmp(name, "verify_encoding") || !strcmp(name, "create_file") ||
+        !strcmp(name, "create_directory") || !strcmp(name, "read_files"));
+}
+static int tool_status_is_error(const char *status) {
+    static const char *const failures[] = {
+        "failed", "spawn_error", "execution_error", "validation_error", "not_found", "dirty_in_memory",
+        "file_changed", "conflict", "ambiguous_match", "encoding_error", "io_error",
+        "commit_error", "connection_error", "tls_error", "permission_denied",
+        "access_denied", "access_denied_or_busy", "busy", "error"
+    };
+    size_t i;
+    if (!status) return 0;
+    for (i = 0; i < sizeof(failures) / sizeof(failures[0]); ++i) if (!strcmp(status, failures[i])) return 1;
+    return 0;
+}
+static void build_rpc_error(cdx_json_output *output, const cdx_json *json, int id, int code, const char *message) {
+    char number[24];
+    cdx_json_output_init(output);
+    response_start(output, json, id);
+    cdx_json_raw(output, ",\"error\":{\"code\":");
+    (void)snprintf(number, sizeof(number), "%d", code);
+    cdx_json_raw(output, number);
+    cdx_json_raw(output, ",\"message\":");
+    cdx_json_quote(output, message, strlen(message));
+    cdx_json_raw(output, "}}");
 }
 static int ids_equal(const cdx_json *a, int ai, const cdx_json *b, int bi) {
     if (ai < 0 || bi < 0 || a->nodes[ai].type != b->nodes[bi].type) return 0;
@@ -50,10 +92,30 @@ static int ids_equal(const cdx_json *a, int ai, const cdx_json *b, int bi) {
         !memcmp(a->nodes[ai].number_text, b->nodes[bi].number_text, a->nodes[ai].number_length);
 }
 static void tool_response(const cdx_json *json, int params, int id, HANDLE cancellation, cdx_phone_session *phone, cdx_json_output *reply) {
-    int name = cdx_json_get(json, params, "name"), arguments = cdx_json_get(json, params, "arguments");
+    int name, arguments;
     cdx_json_output data, output;
+    cdx_json parsed;
+    const char *status = NULL;
+    int status_node, is_error = 0;
     char summary[CDX_CALL_SUMMARY_BYTES];
-    if (name < 0 || json->nodes[name].type != CDX_JSON_STRING) { rpc_error(json, id, -32602, "Tool name must be a string"); return; }
+    if (params < 0 || json->nodes[params].type != CDX_JSON_OBJECT) {
+        build_rpc_error(&output, json, id, -32602, "Tool call params must be an object");
+        goto done;
+    }
+    name = cdx_json_get(json, params, "name");
+    arguments = cdx_json_get(json, params, "arguments");
+    if (name < 0 || json->nodes[name].type != CDX_JSON_STRING) {
+        build_rpc_error(&output, json, id, -32602, "Tool name must be a string");
+        goto done;
+    }
+    if (!supported_tool(json->nodes[name].string)) {
+        build_rpc_error(&output, json, id, -32602, "Unknown tool");
+        goto done;
+    }
+    if (arguments >= 0 && json->nodes[arguments].type != CDX_JSON_OBJECT) {
+        build_rpc_error(&output, json, id, -32602, "Tool arguments must be an object");
+        goto done;
+    }
     cdx_json_output_init(&data); cdx_json_output_init(&output);
     cdx_summarize_call(json->nodes[name].string, json, arguments, summary);
     if (cdx_summary_progress(json, params, summary, &output)) {
@@ -62,12 +124,24 @@ static void tool_response(const cdx_json *json, int params, int id, HANDLE cance
     if (!strcmp(json->nodes[name].string, "phone") && arguments >= 0 && json->nodes[arguments].type == CDX_JSON_OBJECT)
         cdx_phone_session_call(phone, json, arguments, cancellation, &data);
     else cdx_call(json->nodes[name].string, json, arguments, cancellation, &data);
+    memset(&parsed, 0, sizeof(parsed));
+    if (!data.failed && data.data && cdx_json_parse(&parsed, data.data, data.size)) {
+        status_node = cdx_json_get(&parsed, 0, "status");
+        if (status_node >= 0 && parsed.nodes[status_node].type == CDX_JSON_STRING) {
+            status = parsed.nodes[status_node].string;
+            is_error = tool_status_is_error(status);
+        }
+    }
     response_start(&output, json, id); cdx_json_raw(&output, ",\"result\":{\"content\":[{\"type\":\"text\",\"text\":");
     if (data.failed || !data.data) cdx_json_quote(&output, "{\"status\":\"output_limit\"}", strlen("{\"status\":\"output_limit\"}"));
     else cdx_json_quote(&output, data.data, data.size);
-    cdx_json_raw(&output, "}]"); cdx_summary_metadata(summary, &output);
+    cdx_json_raw(&output, "}]");
+    if (is_error) cdx_json_raw(&output, ",\"isError\":true");
+    cdx_summary_metadata(summary, &output);
     cdx_json_raw(&output, "}}");
+    cdx_json_free(&parsed);
     cdx_json_output_free(&data);
+done:
     if (reply) *reply = output;
     else { send_output(&output); cdx_json_output_free(&output); }
 }
@@ -172,29 +246,29 @@ static int run_mcp(void) {
         else if (string_node(&json, method, "tools/list")) {
             cdx_json_output_init(&output); response_start(&output, &json, id); cdx_json_raw(&output, ",\"result\":"); cdx_tool_list(&output); cdx_json_raw(&output, "}"); send_output(&output); cdx_json_output_free(&output);
         } else if (string_node(&json, method, "tools/call")) {
-            if (active.thread) rpc_error(&json, id, -32001, "An operation is running; wait or cancel that request");
-            else if (string_node(&json, cdx_json_get(&json, params, "name"), "execute_program") ||
-                     string_node(&json, cdx_json_get(&json, params, "name"), "search_text") ||
-                     string_node(&json, cdx_json_get(&json, params, "name"), "git_status") ||
-                     string_node(&json, cdx_json_get(&json, params, "name"), "query_processes") ||
-                     string_node(&json, cdx_json_get(&json, params, "name"), "ssh") ||
-                     string_node(&json, cdx_json_get(&json, params, "name"), "sftp") ||
-                     string_node(&json, cdx_json_get(&json, params, "name"), "http") ||
-                     string_node(&json, cdx_json_get(&json, params, "name"), "serial") ||
-                     string_node(&json, cdx_json_get(&json, params, "name"), "network") ||
-                     string_node(&json, cdx_json_get(&json, params, "name"), "phone") ||
-                     string_node(&json, cdx_json_get(&json, params, "name"), "screenshot") ||
-                     string_node(&json, cdx_json_get(&json, params, "name"), "verify_encoding") ||
-                     string_node(&json, cdx_json_get(&json, params, "name"), "create_file") ||
-                     string_node(&json, cdx_json_get(&json, params, "name"), "create_directory") ||
-                     string_node(&json, cdx_json_get(&json, params, "name"), "read_files")) {
-                active.json = json; active.id = id; active.params = params; active.cancel = CreateEventW(NULL, TRUE, FALSE, NULL);
-                active.phone = phone;
-                active.thread = active.cancel ? CreateThread(NULL, 0, execution_worker, &active, 0, NULL) : NULL;
-                if (active.thread) continue;
-                if (active.cancel) CloseHandle(active.cancel);
-                memset(&active, 0, sizeof(active)); rpc_error(&json, id, -32603, "Cannot start execution worker");
-            } else tool_response(&json, params, id, NULL, phone, NULL);
+            int tool_name = -1;
+            int tool_arguments = -1;
+            if (params < 0 || json.nodes[params].type != CDX_JSON_OBJECT)
+                rpc_error(&json, id, -32602, "Tool call params must be an object");
+            else {
+                tool_name = cdx_json_get(&json, params, "name");
+                tool_arguments = cdx_json_get(&json, params, "arguments");
+                if (tool_name < 0 || json.nodes[tool_name].type != CDX_JSON_STRING)
+                    rpc_error(&json, id, -32602, "Tool name must be a string");
+                else if (!supported_tool(json.nodes[tool_name].string))
+                    rpc_error(&json, id, -32602, "Unknown tool");
+                else if (tool_arguments >= 0 && json.nodes[tool_arguments].type != CDX_JSON_OBJECT)
+                    rpc_error(&json, id, -32602, "Tool arguments must be an object");
+                else if (active.thread) rpc_error(&json, id, -32001, "An operation is running; wait or cancel that request");
+                else if (asynchronous_tool(json.nodes[tool_name].string)) {
+                    active.json = json; active.id = id; active.params = params; active.cancel = CreateEventW(NULL, TRUE, FALSE, NULL);
+                    active.phone = phone;
+                    active.thread = active.cancel ? CreateThread(NULL, 0, execution_worker, &active, 0, NULL) : NULL;
+                    if (active.thread) continue;
+                    if (active.cancel) CloseHandle(active.cancel);
+                    memset(&active, 0, sizeof(active)); rpc_error(&json, id, -32603, "Cannot start execution worker");
+                } else tool_response(&json, params, id, NULL, phone, NULL);
+            }
         } else rpc_error(&json, id, -32601, "Unknown MCP method");
         cdx_json_free(&json);
     }

@@ -6,6 +6,8 @@
 
 待发布：开发版 MCP 共 27 个工具，包含 Windows/Linux 原生 `create_directory` 和有界顺序批量读取 `read_files`。HTTP 新增 `representation=both|text|base64`，默认仍为 `both`，text 解码失败保留原始 Base64。参见[批量读取边界](docs/batch-read.md)、[HTTP 表示](docs/native-http.md)和[MCP 兼容审计](docs/mcp-compatibility.md)。这些是本地开发变更，发布与安装版采用单独验收。
 
+当前 MCP 适配器还会在分发前拒绝格式错误或未知的 `tools/call`，返回 JSON-RPC `-32602`。确定性的操作失败会增加外层 `isError: true`，同时保留原始状态 JSON；partial、preview、no-match、不支持平台和未知结果仍保持文本结果。该本地兼容切片已通过 Windows 与 WSL Linux 各 148/148 项 MCP 检查；新客户端采用仍是独立门禁。
+
 0.1.0 增加原生 SSH、HTTP、SFTP、TCP/Telnet/MQTT、串口、本机代理自动评估与调用概要，共 24 个工具，保留 v0.0.5 的全部 19 个工具及已发布字段。Windows/Linux 原生与 MCP 门禁、真实协议交互及便携包验证均已通过；正式标签签名、双站发布和公开回读记录见 [HANDOFF.md](HANDOFF.md)。
 
 0.0.5 增加 Windows 进程查询、实验性原生手机能力及 Microsoft Store/便携版 PowerShell 7 兼容修复。新版本发布与本地定时自动更新的结果单独记录在 HANDOFF.md；下方 v0.0.4 的完整验收是历史证据。

@@ -342,6 +342,42 @@ static int tool_call(wire_client *client, const char *name, const char *argument
     return valid;
 }
 
+static int tool_rpc_error(wire_client *client, const char *name, const char *arguments, unsigned id, int code) {
+    cdx_json_output request;
+    cdx_json response;
+    int valid, error, code_node;
+    memset(&response, 0, sizeof(response));
+    cdx_json_output_init(&request);
+    cdx_json_raw(&request, "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"id\":"); cdx_json_uint(&request, id);
+    cdx_json_raw(&request, ",\"params\":{\"name\":"); cdx_json_quote(&request, name, strlen(name));
+    cdx_json_raw(&request, ",\"arguments\":"); cdx_json_raw(&request, arguments); cdx_json_raw(&request, "}}\n");
+    valid = !request.failed && wire_send(client, request.data, request.size) && wire_read(client, &response);
+    error = valid ? cdx_json_get(&response, 0, "error") : -1;
+    code_node = error >= 0 ? cdx_json_get(&response, error, "code") : -1;
+    valid = valid && error >= 0 && code_node >= 0 && response.nodes[code_node].type == CDX_JSON_NUMBER &&
+        response.nodes[code_node].number == code && cdx_json_get(&response, 0, "result") < 0;
+    cdx_json_free(&response); cdx_json_output_free(&request);
+    return valid;
+}
+
+static int tool_result_is_error(wire_client *client, const char *name, const char *arguments, unsigned id, const char *status) {
+    cdx_json_output request;
+    cdx_json response, data;
+    int valid, result, error;
+    memset(&response, 0, sizeof(response)); memset(&data, 0, sizeof(data));
+    cdx_json_output_init(&request);
+    cdx_json_raw(&request, "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"id\":"); cdx_json_uint(&request, id);
+    cdx_json_raw(&request, ",\"params\":{\"name\":"); cdx_json_quote(&request, name, strlen(name));
+    cdx_json_raw(&request, ",\"arguments\":"); cdx_json_raw(&request, arguments); cdx_json_raw(&request, "}}\n");
+    valid = !request.failed && wire_send(client, request.data, request.size) && wire_read(client, &response);
+    result = valid ? cdx_json_get(&response, 0, "result") : -1;
+    error = result >= 0 ? cdx_json_get(&response, result, "isError") : -1;
+    valid = valid && result >= 0 && error >= 0 && response.nodes[error].type == CDX_JSON_BOOL && response.nodes[error].boolean &&
+        wire_tool_data(&response, &data) && string_is(&data, 0, "status", status);
+    cdx_json_free(&data); cdx_json_free(&response); cdx_json_output_free(&request);
+    return valid;
+}
+
 #ifdef _WIN32
 static int file_equals(const wchar_t *path, const char *expected) {
     HANDLE file = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -1904,6 +1940,9 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
     memset(&data, 0, sizeof(data));
     valid = valid && wire_tool_data(&response, &data);
     record("MCP omitted empty arguments", valid && string_is(&data, 0, "status", "ok")); cdx_json_free(&response); cdx_json_free(&data);
+    record("MCP unknown tool uses JSON-RPC error", tool_rpc_error(&client, "missing_tool", "{}", 5, -32602));
+    record("MCP non-object tool arguments use JSON-RPC error", tool_rpc_error(&client, "tool_info", "[]", 6, -32602));
+    record("MCP domain validation preserves inner status and isError", tool_result_is_error(&client, "read_file", "{\"path\":123}", 7, "validation_error"));
     valid = wire_send(&client, nul_frame, sizeof(nul_frame) - 1) && wire_read(&client, &response);
     node = valid ? cdx_json_get(&response, cdx_json_get(&response, 0, "error"), "code") : -1;
     record("MCP rejects raw NUL without truncation", node >= 0 && response.nodes[node].number == -32700); cdx_json_free(&response);

@@ -1,5 +1,15 @@
 # Handoff
 
+## CDX-11E and deferred follow-ups (2026-11-06, Asia/Shanghai)
+
+The first practical MCP compatibility slice is now implemented in the Windows and POSIX stdio adapters. `tools/call` validates the request envelope before dispatch: `params` must be an object, `name` must be a registered tool string, and `arguments` must be absent or an object. Unknown tools and malformed calls return JSON-RPC `-32602`. Deterministic operation failures add outer `isError: true` while preserving the inner operation JSON and status; partial, preview, no-match, unsupported-platform and unknown-outcome results stay text results so their domain evidence remains available. The real stdio fixture covers unknown-tool, argument-type and domain-validation cases on both binaries.
+
+Validation is complete for the current tree: `eng\build.cmd` and `eng\test.cmd` pass on Windows, including 148/148 MCP checks; `eng/test-linux.sh` passes in WSL, including 148/148 MCP checks and 17/17 Git adapter checks. Native Linux ripgrep checks are explicitly `NOT_RUN` because no `rg` is installed. `git diff --check` and strict UTF-8/NUL/round-trip checks remain required before delivery.
+
+CDX-11B2 is deferred. The available activity receipts show discovery frequency but no real `truncated=true` directory/search result, continuation failure or repeated-context task, so adding resumable listings or grouped context would be speculative. Reopen after one of those concrete observations is captured.
+
+CDX-12A is deferred. The current terminal lifecycle already supplies one active worker, bounded timeout/cancellation, EOF cleanup and explicit unknown outcomes. No client deadline mismatch requiring cross-request status/output has been demonstrated. Reopen when a bounded real task outlives a client call or requires reconnectable output, then compare the official Tasks contract against the existing cleanup behavior before adding state.
+
 ## Native screenshots (2026-11-06, Asia/Shanghai)
 
 The user requested investigation of the WinForms demo chat's screenshot failures and completion of a missing screenshot tool. Read-only review of chat `01a1ac8f-af09-7452-98e3-8986ec22f6b2` found repeated `CS1069` compilation errors: the subsequent `Add-Type` compilation did not receive `System.Drawing.Common` references. The command still printed a desired PNG path after failing. No screenshot was needed to identify that logged cause.
