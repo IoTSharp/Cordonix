@@ -109,6 +109,29 @@ static void stat_cases(const cdx_path_char *root) {
     cdx_stat_result_free(&result);
 #ifndef _WIN32
     {
+        cdx_path_char hidden[2048], child[2048], cases[4][2048];
+        const int expected[4] = {1, 1, 0, 1};
+        size_t i;
+        int ready = join_path(hidden, root, ".hidden-directory") && join_path(child, hidden, "child") &&
+            join_path(link_path, root, "visible-alias") && mkdir(hidden, 0700) == 0 &&
+            mkdir(child, 0700) == 0 && symlink(child, link_path) == 0 &&
+            join_path(cases[0], hidden, "") && join_path(cases[1], hidden, ".") &&
+            join_path(cases[2], dir_path, "..") && join_path(cases[3], link_path, "..");
+        check(ready, "hidden directory spelling fixtures created");
+        if (ready) {
+            for (i = 0; i < 4u; ++i) {
+                request.path = cases[i];
+                check(cdx_stat_query(&request, &result) == CDX_FS_OK && result.kind == CDX_FS_DIRECTORY &&
+                      result.hidden_known && result.hidden == expected[i] && result.path &&
+                      strcmp(result.path, cases[i]) == 0, "hidden directory metadata preserves actual traversal");
+                cdx_stat_result_free(&result);
+            }
+            check(unlink(link_path) == 0 && rmdir(child) == 0 && rmdir(hidden) == 0,
+                  "hidden directory spelling fixtures removed");
+            request.path = file_path;
+        }
+    }
+    {
         cdx_path_char child[2048], traversal[2048];
         struct stat observed;
         if (join_path(child, dir_path, "child") && join_path(link_path, root, "directory-link") &&

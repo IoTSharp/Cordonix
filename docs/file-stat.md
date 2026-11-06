@@ -25,3 +25,9 @@ Example:
 ```
 
 The operation is read-only. It does not recurse, copy, move or delete entries.
+
+POSIX hidden-name metadata ignores trailing separators. A terminal `.` or `..`
+uses the actual traversed directory name; the returned path still retains the
+original spelling. If that additional name resolution fails, `hidden_known`
+is false rather than inventing a flag. Ordinary final symlink names remain
+independent of their target names.

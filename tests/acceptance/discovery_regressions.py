@@ -50,6 +50,15 @@ def main():
                       launched.stdout.strip() == str(environment), prefix=launched.stdout.strip())
                 a, b = root / 'a', root / 'b'
                 a.mkdir(); b.mkdir(); (b / 'child').mkdir()
+                hidden = root / '.hidden'
+                hidden.mkdir(); (hidden / 'child').mkdir()
+                (root / 'visible-link').symlink_to(hidden / 'child', target_is_directory=True)
+                for spelling, expected in ((str(hidden) + '/', True), (str(hidden) + '/.', True),
+                    (str(a) + '/..', False), (str(root / 'visible-link') + '/..', True)):
+                    metadata = request('stat', dict(path=spelling))
+                    check('hidden metadata: ' + spelling, metadata['status'] == 'ok' and
+                          metadata['path'] == spelling and metadata['hidden_known'] and
+                          metadata['hidden'] is expected, result=metadata)
                 (a / 'file').write_bytes(b'a'); (b / 'file').write_bytes(b'correct target\n')
                 (a / 'link').symlink_to(b / 'child', target_is_directory=True)
                 traversal = str(a / 'link') + '/../file'
