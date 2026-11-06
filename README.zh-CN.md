@@ -4,7 +4,7 @@
 
 Windows 原生 `screenshot` 提供桌面、区域、指定窗口和前台窗口 PNG 截图，以及有界窗口列表。参见[截图方法与结果边界](docs/native-screenshot.md)。已有安装版连接需要加载新运行时后才会显示新增工具。
 
-0.3.0 已确认的元数据与程序发现问题见 [HANDOFF.md](HANDOFF.md)：未设置 PATH 时的显式候选、Windows 1970 年前时间、POSIX 符号链接/`..` 元数据路径及虚拟环境解释器发现。
+0.3.1 补丁修复未设置 PATH 时的显式候选、Windows 1970 年前时间、POSIX 符号链接/`..` 元数据路径及虚拟环境解释器发现，同时保留程序发现的中断和错误状态，排除旧式 Windows 可执行格式。验证与发布状态分别记录于 [HANDOFF.md](HANDOFF.md)。
 
 后续工作见[三阶段路线图](ROADMAP.md#active-three-stage-program-2026-11-05)和[实施与验收计划](docs/implementation-plan-2026-11-05.zh-CN.md)：依次改善上下文成本、编程与数据任务、设计与办公交付。每项以实际需求和验证结果决定取舍；计划不代表功能已经可用。
 

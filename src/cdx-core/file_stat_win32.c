@@ -42,7 +42,12 @@ static int filetime_to_ns(FILETIME value, int64_t *output) {
     uint64_t relative;
     ticks.LowPart = value.dwLowDateTime;
     ticks.HighPart = value.dwHighDateTime;
-    if (ticks.QuadPart < UINT64_C(116444736000000000)) return 0;
+    if (ticks.QuadPart < UINT64_C(116444736000000000)) {
+        relative = UINT64_C(116444736000000000) - ticks.QuadPart;
+        if (relative > (uint64_t)INT64_MAX / 100u) return 0;
+        *output = -(int64_t)(relative * 100u);
+        return 1;
+    }
     relative = ticks.QuadPart - UINT64_C(116444736000000000);
     if (relative > (uint64_t)INT64_MAX / 100u) return 0;
     *output = (int64_t)(relative * 100u);

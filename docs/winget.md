@@ -5,6 +5,25 @@ a portable application with the `cdx` command alias. The initial submission and
 each subsequent version must pass the Microsoft community repository's checks
 and review before appearing in the public WinGet source.
 
+The 0.3.0 submission is [PR #472173](https://github.com/microsoft/winget-pkgs/pull/472173).
+On 2026-11-06 its manifest, URL, catalog and Installers Scan checks passed, but
+Installation Validation failed with `Validation-Defender-Error`. The public
+operation log does not include a threat name or signature version. A fresh
+download matches the immutable ZIP SHA-256
+`67119af4030deaae73d7cc4b8e307d86451f73073c702a23d3d4ca1400f74e82`;
+WinGet 1.29.380 validates the three generated manifests. The development host
+cannot complete a meaningful local Defender reproduction: Defender is disabled
+and local-manifest installation requires an administrator-enabled setting.
+The upstream installation gate remains failed pending investigation; neither
+local manifest validation nor a new patch release establishes that it passes.
+
+For this label, follow the upstream [validation guide](https://github.com/microsoft/winget-pkgs/blob/master/doc/ValidationFailureGuide.md):
+obtain the affected file, detection name and signature version, scan with an
+enabled Defender installation, and submit an incorrect detection to Microsoft
+for analysis. If it cannot be reproduced, provide the evidence to the PR for
+investigation. Preserve the release URL/hash when they are already correct;
+do not disable archive malware scanning to obtain a passing installation.
+
 Initial 0.0.5 submission (2026-11-02):
 [microsoft/winget-pkgs#468155](https://github.com/microsoft/winget-pkgs/pull/468155).
 The published archive's SHA-256 and the three generated manifests passed the

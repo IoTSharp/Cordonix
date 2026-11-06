@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
+#define _XOPEN_SOURCE 700
 #include "cdx/file_stat.h"
 #include "file_stat_internal.h"
 #include <errno.h>
@@ -7,6 +8,8 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
+
+static void set_hidden_metadata(cdx_stat_result *result);
 
 static uint64_t monotonic_ms(void) {
     struct timespec now;
@@ -57,7 +60,6 @@ void cdx_stat_platform_query(const cdx_stat_request *request, cdx_stat_result *r
     unsigned long native_error = 0;
     cdx_fs_status status;
     uint64_t deadline = monotonic_ms() + request->timeout_ms;
-    const char *name;
 
     status = cdx_fs_normalize_path(request->path, request->cancellation, &normalized, &native_error);
     if (status != CDX_FS_OK) {
@@ -65,13 +67,15 @@ void cdx_stat_platform_query(const cdx_stat_request *request, cdx_stat_result *r
         result->native_error = native_error;
         return;
     }
+    /* The normalizer allocates input length + 1; keep .. traversal through links. */
+    memcpy(normalized, request->path, strlen(request->path) + 1u);
     result->path = normalized;
     if (stopped(request->cancellation, deadline)) {
         result->status = request->cancellation && atomic_load(request->cancellation) ? CDX_FS_CANCELLED : CDX_FS_TIMED_OUT;
         result->native_error = result->status == CDX_FS_CANCELLED ? ECANCELED : ETIMEDOUT;
         return;
     }
-    /* lstat keeps the lexical path and reports a link itself instead of following it. */
+    /* The final link itself is queried; intermediate links retain POSIX traversal. */
     if (lstat(request->path, &metadata)) {
         result->status = status_from_error(errno);
         result->native_error = (unsigned long)errno;
@@ -82,10 +86,7 @@ void cdx_stat_platform_query(const cdx_stat_request *request, cdx_stat_result *r
     result->mode_bits = (uint32_t)metadata.st_mode;
     result->size_known = result->kind == CDX_FS_FILE && metadata.st_size >= 0;
     if (result->size_known) result->size_bytes = (uint64_t)metadata.st_size;
-    name = strrchr(result->path, '/');
-    name = name ? name + 1 : result->path;
-    result->hidden = name[0] == '.' && name[1] != 0;
-    result->hidden_known = 1;
+    set_hidden_metadata(result);
     result->system_known = 0;
     result->time_precision_ns = 1;
     result->time_precision_known = 1;
@@ -98,4 +99,26 @@ void cdx_stat_platform_query(const cdx_stat_request *request, cdx_stat_result *r
         return;
     }
     result->status = CDX_FS_OK;
+}
+
+static void set_hidden_metadata(cdx_stat_result *result) {
+    const char *end = result->path + strlen(result->path);
+    const char *name;
+    size_t length;
+    char *physical;
+    while (end > result->path && end[-1] == '/') --end;
+    name = end;
+    while (name > result->path && name[-1] != '/') --name;
+    length = (size_t)(end - name);
+    result->hidden_known = 1;
+    if ((length == 1u && name[0] == '.') ||
+        (length == 2u && name[0] == '.' && name[1] == '.')) {
+        /* A terminal dot segment names the traversed directory, not a hidden entry. */
+        physical = realpath(result->path, NULL);
+        if (!physical) { result->hidden_known = 0; return; }
+        name = strrchr(physical, '/');
+        name = name ? name + 1 : physical;
+        result->hidden = name[0] == '.';
+        free(physical);
+    } else result->hidden = length != 0u && name[0] == '.';
 }

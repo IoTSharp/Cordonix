@@ -21,6 +21,8 @@ jobs:
       - name: Compare real batch reads and HTTP representations
         shell: pwsh
         run: python tests/acceptance/three_stage_baseline.py --executable build/bin/cdx.exe --output build/three-stage-ci-windows.json
+      - name: Verify discovery regression with a real executable
+        run: python tests/acceptance/discovery_regressions.py --executable build/bin/cdx.exe --output build/discovery-regressions.json
       - name: Verify the portable package and its provenance
         shell: pwsh
         run: ./eng/test-package.ps1 -Version $env:CDX_VERSION
@@ -52,6 +54,8 @@ jobs:
         run: timeout --kill-after=5s 300s sh eng/test-linux.sh
       - name: Compare real batch reads and POSIX path traversal
         run: timeout --kill-after=5s 250s python3 tests/acceptance/three_stage_baseline.py --executable build/linux/bin/cdx --output build/three-stage-ci-linux.json
+      - name: Verify discovery and virtual environment launches
+        run: timeout --kill-after=2s 60s python3 tests/acceptance/discovery_regressions.py --executable build/linux/bin/cdx --output build/discovery-regressions.json
       - name: Require the real Linux ripgrep adapter
         run: timeout --kill-after=5s 85s sh eng/test-adapters-linux.sh
       - name: Verify ext4 filenames and the documented metadata policy

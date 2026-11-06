@@ -141,6 +141,7 @@ void cdx_program_discovery_call(const cdx_json *json, int arguments,
         for (i = 0; !status && i < request.explicit_count; ++i)
             status = consider(request.explicit_paths[i], &request, deadline, &result);
         if (!status && request.search_path) status = scan_path_list(&request, deadline, &result);
+        if (!status) status = checkpoint(&request, deadline);
         if (!status) status = result.count ? "ok" : "not_found";
     }
     if (status && !strcmp(status, "timed_out")) result.stop_reason = status;
@@ -207,10 +208,16 @@ static int number_arg(const cdx_json *json, int object, const char *name, size_t
 
 static char *environment_path(void) {
 #ifdef _WIN32
-    DWORD size = GetEnvironmentVariableW(L"PATH", NULL, 0);
+    DWORD size;
     wchar_t *wide;
     char *text;
-    if (!size) return NULL;
+    SetLastError(ERROR_SUCCESS);
+    size = GetEnvironmentVariableW(L"PATH", NULL, 0);
+    if (!size) {
+        DWORD error = GetLastError();
+        if (error != ERROR_ENVVAR_NOT_FOUND && error != ERROR_SUCCESS) return NULL;
+        return utf8_text(L"");
+    }
     wide = (wchar_t *)malloc((size_t)size * sizeof(*wide));
     if (!wide || GetEnvironmentVariableW(L"PATH", wide, size) >= size) { free(wide); return NULL; }
     text = utf8_text(wide);
@@ -219,7 +226,8 @@ static char *environment_path(void) {
 #else
     const char *value = getenv("PATH");
     char *copy;
-    if (!value || !valid_text(value, CDX_PROGRAM_MAX_PATH_LIST, 1)) return NULL;
+    if (!value) value = "";
+    if (!valid_text(value, CDX_PROGRAM_MAX_PATH_LIST, 1)) return NULL;
     copy = (char *)malloc(strlen(value) + 1u);
     if (copy) memcpy(copy, value, strlen(value) + 1u);
     return copy;
@@ -309,7 +317,8 @@ static int executable_path(const cdx_path_char *path) {
     if (length < 4u || _wcsicmp(path + length - 4u, L".exe")) return 0;
     attributes = GetFileAttributesW(path);
     if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY)) return 0;
-    return GetBinaryTypeW(path, &binary_type) != 0;
+    return GetBinaryTypeW(path, &binary_type) &&
+        (binary_type == SCS_32BIT_BINARY || binary_type == SCS_64BIT_BINARY);
 #else
     struct stat metadata;
     return path && !stat(path, &metadata) && S_ISREG(metadata.st_mode) && !access(path, X_OK);
@@ -352,12 +361,14 @@ static const char *consider(const char *candidate, const program_request *reques
         if (fs_status == CDX_FS_CANCELLED) return "cancelled";
         if (fs_status == CDX_FS_VALIDATION_ERROR) return "validation_error";
         if (fs_status == CDX_FS_ENCODING_ERROR) return "encoding_error";
-        return NULL;
+        if (fs_status == CDX_FS_TIMED_OUT) return "timed_out";
+        return "io_error";
     }
 #ifndef _WIN32
     free(normalized);
-    /* Resolve the original traversal; lexical .. removal can change its target. */
-    normalized = realpath(native, NULL);
+    /* Keep the launch spelling: realpath loses virtual-environment identity. */
+    normalized = native;
+    native = NULL;
 #endif
     free(native);
     if (executable_path(normalized)) normalized_text = utf8_text(normalized);
@@ -450,5 +461,5 @@ static void write_result(cdx_json_output *output, const program_request *request
 }
 
 const char *cdx_program_discovery_tool_schema(void) {
-    return "{\"name\":\"find_program\",\"title\":\"发现可执行程序\",\"description\":\"Resolve a native executable without a shell. Explicit candidates are checked first, then absolute directories from path or inherited PATH. Windows accepts native .exe files only; POSIX requires a regular executable file. Results are absolute, unique and bounded; selected is the first match. Relative PATH entries are rejected. No wildcard or PATHEXT expansion and no command-string interpretation. POSIX returns physical paths; identical result strings are deduplicated. Check scan_complete, truncated and stop_reason before executing a result.\",\"inputSchema\":{\"type\":\"object\",\"required\":[\"name\"],\"properties\":{\"name\":{\"type\":\"string\",\"minLength\":1,\"description\":\"Bare literal name; no path separators, backticks, newlines or command substitution.\"},\"candidates\":{\"type\":\"array\",\"maxItems\":64,\"description\":\"Up to 64 absolute candidates, checked in array order before PATH.\",\"items\":{\"type\":\"string\",\"description\":\"Absolute literal candidate path; checked before PATH.\"}},\"path\":{\"type\":\"string\",\"description\":\"Optional platform PATH list using ; on Windows or : on POSIX; omitted uses inherited PATH.\"},\"search_path\":{\"type\":\"boolean\",\"default\":true,\"description\":\"Search path after explicit candidates; false requires at least one candidate.\"},\"max_results\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":64,\"default\":16,\"description\":\"Maximum returned candidates; additional matches keep the scan incomplete.\"},\"max_output_bytes\":{\"type\":\"integer\",\"minimum\":1024,\"maximum\":262144,\"default\":65536,\"description\":\"Serialized operation JSON budget excluding the MCP envelope.\"},\"timeout_ms\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":60000,\"default\":5000,\"description\":\"Deadline in milliseconds, checked between filesystem probes.\"}}},\"annotations\":{\"readOnlyHint\":true}}";
+    return "{\"name\":\"find_program\",\"title\":\"发现可执行程序\",\"description\":\"Resolve a native executable without a shell. Explicit candidates are checked first, then absolute directories from path or inherited PATH. Windows accepts native .exe files only; POSIX requires a regular executable file. Results are absolute, unique and bounded; selected is the first match. Relative PATH entries are rejected. No wildcard or PATHEXT expansion and no command-string interpretation. POSIX retains absolute launch spelling, including symlinks and dot segments, so interpreter environments and filesystem traversal are preserved. An unset PATH is empty; explicit candidates are still checked. Identical result strings are deduplicated. Check scan_complete, truncated and stop_reason before executing a result.\",\"inputSchema\":{\"type\":\"object\",\"required\":[\"name\"],\"properties\":{\"name\":{\"type\":\"string\",\"minLength\":1,\"description\":\"Bare literal name; no path separators, backticks, newlines or command substitution.\"},\"candidates\":{\"type\":\"array\",\"maxItems\":64,\"description\":\"Up to 64 absolute candidates, checked in array order before PATH.\",\"items\":{\"type\":\"string\",\"description\":\"Absolute literal candidate path; checked before PATH.\"}},\"path\":{\"type\":\"string\",\"description\":\"Optional platform PATH list using ; on Windows or : on POSIX; omitted uses inherited PATH.\"},\"search_path\":{\"type\":\"boolean\",\"default\":true,\"description\":\"Search path after explicit candidates; false requires at least one candidate.\"},\"max_results\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":64,\"default\":16,\"description\":\"Maximum returned candidates; additional matches keep the scan incomplete.\"},\"max_output_bytes\":{\"type\":\"integer\",\"minimum\":1024,\"maximum\":262144,\"default\":65536,\"description\":\"Serialized operation JSON budget excluding the MCP envelope.\"},\"timeout_ms\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":60000,\"default\":5000,\"description\":\"Deadline in milliseconds, checked between filesystem probes.\"}}},\"annotations\":{\"readOnlyHint\":true}}";
 }
