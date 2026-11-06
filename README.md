@@ -8,6 +8,8 @@ The [three-stage roadmap](ROADMAP.md#active-three-stage-program-2026-11-05) and 
 
 Unreleased: the development MCP surface has 32 tools, including native `create_directory` and bounded sequential `read_files` on Windows/Linux. HTTP adds optional `representation=both|text|base64`, retaining `both` by default and preserving raw Base64 when text decoding fails. See [batch read limits](docs/batch-read.md), [HTTP representation](docs/native-http.md) and the [MCP compatibility audit](docs/mcp-compatibility.md). These changes are local and await release and installed-client adoption.
 
+The current MCP adapters also reject malformed or unknown `tools/call` requests with JSON-RPC `-32602`. Deterministic operation failures expose outer `isError: true` while keeping the original status JSON; partial, preview, no-match, unsupported-platform and unknown-outcome results remain text results. This local compatibility slice is covered by 148/148 MCP checks on Windows and WSL Linux; modern client adoption remains a separate gate.
+
 Release 0.1.0 adds native SSH, HTTP, SFTP, TCP/Telnet/MQTT and serial access, automatic local proxy evaluation and per-call summaries: 24 tools total, retaining all 19 v0.0.5 tools and their published fields. Windows/Linux native and MCP gates, real protocol fixtures and portable packages pass; signed tagged publication and public readback are recorded in [HANDOFF.md](HANDOFF.md).
 
 Version 0.0.5 adds Windows process queries, experimental native phone access and Microsoft Store/portable PowerShell 7 compatibility. Its release and natural installed-update checks are recorded separately in HANDOFF.md; the completed v0.0.4 acceptance below is historical evidence.
