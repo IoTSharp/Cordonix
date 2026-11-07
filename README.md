@@ -20,7 +20,7 @@ On 2026-11-02 this machine's existing hourly task naturally upgraded 0.0.4 to 0.
 
 WinGet distribution is being submitted as `IoTSharp.Cordonix`. See [the WinGet guide](docs/winget.md) for catalog availability, installation boundaries and automatic release PRs.
 
-Version 0.4.1 adds daily background update checks and precise `create_file` argument diagnostics. See the [release notes](docs/release-notes.md) for changes and upgrade instructions. Publication and public-download acceptance are tracked in [HANDOFF.md](HANDOFF.md); the following 0.3.1 record is the prior verified baseline.
+Verified release: [GitHub v0.4.1](https://github.com/IoTSharp/Cordonix/releases/tag/v0.4.1) / [Gitee v0.4.1](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.4.1), from clean source `d8a67cf`. It adds daily background update checks, complete MCP tool guidance and precise `create_file` argument diagnostics. All 12 asset pairs match across both hosts; original archives pass exact-tag signing verification and tampered copies fail. See the [release notes](docs/release-notes.md) and [acceptance receipts](HANDOFF.md). The following 0.3.1 record is the prior verified baseline.
 
 All 34 MCP tools and their 244 named input properties have usage descriptions. The [tool guide](docs/mcp-tool-guide.md) explains selection, defaults, conditional fields and memory/disk boundaries; the real MCP suite checks description coverage before release.
 

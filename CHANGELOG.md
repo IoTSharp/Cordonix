@@ -4,6 +4,7 @@
 
 ## 0.4.1 - 2026-11-08
 
+- Published clean source `d8a67cf` on GitHub and Gitee after Windows/Linux CI and tagged signing/package gates. All 12 mirrored asset pairs and four archive checksums pass public-download readback; exact-tag verification accepts four originals and rejects four tampered copies. Downloaded runtimes report the expected version/source and update command. WinGet PR #474302 has its own catalog acceptance gate; installed-client adoption remains separate.
 - Reviewed all 34 MCP tools and documented every input property, including nested headers, batch items and SSH/SFTP endpoints. Clarified session-local document IDs, current-memory hashes, conditional action fields, defaults and mutation outcomes. Added real `tools/list` coverage checks for descriptions and required field names.
 - Included the maintained release notes in both Windows/Linux package lists. The v0.4.0 tag is retained as a failed packaging checkpoint without published release assets; 0.4.1 carries the corrected packages.
 - Clarified `create_file` tool and property descriptions: the required body is `content`, not `text`. Split path, content and encoding validation diagnostics, including an explicit rename hint for the observed `text` typo. Real MCP regressions check each failure before file creation and retain successful encoding, empty-file and no-overwrite checks.

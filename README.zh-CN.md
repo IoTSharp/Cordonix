@@ -22,7 +22,7 @@ Windows 原生 `screenshot` 提供桌面、区域、指定窗口和前台窗口 
 
 WinGet 发行正在以 `IoTSharp.Cordonix` 提交收录；安装边界、入库状态和新版本自动提交 PR 的流程见 [WinGet 说明](docs/winget.md)。
 
-0.4.1 增加每日首次启动后台更新检查，并准确指出 `create_file` 的错误参数。改动和升级方法见[发行说明](docs/release-notes.md)，发布与公开下载验收记录见 [HANDOFF.md](HANDOFF.md)；下面保留 0.3.1 的上一版验收基线。
+已发布并验收：[GitHub v0.4.1](https://github.com/IoTSharp/Cordonix/releases/tag/v0.4.1) / [Gitee v0.4.1](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.4.1)，干净发行源码为 `d8a67cf`。本版增加每日后台更新检查、完善全部 MCP 工具说明，并准确指出 `create_file` 的错误参数。两站 12 个附件逐项哈希一致，原始压缩包验签通过、篡改副本均被拒绝。改动和升级方法见[发行说明](docs/release-notes.md)，验收回执见 [HANDOFF.md](HANDOFF.md)；下面保留 0.3.1 的上一版验收基线。
 
 全部 34 个 MCP 工具及其 244 个命名参数定义均提供使用说明。[工具指南](docs/mcp-tool-guide.md)覆盖工具选择、默认值、条件参数和内存／磁盘边界；真实 MCP 测试在发布前检查说明是否完整。
 

@@ -2,6 +2,8 @@
 
 ## 0.4.1 release (2026-11-08)
 
+Published from clean `d8a67cf` to GitHub and Gitee. Main/tag CI and release attempt 2 pass; all 12 mirrored asset pairs, archive checksums, exact-tag signatures and public runtime identities are verified. OSChina news 503467 is submitted pending editorial review; tweet 30402017 has verified text/image readback. WinGet PR #474302 remains an independent upstream gate. HANDOFF.md contains receipts and installed-client boundaries.
+
 The user added a release gate requiring an audit of all tool guidance. The audit found 167 missing property descriptions across 25 tools; the release now fills those gaps, clarifies misleading defaults and documents all 34 tools in the selection guide. Real MCP schema checks cover nested fields and required names. Source, hosted validation and final publication evidence remain in HANDOFF.md.
 
 The user authorized a new release containing daily background upgrade checks and the create-file argument diagnostic repair. The minor version reflects the new `--checkupgrade` CLI capability and updater behavior; the existing 34-tool MCP contract is retained. Source commit `40426dc` passed both hosted Windows/Linux CI jobs, including package, reproducibility and installer gates. Tagged signing, dual-host publication and public-download acceptance are recorded separately in HANDOFF.md.
