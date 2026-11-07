@@ -19,6 +19,10 @@ Cordonix 0.4.1 adds daily background update checks and makes file-creation error
 
 Missing or mistyped path/content, invalid encoding types, unsupported encoding names and actual `encoding: "auto"` requests receive distinct diagnostics before writing. Tool/property descriptions state the correct body field. UTF-8 remains the default; empty files, strict GBK/CP936 conversion and no-overwrite behavior remain supported.
 
+## Complete MCP tool guidance
+
+All 34 tools have been reviewed against their implementations. Input properties now explain their purpose, including nested batch items, HTTP headers and SSH/SFTP endpoint fields. The guide covers exact field names, session-local document IDs, current-memory SHA values, read-mode selection, conditional action fields and write/commit boundaries. Tests inspect the real `tools/list` response for missing descriptions and invalid required names. Existing operation behavior is retained.
+
 ## Upgrade and verification
 
 Use the stable installer described in [Install and update](https://github.com/IoTSharp/Cordonix/blob/v0.4.1/docs/install-update.md). Existing installations need the updated launcher to adopt daily startup checks; the launcher selects the native command when the installed binary exposes it. An existing MCP connection retains its running executable until its client establishes a new connection.

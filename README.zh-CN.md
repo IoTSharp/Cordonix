@@ -24,6 +24,8 @@ WinGet 发行正在以 `IoTSharp.Cordonix` 提交收录；安装边界、入库�
 
 0.4.1 增加每日首次启动后台更新检查，并准确指出 `create_file` 的错误参数。改动和升级方法见[发行说明](docs/release-notes.md)，发布与公开下载验收记录见 [HANDOFF.md](HANDOFF.md)；下面保留 0.3.1 的上一版验收基线。
 
+全部 34 个 MCP 工具及其 244 个命名参数定义均提供使用说明。[工具指南](docs/mcp-tool-guide.md)覆盖工具选择、默认值、条件参数和内存／磁盘边界；真实 MCP 测试在发布前检查说明是否完整。
+
 已验收发行版：[GitHub v0.3.1](https://github.com/IoTSharp/Cordonix/releases/tag/v0.3.1) / [Gitee v0.3.1](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.3.1)，干净发行源码为 `0c50aab`。两端 12 个上传附件的 SHA-256 完全一致，四份原始压缩包通过精确标签 OIDC 验签，四份篡改副本均被拒绝。下载的 Windows/Linux 程序均提供全部 34 个 MCP 工具，分别通过 165/166 项真实协议检查及补丁回归。本次证据见 [HANDOFF.md](HANDOFF.md)；安装版客户端采用单独验收，v0.3.0/v0.2.0 附件保持不变。WinGet 收录仍需通过微软的独立验证和审核。
 
 

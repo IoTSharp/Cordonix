@@ -4,6 +4,7 @@
 
 ## 0.4.1 - 2026-11-08
 
+- Reviewed all 34 MCP tools and documented every input property, including nested headers, batch items and SSH/SFTP endpoints. Clarified session-local document IDs, current-memory hashes, conditional action fields, defaults and mutation outcomes. Added real `tools/list` coverage checks for descriptions and required field names.
 - Included the maintained release notes in both Windows/Linux package lists. The v0.4.0 tag is retained as a failed packaging checkpoint without published release assets; 0.4.1 carries the corrected packages.
 - Clarified `create_file` tool and property descriptions: the required body is `content`, not `text`. Split path, content and encoding validation diagnostics, including an explicit rename hint for the observed `text` typo. Real MCP regressions check each failure before file creation and retain successful encoding, empty-file and no-overwrite checks.
 - Added native `cdx --checkupgrade [--install-root absolute-directory]` and `tool_info.update_command` on Windows/Linux. Stable launchers start a separate background instance on the first launch of each local calendar day, retain the main process and preserve explicit opt-out. The updated launcher uses this native command with 0.4.1; older 0.3.1 binaries retain the updater-script compatibility path.

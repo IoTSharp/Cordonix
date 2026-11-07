@@ -1,5 +1,11 @@
 # Handoff
 
+## Complete MCP guidance gate (2026-11-08, Asia/Shanghai)
+
+Before publishing 0.4.1, the user requested a review of every tool's instructions. The real pre-change list had 34 tools, with 167 missing named-property descriptions across 25 tools. The scoped metadata repair fills all missing descriptions, including nested array objects and SSH/SFTP endpoint definitions, and clarifies document ID lifetime, memory versus disk hashes, read modes, conditional action arguments, actual defaults and mutation outcomes. The selection guide now covers all 34 tools. The existing real MCP suite checks tool descriptions, nested property descriptions and required names with count/depth/time bounds. No operation behavior or dependency was added.
+
+Local Windows `eng/test.cmd`, portable-package validation and MSVC `/analyze /W4 /WX` pass. The new pilot fails against the pre-audit binary and passes against the rebuilt source. Fresh `tools/list` readback verifies 244/244 named properties documented, zero missing descriptions, and all 34 tools present in the guide; its 61,544-character two-response exchange fits the existing MCP fixture without raising its frame limit. Audit artifacts and native execution receipts are under ignored `build/tool-guidance-01a1b6b2/`. Hosted validation of the final source remains required before tagging 0.4.1.
+
 ## 0.4.1 release preparation (2026-11-08, Asia/Shanghai)
 
 The user authorized choosing a version and publishing the recent changes. Version 0.4.0 includes the new native daily startup updater from `d103f62` and the create-file diagnostics from `40426dc`; no existing MCP tool or field is removed. The latest public version was verified as 0.3.1 before publication, and the proposed 0.4.0 tag was absent. Both hosted Windows/Linux jobs for `40426dc` passed [CI run 42390206388](https://github.com/IoTSharp/Cordonix/actions/runs/42390206388), including native/MCP tests, packages, SPDX, reproducibility and installer/update fixtures.

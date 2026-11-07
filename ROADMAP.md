@@ -2,6 +2,8 @@
 
 ## 0.4.1 release (2026-11-08)
 
+The user added a release gate requiring an audit of all tool guidance. The audit found 167 missing property descriptions across 25 tools; the release now fills those gaps, clarifies misleading defaults and documents all 34 tools in the selection guide. Real MCP schema checks cover nested fields and required names. Source, hosted validation and final publication evidence remain in HANDOFF.md.
+
 The user authorized a new release containing daily background upgrade checks and the create-file argument diagnostic repair. The minor version reflects the new `--checkupgrade` CLI capability and updater behavior; the existing 34-tool MCP contract is retained. Source commit `40426dc` passed both hosted Windows/Linux CI jobs, including package, reproducibility and installer gates. Tagged signing, dual-host publication and public-download acceptance are recorded separately in HANDOFF.md.
 
 ## Create-file argument diagnostics (2026-11-08)

@@ -29,6 +29,29 @@ connection under its lifecycle owner; do not terminate shared MCP services.
 
 | Need | Tool and minimum fields | Result boundary |
 | --- | --- | --- |
+| Identify the connected runtime | `tool_info`: `{}` | Version, build revision/dirty flag and update capability; counters are per-session logical operations. |
+| Run one local program | `execute_program`: absolute `program`, literal `args`, absolute `cwd` | Bounded execution owns descendants. Inspect exit/status/cleanup; never launch persistent services here. |
+| Read Git changes | `git_status`: absolute Git `program`, worktree `cwd` | Parsed porcelain paths, including renames. Does not stage or modify Git. |
+| Inspect local processes | `query_processes`: optional name/command filters | Windows only, read-only. Partial access and truncated results are not a complete process inventory. |
+| Search file contents | `search_text`: absolute rg `program`, `cwd`, `patterns`, `roots` | Fixed strings by default; use `literal:false` for regex. `no_match` differs from failure. |
+| Read fresh disk text | `read_file`: absolute `path` | Select line, tail or raw mode. `encoding` defaults to BOM/strict UTF-8 auto detection. |
+| List immediate children | `list_directory`: absolute `path` | No recursion; check `truncated`. Use `find_files` for recursive filenames. |
+| Normalize an existing path | `resolve_path`: absolute `path` | Lexical normalization; does not resolve to a physical symlink target. |
+| Verify declared file encodings | `verify_encoding`: `paths`, explicit `encoding` | Fresh-byte decoding and exact round-trip; `auto` forbidden. Incomplete rows remain `not_run`. |
+| Open a memory document | `workspace_open`: absolute `path` | Returns a session-local `document_id`; close after use. Separate CLI requests do not share it. |
+| Read memory text | `workspace_read`: `document_id` | Default byte mode or explicit line/tail/raw mode; does not reload disk. |
+| Find memory text | `workspace_search`: `document_id`, literal `pattern` | Returns UTF-8 byte offsets, up to 100 matches; no regex. |
+| Inspect a memory revision | `workspace_status`: `document_id` | The disk SHA is the loaded/last-committed snapshot, not a fresh disk check. |
+| Replace memory text | `workspace_edit`: `document_id`, current `expected_sha256`, `old`, `new` | Expected count defaults 1. Preview by default; `dry_run:false` applies only in memory. |
+| Convert encoding | `workspace_convert_encoding`: `document_id`, current `expected_sha256`, `encoding` | Lossless memory conversion; preview by default. Commit separately. |
+| Save a memory document | `workspace_commit`: `document_id` | Rechecks disk identity/SHA before one-file replacement; inspect `written_to_disk`. |
+| Release a memory document | `workspace_close`: `document_id` | Dirty memory requires a successful commit or explicit `discard:true`. |
+| Probe or execute SSH | `ssh`: `target`; execute also needs `script` and verified authentication | Windows only. Direct/jump/interactive routes have different trust and prompt requirements. |
+| Read/write remote file bytes | `sftp`: pinned/authenticated `target`, remote `path` | Windows only. Default stat; read returns hex; write needs `allow_write:true` and an absent path. |
+| Make an HTTP request | `http`: `url` | Windows only. No automatic redirects/cookies/auth; transport success and HTTP status differ. |
+| Exchange TCP/Telnet/MQTT data | `network`: literal IP `host`, `port` | Windows only. Explicit send permission; no application-delivery claim or TLS fallback. |
+| Inspect or use a serial port | `serial`: default `{}` lists ports; other actions need `port` | Windows only. Sending and line configuration are separate opt-ins. |
+| Use Bluetooth phone services | `phone`: `action` | Windows only. Device actions require a discovered address; mutating actions preview by default. |
 | Filter, project, count or group JSON, JSONL or CSV records | `data_query`: `format` and exactly one `path` or `text` | Native read-only parsing. Field selectors are RFC6901 pointers. Counts describe the examined prefix until `scan_complete=true`. |
 | Recursively discover filenames with optional glob filters | `find_files`: absolute ripgrep `program`, absolute `cwd`, absolute `roots` | Uses literal `rg --no-config --files --null`. Ordinary ignore rules apply. Sorted pages require a complete scan; offsets are not snapshots. |
 | Read one path's metadata | `stat`: absolute `path`, optional `timeout_ms` | Reports file/directory/link/other, size availability, flags, timestamps and precision. Missing paths retain normalized context. |
@@ -51,6 +74,52 @@ Detailed contracts: [data queries](data-query.md), [file metadata](file-stat.md)
 [program discovery](program-discovery.md), [file discovery](file-discovery.md),
 [regular-file operations](file-operations.md), [batch reads](batch-read.md), and
 [Windows screenshots](native-screenshot.md).
+
+## Parameter and result rules
+
+Use the exact input names from `tools/list`. `create_file` takes `content`, even
+though reading tools return `text`. Omit unused fields; JSON `null` is not an
+omitted string, boolean or read mode. `read_file` and `read_files` default to
+`encoding: "auto"`; new-file creation defaults to `utf-8`. Use the enum spelling
+`utf-8`, not `utf8`.
+
+For reads choose `start_line`/`line_count`, `tail_lines`, or `raw:true`.
+`workspace_read` alone also supports byte `offset`/`limit`; do not mix byte
+fields with line/tail/raw/max_bytes fields. Line numbers start at 1 and byte
+offsets at 0. Keep the current `memory_sha256` after each applied edit or
+conversion; `expected_sha256` must match that current memory revision.
+
+The document workflow is `workspace_open` → read/search/status → edit/convert
+→ `workspace_commit` → `workspace_close`, all in the same MCP session.
+`dry_run:false` on edit/convert does not save a file. Commit before a compiler
+or Git reads disk. Close without `discard:true` after a successful commit.
+
+For SSH execute, use exactly one credential alias or unencrypted key file per
+authenticated endpoint, and an independently verified host-key pin. A probe
+does not authenticate the target or establish trust by itself. Interactive
+routes require the bastion's pin plus caller-supplied ready/shell prompts and
+selection template; the selected target omits private_key_path/host_key_sha256.
+For `phone`, only adapters/devices/discover/connection_status omit a device
+address; discovery requires at least 2000 ms. sms_read/read_code/wait_sms use
+the prior sms_list snapshot SHA and identical paging settings.
+
+For `serial`, explicit baud/data/parity/stop fields require `configure:true`;
+nonempty transmit bytes also require `allow_send:true`. For `network`,
+TCP/Telnet use connect/exchange, MQTT uses connect/publish, and idle_timeout_ms
+must not exceed timeout_ms. A successful send does not prove device or remote
+application acceptance. Reconcile unknown outcomes before any mutation retry.
+
+For `screenshot`, list_windows accepts only its action and listing limits;
+omit capture fields. Region capture needs all x/y/width/height fields. A window
+handle is a decimal or `0x` string from list_windows, not a numeric JSON value.
+Successful PNG creation still requires visual inspection.
+
+All 34 tool descriptions and every named property, including array objects
+and SSH/SFTP endpoint definitions, are checked through the real MCP tool list.
+The test also checks that required names exist in their property definitions.
+Behavioral tests remain responsible for defaults, conflicts, encoding and
+mutation boundaries; description coverage alone does not prove hardware or
+remote-service acceptance.
 
 ## Minimal argument examples
 

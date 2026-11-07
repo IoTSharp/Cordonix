@@ -547,6 +547,43 @@ static int bool_is(const cdx_json *json, const char *key, int expected) {
     return node >= 0 && json->nodes[node].type == CDX_JSON_BOOL && json->nodes[node].boolean == expected;
 }
 
+static int schema_documented(const cdx_json *json, int schema, unsigned depth, unsigned *remaining) {
+    static const char *const groups[] = {"properties", "$defs"};
+    int node, group, properties, required;
+    unsigned i, count;
+    if (schema < 0 || json->nodes[schema].type != CDX_JSON_OBJECT || depth > 8 ||
+        !*remaining || GetTickCount64() >= deadline) return 0;
+    --*remaining;
+    properties = cdx_json_get(json, schema, "properties");
+    required = cdx_json_get(json, schema, "required");
+    if (required >= 0) {
+        if (json->nodes[required].type != CDX_JSON_ARRAY) return 0;
+        node = json->nodes[required].first;
+        for (count = 0; node >= 0 && count < 128 && GetTickCount64() < deadline; ++count) {
+            if (json->nodes[node].type != CDX_JSON_STRING ||
+                cdx_json_get(json, properties, json->nodes[node].string) < 0) return 0;
+            node = json->nodes[node].next;
+        }
+        if (node >= 0) return 0;
+    }
+    for (i = 0; i < 2 && GetTickCount64() < deadline; ++i) {
+        group = cdx_json_get(json, schema, groups[i]);
+        if (group < 0) continue;
+        if (json->nodes[group].type != CDX_JSON_OBJECT) return 0;
+        node = json->nodes[group].first;
+        for (count = 0; node >= 0 && count < 128 && GetTickCount64() < deadline; ++count) {
+            int description = cdx_json_get(json, node, "description");
+            if (i == 0 && (description < 0 || json->nodes[description].type != CDX_JSON_STRING ||
+                strspn(json->nodes[description].string, " \t\r\n") == strlen(json->nodes[description].string))) return 0;
+            if (!schema_documented(json, node, depth + 1, remaining)) return 0;
+            node = json->nodes[node].next;
+        }
+        if (node >= 0) return 0;
+    }
+    node = cdx_json_get(json, schema, "items");
+    return i == 2 && (node < 0 || schema_documented(json, node, depth + 1, remaining));
+}
+
 static void batch_read_cases(wire_client *client) {
     static const char original[] = "head\r\n\xe4\xb8\xad\nlast";
     line_fixture *fixture = (line_fixture *)calloc(1, sizeof(*fixture));
@@ -2159,24 +2196,33 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
     if (!wire_start(&client, program)) { record("MCP server starts", 0); wire_stop(&client); return 1; }
     valid = wire_send(&client, initialize, sizeof(initialize) - 1) && wire_read(&client, &response);
     record("MCP initialize", valid && cdx_json_get(&response, 0, "result") >= 0); cdx_json_free(&response);
-    if (pilot) { create_file_cases(&client, 1); record("MCP EOF exits cleanly", wire_stop(&client)); return passed == total ? 0 : 1; }
     valid = wire_send(&client, list, sizeof(list) - 1) && wire_read(&client, &response);
     node = valid ? cdx_json_get(&response, cdx_json_get(&response, 0, "result"), "tools") : -1;
     record("MCP tools list", node >= 0 && response.nodes[node].type == CDX_JSON_ARRAY);
     {
         int tool = node >= 0 ? response.nodes[node].first : -1;
         unsigned count = 0;
-        int titles_valid = 1, execution_title = 0, stat_title = 0, discovery_title = 0;
-        for (; tool >= 0 && count < 64; tool = response.nodes[tool].next, ++count) {
+        unsigned tool_limit = pilot ? 1u : 64u;
+        int titles_valid = 1, schemas_valid = 1, execution_title = 0, stat_title = 0, discovery_title = 0;
+        for (; tool >= 0 && count < tool_limit && GetTickCount64() < deadline; tool = response.nodes[tool].next, ++count) {
             int title = cdx_json_get(&response, tool, "title");
+            int description = cdx_json_get(&response, tool, "description");
+            int schema = cdx_json_get(&response, tool, "inputSchema");
+            unsigned remaining = 1024;
             if (title < 0 || response.nodes[title].type != CDX_JSON_STRING || !*response.nodes[title].string) titles_valid = 0;
+            if (description < 0 || response.nodes[description].type != CDX_JSON_STRING || !*response.nodes[description].string ||
+                !schema_documented(&response, schema, 0, &remaining)) schemas_valid = 0;
             if (string_is(&response, tool, "name", "execute_program")) execution_title = string_is(&response, tool, "title", "执行本地程序");
             if (string_is(&response, tool, "name", "stat")) stat_title = title >= 0;
             if (string_is(&response, tool, "name", "find_program")) discovery_title = title >= 0;
         }
-        record("MCP thirty-four tools expose human-readable titles", count == 34 && tool < 0 && titles_valid && execution_title && stat_title && discovery_title);
+        record(pilot ? "MCP first tool exposes a title" : "MCP thirty-four tools expose human-readable titles",
+            titles_valid && (pilot ? count == 1 : count == 34 && tool < 0 && execution_title && stat_title && discovery_title));
+        record("MCP tool descriptions cover nested fields and declared required names", schemas_valid &&
+            (pilot ? count == 1 : count == 34 && tool < 0));
     }
     cdx_json_free(&response);
+    if (pilot) { create_file_cases(&client, 1); record("MCP EOF exits cleanly", wire_stop(&client)); return passed == total ? 0 : 1; }
     process_snapshot_cases(&client);
     screenshot_cases(&client);
     phone_cases(&client);
