@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Clarified `create_file` tool and property descriptions: the required body is `content`, not `text`. Split path, content and encoding validation diagnostics, including an explicit rename hint for the observed `text` typo. Real MCP regressions check each failure before file creation and retain successful encoding, empty-file and no-overwrite checks.
 - Added native `cdx --checkupgrade [--install-root absolute-directory]` and `tool_info.update_command` on Windows/Linux. Stable launchers start a separate background instance on the first launch of each local calendar day, retain the main process and preserve explicit opt-out. Installed 0.3.1 uses the existing updater-script compatibility path until the native command is published.
 - Made daily startup checks the default without requiring a scheduler; legacy explicit enable flags can additionally register daily backup tasks. Added shared updater ownership, persisted source/proxy settings, worker identity and last-attempt receipts. GitHub remains preferred with a reserved Gitee request budget. Confirmed Windows directory-publication access/sharing failures receive a bounded retry only while the source remains and the destination is absent.
 - Adopt newer updater generations from verified release packages. Documented one-time migration for existing installations, portable/package-manager boundaries and current-session versus next-start adoption. Extended real installer/launcher fixtures on both platforms.

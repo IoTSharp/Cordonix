@@ -38,6 +38,7 @@ connection under its lifecycle owner; do not terminate shared MCP services.
 | Relocate a file within one filesystem | `move_file`: absolute `source`, `destination` | Atomic rename without replacement. No cross-filesystem copy/delete fallback; inspect `source_removed`. |
 | Read several known text files | `read_files`: 1–32 `files` items, each with `path` | Ordered fresh disk reads with per-item encoding and line/tail/raw modes. Preserve `partial` and `not_run`; not an atomic multi-file snapshot. |
 | Create a directory | `create_directory`: absolute `path` | `parents` and `exist_ok` default false. Inspect `created` and `directories_created`; parents already created remain after a later failure. |
+| Create a new text file | `create_file`: absolute `path`, string `content` | Parent must exist; no overwrite. Use `content` for the body. `encoding` defaults to `utf-8`; `auto` is not supported. |
 | Capture a Windows desktop, region or window | `screenshot`: `path` and the selected target's fields | Saves a new PNG. Linux returns `not_supported`. `content_verified=false` requires visual inspection. |
 
 Use `list_directory` for immediate children, `read_file` for one decoded text
@@ -55,6 +56,18 @@ Detailed contracts: [data queries](data-query.md), [file metadata](file-stat.md)
 
 These are MCP tool **arguments**, without a CLI `operation` envelope. Replace
 the example absolute paths and executable paths with actual ones before use.
+
+Create a UTF-8 text file with its required `content` field:
+
+```json
+{"path":"D:\\project\\new.txt","content":"中文\r\n","encoding":"utf-8"}
+```
+
+`read_file` returns `text`, but `create_file` takes `content`. If a create request
+uses `text` instead, the validation error names the missing `content` and gives
+the rename instruction. Correct that field; changing an already-valid encoding
+does not fix a missing body. These diagnostics are development changes until
+the runtime is published, installed and a fresh MCP connection loads it.
 
 Count matching CSV rows without creating a fixture file:
 

@@ -1,5 +1,9 @@
 # Cordonix Roadmap
 
+## Create-file argument diagnostics (2026-11-08)
+
+An active chat supplied `text` instead of the required `content` while correctly specifying `utf-8`. The shared validation message incorrectly suggested an auto-encoding problem. The scoped repair clarifies tool/property descriptions and reports the actual invalid parameter, including the `text` to `content` correction. Real MCP tests verify rejection before creating a file. Validation and installed-client adoption are recorded separately in HANDOFF.md.
+
 ## Automatic update triggering (2026-11-07)
 
 The user reported stale installations, authorized installation and requested a separate `cdx --checkupgrade` instance on the first startup each day. Windows/Linux now provide that native command and advertise `tool_info.update_command`; stable launchers claim the local calendar day and start a bounded background worker while the main runtime continues. Daily startup is enabled by default without a scheduler, explicit opt-out persists, and optional legacy enable flags can add daily backup tasks. Future package gates must exercise the native command. This machine now has clean formal 0.3.1, a migrated launcher and a fresh 34-tool MCP readback; 0.3.1 uses the script-worker compatibility path until the new native command is published. The failing optional Windows task is disabled; the installed background startup check and same-day suppression pass. HANDOFF.md records gates and the retained active connection. The MCP tool count remains unchanged.

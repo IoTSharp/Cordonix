@@ -184,6 +184,8 @@ Windows 已保存脚本可使用实际安装的 PowerShell 7 `pwsh.exe` 绝对�
 
 `create_file` 会立即创建一个新文件。传入绝对字面路径 `path`、UTF-8 文本 `content` 和可选 `encoding`（默认 `utf-8`）。支持 UTF-8、UTF-8 BOM、带 BOM 的 UTF-16LE/BE，以及 CP936/GBK；拒绝 `auto`。允许空文件；NUL、非法 UTF-8 或目标编码无法表示的字符在写入前拒绝。C API 的输入 UTF-8 与编码后字节均最多 8 MiB，CLI/MCP 还受现有 JSON 帧大小限制。
 
+正文输入字段是 `content`，读取工具返回的 `text` 不是其别名。`path`、`content` 或 `encoding` 缺失或类型错误时，会在写入前指出具体参数。误把 `content` 写成 `text` 时，直接提示改名；只有实际传入 `encoding: "auto"` 才会收到不支持自动编码的提示。
+
 ```json
 {"operation":"create_file","arguments":{"path":"D:\\project\\new.txt","content":"中文\r\n","encoding":"cp936"}}
 ```

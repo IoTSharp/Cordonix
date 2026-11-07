@@ -1,5 +1,13 @@
 # Handoff
 
+## Create-file argument diagnostics (2026-11-08, Asia/Shanghai)
+
+An active chat called `create_file` with `path`, `encoding: "utf-8"` and `text`, then succeeded after changing only `text` to `content`. Independent disk readback matched the successful request. This repair separates path, content, encoding-type, encoding-name and actual `auto` failures; the demonstrated typo explicitly requests renaming `text` to `content`. The tool and its property descriptions now state the required body name. Existing valid calls, default UTF-8, strict encodings and no-overwrite behavior are preserved.
+
+Scope: `src/cdx-protocol/operations.c`, `src/cdx-protocol/tools.c`, `tests/protocol/test_stdio.c` and the related documentation. The new pilot reproduces the diagnostic failure against installed 0.3.1 and passes against the rebuilt source. Windows `eng/build.cmd` and final `eng/test.cmd` pass with the real `CDX_RG`; MCP is 174/174. MSVC C11 `/W4 /WX /analyze` passes both changed implementation files, and the ASan CLI passes the same 174/174 real MCP checks. A fresh local `tools/list` readback contains the updated property descriptions. Validation logs and receipts are under ignored `build/create-file-validation-01a1b6b2/`; bounded execution reports zero active owned descendants after cleanup.
+
+Linux validation, release publication and installation were not run for this repair. The connected runtime is still formal 0.3.1 / `0c50aab`; committing and pushing these source changes does not update active MCP connections. Applying the new descriptions and diagnostics to other chats requires installing a release containing this fix and starting a fresh MCP connection through its lifecycle owner.
+
 ## Daily background upgrade and installed adoption (2026-11-07, Asia/Shanghai)
 
 The user subsequently authorized installation and requested a separate `cdx --checkupgrade` instance on each day's first startup. This supersedes the synchronous five-second/hourly design in the historical local checkpoint below. Windows/Linux CLI now accept `--checkupgrade [--install-root absolute-directory]`, `--help` lists it, and `tool_info.update_command` advertises it. The command reads the installer's typed `update-request.json` and uses the existing process core with full deadlines and descendant cleanup. Linux generates its Python updater from the shell installer source, keeping shell executables prohibited in its process core. Stable launchers claim the local calendar day, start one background instance and continue the main program; subsequent same-day launches skip it. Default updates require no scheduler. Legacy explicit enable flags may add a daily backup task.

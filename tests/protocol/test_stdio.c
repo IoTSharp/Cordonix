@@ -788,14 +788,23 @@ static void phone_cases(wire_client *client) {
     if (valid) cdx_json_free(&data);
 }
 
-static void create_file_cases(wire_client *client) {
+static void create_file_cases(wire_client *client, int pilot) {
     static const char content[] = "new \xe4\xb8\xad \"$(literal)\"\r\n";
     static const char encoded[] = "\xd6\xd0\r\n";
     static const char bom[] = "\xef\xbb\xbf" "new\n";
+    static const struct { const char *name, *options, *hint; } invalid[] = {
+        {"create_file identifies text/content typo before writing", ",\"text\":\"new\",\"encoding\":\"utf-8\"", "rename 'text' to 'content'"},
+        {"create_file identifies missing content before writing", "", "'content' is required"},
+        {"create_file identifies numeric content before writing", ",\"content\":42", "'content' is required"},
+        {"create_file identifies null content before writing", ",\"content\":null", "'content' is required"},
+        {"create_file identifies non-string encoding before writing", ",\"content\":\"new\",\"encoding\":null", "'encoding' must be a string"},
+        {"create_file identifies unsupported encoding before writing", ",\"content\":\"new\",\"encoding\":\"utf8\"", "Unsupported 'encoding'"},
+        {"create_file identifies auto encoding before writing", ",\"content\":\"new\",\"encoding\":\"auto\"", "'encoding' cannot be 'auto'"}
+    };
     line_fixture *fixtures = (line_fixture *)calloc(2, sizeof(*fixtures));
     cdx_json data;
     char hash[65] = {0};
-    unsigned id = 740;
+    unsigned i, id = 740, count = pilot ? 1u : (unsigned)(sizeof(invalid) / sizeof(invalid[0]));
     int valid, node, all;
     if (!fixtures) { record("create_file fixture allocation", 0); return; }
     if (!create_line_fixture(&fixtures[0], 740, "", 0) ||
@@ -803,6 +812,27 @@ static void create_file_cases(wire_client *client) {
         record("create_file fixture setup", 0); goto done;
     }
     remove_line_fixture(&fixtures[0]); remove_line_fixture(&fixtures[1]);
+    for (i = 0; i < count && GetTickCount64() < deadline; ++i) {
+        valid = call_file_tool(client, "create_file", &fixtures[0], invalid[i].options, id++, &data);
+        fixtures[0].owned = valid && bool_is(&data, "written_to_disk", 1);
+        node = valid ? cdx_json_get(&data, 0, "message") : -1;
+        all = valid && string_is(&data, 0, "status", "validation_error") && node >= 0 &&
+            data.nodes[node].type == CDX_JSON_STRING && strstr(data.nodes[node].string, invalid[i].hint) &&
+            (strstr(invalid[i].options, "auto") || !strstr(data.nodes[node].string, "auto"));
+        cdx_json_free(&data);
+        valid = call_file_tool(client, "read_file", &fixtures[0], "", id++, &data);
+        record(invalid[i].name, all && valid && string_is(&data, 0, "status", "not_found"));
+        cdx_json_free(&data);
+        remove_line_fixture(&fixtures[0]);
+    }
+    record("create_file diagnostic cases finish within deadline", i == count);
+    if (pilot) goto done;
+    valid = tool_call(client, "create_file", "{\"content\":\"new\",\"encoding\":\"utf-8\"}", id++, &data);
+    node = valid ? cdx_json_get(&data, 0, "message") : -1;
+    record("create_file identifies missing path", valid && string_is(&data, 0, "status", "validation_error") &&
+        node >= 0 && data.nodes[node].type == CDX_JSON_STRING && strstr(data.nodes[node].string, "'path'") &&
+        !strstr(data.nodes[node].string, "encoding"));
+    cdx_json_free(&data);
     valid = call_file_tool(client, "create_file", &fixtures[0], ",\"content\":\"\"", id++, &data);
     fixtures[0].owned = valid && bool_is(&data, "written_to_disk", 1);
     record("create_file empty UTF8 file is written", fixtures[0].owned && string_is(&data, 0, "status", "ok") &&
@@ -2129,7 +2159,7 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
     if (!wire_start(&client, program)) { record("MCP server starts", 0); wire_stop(&client); return 1; }
     valid = wire_send(&client, initialize, sizeof(initialize) - 1) && wire_read(&client, &response);
     record("MCP initialize", valid && cdx_json_get(&response, 0, "result") >= 0); cdx_json_free(&response);
-    if (pilot) { record("MCP EOF exits cleanly", wire_stop(&client)); return passed == total ? 0 : 1; }
+    if (pilot) { create_file_cases(&client, 1); record("MCP EOF exits cleanly", wire_stop(&client)); return passed == total ? 0 : 1; }
     valid = wire_send(&client, list, sizeof(list) - 1) && wire_read(&client, &response);
     node = valid ? cdx_json_get(&response, cdx_json_get(&response, 0, "result"), "tools") : -1;
     record("MCP tools list", node >= 0 && response.nodes[node].type == CDX_JSON_ARRAY);
@@ -2168,7 +2198,7 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
     record("MCP rejects raw NUL without truncation", node >= 0 && response.nodes[node].number == -32700); cdx_json_free(&response);
     workspace_cases(&client);
     presentation_cases(&client, fixture);
-    create_file_cases(&client);
+    create_file_cases(&client, 0);
     line_read_cases(&client);
     tail_raw_cases(&client);
     batch_read_cases(&client);

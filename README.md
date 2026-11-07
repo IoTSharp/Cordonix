@@ -184,6 +184,8 @@ Results return `entries` with PID, parent PID, executable name/path, best-effort
 
 The `create_file` operation writes one new file immediately. Supply an absolute literal `path`, a UTF-8 `content` string and optional `encoding` (default `utf-8`). Supported encodings are UTF-8, UTF-8 BOM, UTF-16LE/BE BOM and CP936/GBK; `auto` is rejected. Empty content is valid. NUL, invalid UTF-8 and characters the chosen encoding cannot represent are rejected before writing. The C API caps both input and encoded output at 8 MiB; CLI/MCP requests also obey the existing JSON frame limit.
 
+The input field is `content`; the `text` field returned by reading tools is not an alias. Missing or mistyped `path`, `content` and `encoding` report the affected parameter before writing. A request with `text` instead of `content` explicitly asks the caller to rename it. Only an actual `encoding: "auto"` request receives the auto-encoding diagnostic.
+
 ```json
 {"operation":"create_file","arguments":{"path":"D:\\project\\new.txt","content":"中文\r\n","encoding":"cp936"}}
 ```

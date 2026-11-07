@@ -807,18 +807,24 @@ done:
     for (i = 0; i < count; ++i) free(normalized[i]);
 }
 
+static const char *parse_create_file_arguments(const cdx_json *json, int arguments,
+                                              const char **path, const char **content, cdx_encoding *encoding);
+
 static void create_file(const cdx_json *json, int arguments,
                         cdx_cancel_handle cancellation, cdx_json_output *output) {
-    int valid = 1;
-    const char *path = string_arg(json, arguments, "path", NULL, &valid);
-    const char *content = string_arg(json, arguments, "content", NULL, &valid);
-    const char *name = string_arg(json, arguments, "encoding", "utf-8", &valid);
-    cdx_encoding encoding = encoding_arg(name, &valid);
+    const char *path, *content, *name, *message;
+    cdx_encoding encoding;
     cdx_path_char *native_path;
     cdx_create_result result;
     const char *status;
-    if (!valid || encoding == CDX_ENCODING_AUTO || !(native_path = native_text(path))) {
-        error_result(output, "validation_error", "Use path and content strings with an explicit encoding; auto is not supported");
+    message = parse_create_file_arguments(json, arguments, &path, &content, &encoding);
+    if (message) {
+        error_result(output, "validation_error", message);
+        return;
+    }
+    native_path = native_text(path);
+    if (!native_path) {
+        error_result(output, "validation_error", "Cannot convert parameter 'path' to a native filesystem path");
         return;
     }
     (void)cdx_create_file(native_path, content, strlen(content), encoding, cancellation, &result);
@@ -832,6 +838,28 @@ static void create_file(const cdx_json *json, int arguments,
     cdx_json_raw(output, ",\"encoding\":"); cdx_json_quote(output, name, strlen(name));
     cdx_json_raw(output, ",\"disk_sha256\":"); cdx_json_quote(output, result.disk_sha256, strlen(result.disk_sha256));
     cdx_json_raw(output, "}");
+}
+
+static const char *parse_create_file_arguments(const cdx_json *json, int arguments,
+                                              const char **path, const char **content, cdx_encoding *encoding) {
+    int valid = 1;
+    const char *name;
+    *path = string_arg(json, arguments, "path", NULL, &valid);
+    if (!valid) return "Parameter 'path' is required and must be an absolute path string";
+    *content = string_arg(json, arguments, "content", NULL, &valid);
+    if (!valid) {
+        if (cdx_json_get(json, arguments, "content") < 0 && cdx_json_get(json, arguments, "text") >= 0)
+            return "Missing required string parameter 'content'; rename 'text' to 'content'";
+        return "Parameter 'content' is required and must be a string; use an empty string for an empty file";
+    }
+    name = string_arg(json, arguments, "encoding", "utf-8", &valid);
+    if (!valid) return "Parameter 'encoding' must be a string; omit it to use 'utf-8'";
+    *encoding = encoding_arg(name, &valid);
+    if (!valid)
+        return "Unsupported 'encoding'; use 'utf-8', 'utf-8-bom', 'utf-16-le', 'utf-16-be', 'cp936' or 'gbk'";
+    if (*encoding == CDX_ENCODING_AUTO)
+        return "Parameter 'encoding' cannot be 'auto' when creating a file; omit it to use 'utf-8' or select an explicit encoding";
+    return NULL;
 }
 
 static void create_directory(const cdx_json *json, int arguments,
