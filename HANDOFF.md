@@ -1,5 +1,11 @@
 # Handoff
 
+## 0.4.0 release preparation (2026-11-08, Asia/Shanghai)
+
+The user authorized choosing a version and publishing the recent changes. Version 0.4.0 includes the new native daily startup updater from `d103f62` and the create-file diagnostics from `40426dc`; no existing MCP tool or field is removed. The latest public version was verified as 0.3.1 before publication, and the proposed 0.4.0 tag was absent. Both hosted Windows/Linux jobs for `40426dc` passed [CI run 42390206388](https://github.com/IoTSharp/Cordonix/actions/runs/42390206388), including native/MCP tests, packages, SPDX, reproducibility and installer/update fixtures.
+
+Release notes are maintained in `docs/releases/0.4.0.md`. The existing tagged workflow builds clean Windows/Linux packages, generates Sigstore provenance and publishes the same assets to GitHub and Gitee. This preparation checkpoint does not claim that the tag workflow or public-download verification has completed. Retain previous tags/assets and active installed MCP processes. Task-owned release receipts belong under ignored `build/release-v0.4.0-01a1b6b2/`.
+
 ## Create-file argument diagnostics (2026-11-08, Asia/Shanghai)
 
 An active chat called `create_file` with `path`, `encoding: "utf-8"` and `text`, then succeeded after changing only `text` to `content`. Independent disk readback matched the successful request. This repair separates path, content, encoding-type, encoding-name and actual `auto` failures; the demonstrated typo explicitly requests renaming `text` to `content`. The tool and its property descriptions now state the required body name. Existing valid calls, default UTF-8, strict encodings and no-overwrite behavior are preserved.

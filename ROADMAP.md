@@ -1,5 +1,9 @@
 # Cordonix Roadmap
 
+## 0.4.0 release (2026-11-08)
+
+The user authorized a new release containing daily background upgrade checks and the create-file argument diagnostic repair. The minor version reflects the new `--checkupgrade` CLI capability and updater behavior; the existing 34-tool MCP contract is retained. Source commit `40426dc` passed both hosted Windows/Linux CI jobs, including package, reproducibility and installer gates. Tagged signing, dual-host publication and public-download acceptance are recorded separately in HANDOFF.md.
+
 ## Create-file argument diagnostics (2026-11-08)
 
 An active chat supplied `text` instead of the required `content` while correctly specifying `utf-8`. The shared validation message incorrectly suggested an auto-encoding problem. The scoped repair clarifies tool/property descriptions and reports the actual invalid parameter, including the `text` to `content` correction. Real MCP tests verify rejection before creating a file. Validation and installed-client adoption are recorded separately in HANDOFF.md.
