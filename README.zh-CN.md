@@ -22,7 +22,7 @@ Windows 原生 `screenshot` 提供桌面、区域、指定窗口和前台窗口 
 
 WinGet 发行正在以 `IoTSharp.Cordonix` 提交收录；安装边界、入库状态和新版本自动提交 PR 的流程见 [WinGet 说明](docs/winget.md)。
 
-0.4.0 增加每日首次启动后台更新检查，并准确指出 `create_file` 的错误参数。改动和升级方法见[发行说明](docs/releases/0.4.0.md)，发布与公开下载验收记录见 [HANDOFF.md](HANDOFF.md)；下面保留 0.3.1 的上一版验收基线。
+0.4.1 增加每日首次启动后台更新检查，并准确指出 `create_file` 的错误参数。改动和升级方法见[发行说明](docs/release-notes.md)，发布与公开下载验收记录见 [HANDOFF.md](HANDOFF.md)；下面保留 0.3.1 的上一版验收基线。
 
 已验收发行版：[GitHub v0.3.1](https://github.com/IoTSharp/Cordonix/releases/tag/v0.3.1) / [Gitee v0.3.1](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.3.1)，干净发行源码为 `0c50aab`。两端 12 个上传附件的 SHA-256 完全一致，四份原始压缩包通过精确标签 OIDC 验签，四份篡改副本均被拒绝。下载的 Windows/Linux 程序均提供全部 34 个 MCP 工具，分别通过 165/166 项真实协议检查及补丁回归。本次证据见 [HANDOFF.md](HANDOFF.md)；安装版客户端采用单独验收，v0.3.0/v0.2.0 附件保持不变。WinGet 收录仍需通过微软的独立验证和审核。
 
@@ -35,7 +35,7 @@ WinGet 发行正在以 `IoTSharp.Cordonix` 提交收录；安装边界、入库�
 
 Cordonix，简称 **cdx**，为智能体提供直接调用本地程序和处理源文件的工具。程序参数保持原样，文本编码明确可控，多次读取和编辑可以留在内存中，直到显式提交。
 
-通过[安装与更新说明](docs/install-update.md)或[可复制 AI 提示词](examples/cordonix-install-update-prompt.md)安装 Windows x64 ZIP 或 Linux x64 tar.gz。安装器检查 SHA-256 和实际程序版本，GitHub 不通时转向 Gitee；0.4.0 默认在每日首次启动时开启独立后台更新，新启动器使用原生 `cdx --checkupgrade`。旧安装需完成一次启动器迁移，已有 MCP 连接继续使用原程序。正式 tag 使用 `vMAJOR.MINOR.PATCH`；[GitHub Release](https://github.com/IoTSharp/Cordonix/releases) 和 [Gitee Release](https://gitee.com/IoTSharp/Cordonix/releases) 提供相同成果物。
+通过[安装与更新说明](docs/install-update.md)或[可复制 AI 提示词](examples/cordonix-install-update-prompt.md)安装 Windows x64 ZIP 或 Linux x64 tar.gz。安装器检查 SHA-256 和实际程序版本，GitHub 不通时转向 Gitee；0.4.1 默认在每日首次启动时开启独立后台更新，新启动器使用原生 `cdx --checkupgrade`。旧安装需完成一次启动器迁移，已有 MCP 连接继续使用原程序。正式 tag 使用 `vMAJOR.MINOR.PATCH`；[GitHub Release](https://github.com/IoTSharp/Cordonix/releases) 和 [Gitee Release](https://gitee.com/IoTSharp/Cordonix/releases) 提供相同成果物。
 
 当前实现是 **支持 Windows 和 Linux 的纯 C11 MVP**，可执行程序运行时不依赖 Python 或 PowerShell。Windows 构建使用 MSVC；Linux 使用 GCC、系统 libc/iconv 和 pthread。Cordonix 是独立开源项目，不属于 OpenAI 官方产品。
 

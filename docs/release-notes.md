@@ -1,6 +1,6 @@
-# Cordonix 0.4.0
+# Cordonix 0.4.1
 
-Cordonix 0.4.0 adds daily background update checks and makes file-creation errors identify the actual invalid argument. It retains all 34 MCP tools and their existing valid argument contracts.
+Cordonix 0.4.1 adds daily background update checks and makes file-creation errors identify the actual invalid argument. It retains all 34 MCP tools and their existing valid argument contracts.
 
 ## Daily background updates
 
@@ -21,10 +21,12 @@ Missing or mistyped path/content, invalid encoding types, unsupported encoding n
 
 ## Upgrade and verification
 
-Use the stable installer described in [Install and update](https://github.com/IoTSharp/Cordonix/blob/v0.4.0/docs/install-update.md). Existing installations need the updated launcher to adopt daily startup checks; the launcher selects the native command when the installed binary exposes it. An existing MCP connection retains its running executable until its client establishes a new connection.
+Use the stable installer described in [Install and update](https://github.com/IoTSharp/Cordonix/blob/v0.4.1/docs/install-update.md). Existing installations need the updated launcher to adopt daily startup checks; the launcher selects the native command when the installed binary exposes it. An existing MCP connection retains its running executable until its client establishes a new connection.
 
-Windows x64 ZIP and Linux x64 tar.gz packages include checksums, manifests, SPDX inventories and packaging provenance. Detached `.sigstore.json` bundles identify the exact source tag and archive digest; verification instructions are in [Release signing](https://github.com/IoTSharp/Cordonix/blob/v0.4.0/docs/release-signing.md). GitHub and Gitee carry the same package bytes.
+Windows x64 ZIP and Linux x64 tar.gz packages include release notes, checksums, manifests, SPDX inventories and packaging provenance. Detached `.sigstore.json` bundles identify the exact source tag and archive digest; verification instructions are in [Release signing](https://github.com/IoTSharp/Cordonix/blob/v0.4.1/docs/release-signing.md). GitHub and Gitee carry the same package bytes.
 
 The release workflow requires native/MCP tests, package checks, SPDX validation, reproducibility and installation/update fixtures on both platforms before publication. Microsoft WinGet catalog acceptance remains a separate upstream process.
 
-Full changes: [v0.3.1...v0.4.0](https://github.com/IoTSharp/Cordonix/compare/v0.3.1...v0.4.0).
+The v0.4.0 tag was retained after package validation caught a missing release-notes file; no release assets were published for that tag. Version 0.4.1 includes the corrected package lists.
+
+Full changes: [v0.3.1...v0.4.1](https://github.com/IoTSharp/Cordonix/compare/v0.3.1...v0.4.1).

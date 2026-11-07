@@ -1,10 +1,12 @@
 # Handoff
 
-## 0.4.0 release preparation (2026-11-08, Asia/Shanghai)
+## 0.4.1 release preparation (2026-11-08, Asia/Shanghai)
 
 The user authorized choosing a version and publishing the recent changes. Version 0.4.0 includes the new native daily startup updater from `d103f62` and the create-file diagnostics from `40426dc`; no existing MCP tool or field is removed. The latest public version was verified as 0.3.1 before publication, and the proposed 0.4.0 tag was absent. Both hosted Windows/Linux jobs for `40426dc` passed [CI run 42390206388](https://github.com/IoTSharp/Cordonix/actions/runs/42390206388), including native/MCP tests, packages, SPDX, reproducibility and installer/update fixtures.
 
-Release notes are maintained in `docs/releases/0.4.0.md`. The existing tagged workflow builds clean Windows/Linux packages, generates Sigstore provenance and publishes the same assets to GitHub and Gitee. This preparation checkpoint does not claim that the tag workflow or public-download verification has completed. Retain previous tags/assets and active installed MCP processes. Task-owned release receipts belong under ignored `build/release-v0.4.0-01a1b6b2/`.
+The initial v0.4.0 tag points to `12a3787`; [tag run 42390954763](https://github.com/IoTSharp/Cordonix/actions/runs/42390954763) rejected both platform packages because the newly linked release notes were missing from the fixed package lists. No release was published and the tag is retained unchanged. The repair uses the stable `docs/release-notes.md` path and includes it explicitly in both package lists. Version 0.4.1 is the new release target. Main-branch CI must pass before its tag is created.
+
+The existing tagged workflow builds clean Windows/Linux packages, generates Sigstore provenance and publishes the same assets to GitHub and Gitee. This preparation checkpoint does not claim that the corrected tag workflow or public-download verification has completed. Retain previous tags/assets and active installed MCP processes. Task-owned release receipts belong under ignored `build/release-v0.4.0-01a1b6b2/`.
 
 ## Create-file argument diagnostics (2026-11-08, Asia/Shanghai)
 
