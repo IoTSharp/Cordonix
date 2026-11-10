@@ -1,5 +1,7 @@
 # Cordonix
 
+已发布并验收：[GitHub v0.5.0](https://github.com/IoTSharp/Cordonix/releases/tag/v0.5.0) / [Gitee v0.5.0](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.5.0)，发行源码为干净的 `00e07a0`。Windows/Linux CI、标签发布、来源证明和两站 12 对公开附件均通过核验。本机已完成 0.4.1 → 0.5.0 安装，并验证稳定入口启动的新 MCP 进程；已有聊天仍需重连后采用新版。完整回执见 [HANDOFF.md](HANDOFF.md)。
+
 0.5.0 修复 MCP 重叠请求导致列目录报错的问题：同一连接的工具调用进入有界 FIFO，顺序执行，支持排队取消和明确的未执行诊断。详见[请求调度](docs/mcp-request-scheduling.md)。现有 0.4.1 连接在加载新版运行时之前，仍需逐个等待调用完成。
 
 0.5.0 新增运维工具 `vnc_screenshot`：给出远程 IP 和 PNG 保存路径即可截图，端口默认 `5900`。未提供密码时先尝试无密码访问；服务端要求认证时，复用当前用户的已存凭据，或弹出密码输入框。用户提供的密码只在认证成功后保存到 Windows 当前用户凭据管理器。详见 [VNC 截图](docs/native-vnc.md)。现有 35 个 MCP 工具，已有安装版连接需要重新加载包含此功能的运行时。

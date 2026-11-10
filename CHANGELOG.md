@@ -4,6 +4,8 @@
 
 ## 0.5.0 - 2026-11-10
 
+- Published clean source `00e07a0` on GitHub and Gitee after source/tag CI and signing/package gates. All 12 mirrored public asset pairs match; exact-tag attestation accepts four originals and rejects four modified copies. This computer upgraded from 0.4.1 through the existing Gitee fallback and retains updater settings. Installed Windows MCP 198/198, VNC 54/54 and downloaded Linux MCP 198/198 pass; a fresh stable-launcher process exposes all 35 tools. Existing chat processes retain their previous runtime until reconnection.
+
 - Fixed same-connection MCP overlap returning `-32001` for valid directory listings and version reads while another tool was running. Integrated the earlier unmerged bounded FIFO into both current dispatchers, preserving validation, asynchronous tools, phone sessions and result envelopes. Queued cancellation, overflow/expiry/shutdown diagnostics and actual directory/batch-read regressions retain explicit unstarted outcomes.
 
 - Added Windows native `vnc_screenshot` to CLI/MCP: remote IPv4/IPv6, port 5900 by default, None/classic VNC authentication, complete framebuffer PNG capture and no overwrite. Reuses current-user Windows credentials or asks through a masked native dialog; supplied/prompted passwords are saved only after successful authentication. Dialog/network cancellation, limits, cleanup and credential/image outcomes remain explicit. Shared PNG encoding/publication, real RFB/MCP pixel/credential fixtures and optional native dialog tests; Linux returns `not_supported`.

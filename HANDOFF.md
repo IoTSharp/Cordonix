@@ -1,14 +1,58 @@
 # Handoff
 
-## 0.5.0 release preparation (2026-11-10, Asia/Shanghai)
+## 0.5.0 release and local installation (2026-11-10, Asia/Shanghai)
 
-The user authorized commit/push, a formal release and installation on the
-current computer. Version 0.5.0 combines the bounded MCP request scheduler
-with the previously committed VNC screenshot tool, for 35 tools total.
-The prior local gates below pass; source delivery, hosted CI, tagged
-publication, public archive verification and installation will be recorded
-as separate observed results. Existing 0.4.1 sessions keep their process
-until the client establishes a fresh connection.
+Published source `00e07a0e9c462b8013b037a329abbeb82d27af40` as annotated
+`v0.5.0` (tag object `a3bccc86cde9f79a995558c5fb855e96ebc4401d`). The user
+authorized commit/push, formal publication and installation on this computer.
+This release combines the bounded MCP scheduler with the previously committed
+VNC screenshot tool, for 35 tools. Both source remotes and the peeled release
+tag were independently read back.
+
+- PASS: source CI `42841491646` and tag CI `42842326374`, Windows/Linux native,
+  real rg, MCP, VNC/platform, package, SPDX, reproducibility and installer gates.
+- PASS: release workflow `42842326686`, attempt 2, all six jobs. Attempt 1
+  published GitHub and mirrored the source/tag, then a Gitee upload timed out
+  after three assets. Public readback identified exactly nine missing files;
+  the credential-backed Gitee publisher uploaded those nine from the verified
+  GitHub downloads. The failed job rerun reused all existing assets and passed.
+  No published archive or tag was rebuilt, moved, deleted or overwritten.
+- PASS: all 12 uploaded asset pairs downloaded publicly from GitHub and Gitee
+  match byte for byte. Four archives pass SHA-256, embedded/sidecar manifest
+  equality, 65 payload-file digests and clean `00e07a0` build identity checks.
+  Windows ZIP SHA-256 is
+  `95cda06025f201961c18cfc92122bf53ce686634751de2fe3cbb802eea6bdb11`;
+  Linux tar.gz is
+  `b4f6a8663b3512502141259a9f3e36bdf1a0806916a79177163769cf877d1eae`.
+- PASS: exact-tag Sigstore policy verifies all four original public archives;
+  all four modified copies are rejected. This is artifact provenance;
+  Windows Authenticode and SmartScreen reputation are separate.
+- PASS: the stable installer upgraded this computer from 0.4.1 to 0.5.0 at
+  23:30 Asia/Shanghai. GitHub TLS failed in that installer invocation; its
+  existing auto fallback selected the identical Gitee archive. The pointer,
+  installed CLI and raw executable hash were independently checked. The hash
+  is `24459953dccaf2fba242a3e7034955a474453b2beae49b43f9772d1268e834b5`.
+  Existing enabled/source/proxy/update-API settings are unchanged.
+- PASS: installed Windows runtime real MCP **198/198**, VNC loopback **54/54**;
+  the downloaded Linux runtime real MCP **198/198** with a 0.5.0 test driver.
+  The first additional Linux check used the old development driver and failed
+  only its compiled version-string assertion (197/198); both logs are retained.
+  Local Linux rg remains unavailable; hosted real-rg gates pass independently.
+- PASS: a fresh MCP process through the configured PowerShell 7 stable launcher
+  reports clean source `00e07a0`, version 0.5.0 and 35 tools, and completes
+  overlapping directory/batch/version requests while ping remains responsive.
+
+Public releases: [GitHub](https://github.com/IoTSharp/Cordonix/releases/tag/v0.5.0)
+and [Gitee](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.5.0).
+The install root is `C:\Users\mysti\AppData\Local\Cordonix`; its stable
+entry is `launch.ps1`, and `current.json` points to `versions/0.5.0/cdx.exe`.
+Existing chat-owned MCP processes were preserved: this chat's existing
+connection still reports 0.4.1, so client reconnection is the remaining adoption
+step for that connection. Installing a version does not hot-replace a session.
+
+Receipts, public downloads, signatures, full checks and cleanup evidence are
+retained under ignored `build/release-0.5.0/`. WinGet automation reports success
+in `42844669536`; upstream catalog review/indexing remains a separate gate.
 
 ## MCP overlapping directory-listing repair (2026-11-10, Asia/Shanghai)
 

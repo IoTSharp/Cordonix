@@ -1,5 +1,7 @@
 # Cordonix
 
+Verified release: [GitHub v0.5.0](https://github.com/IoTSharp/Cordonix/releases/tag/v0.5.0) / [Gitee v0.5.0](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.5.0), from clean source `00e07a0`. Windows/Linux CI, signed tagged publication and all 12 public asset pairs pass readback. This computer's 0.4.1-to-0.5.0 installation and fresh-launcher MCP adoption also pass; existing chat processes retain their previous runtime until reconnection. Receipts and boundaries are in [HANDOFF.md](HANDOFF.md).
+
 Version 0.5.0 queues overlapping MCP tool calls in a bounded FIFO, including directory listings and batch reads. See [request scheduling](docs/mcp-request-scheduling.md) for cancellation, queue limits and installed-client adoption. Existing 0.4.1 connections require sequential calls until they load the updated runtime.
 
 Version 0.5.0 adds `vnc_screenshot` for operations: remote IP, default port 5900,

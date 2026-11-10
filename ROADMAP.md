@@ -1,5 +1,9 @@
 # Cordonix Roadmap
 
+## 0.5.0 release (2026-11-10)
+
+Published clean `00e07a0` on GitHub and Gitee. Source/tag CI and the final tagged release workflow pass. Twelve mirrored asset pairs, four original archive attestations and four tampering rejections pass public readback. This computer is upgraded from 0.4.1 to 0.5.0 with unchanged updater settings; installed Windows MCP 198/198, VNC 54/54 and downloaded Linux MCP 198/198 pass. A fresh stable-launcher process exposes 35 tools and completes overlapping directory/batch calls. Existing chat reconnection and WinGet catalog acceptance retain separate boundaries in HANDOFF.md.
+
 ## MCP overlapping directory requests (2026-11-10)
 
 The bounded FIFO scheduler is integrated into both current Windows/Linux dispatchers for 0.5.0. The observed 0.4.1 failure rejected `list_directory` and `tool_info` while a batch read occupied the worker. Local directory/batch-read, ordering, cancellation, capacity and shutdown checks pass as part of 198/198 real MCP checks per platform. The user authorized source delivery, formal 0.5.0 publication and installation on this computer; hosted gates, public readback and installation remain separately recorded in HANDOFF.md. See [request scheduling](docs/mcp-request-scheduling.md).
