@@ -27,6 +27,13 @@ connection under its lifecycle owner; do not terminate shared MCP services.
 
 ## Select a tool by the requested result
 
+On installed 0.4.1, await Cordonix calls sequentially within one connection:
+overlapping calls can return `-32001` before the tool starts, including valid
+directory listings. The 0.5.0 [request scheduler](mcp-request-scheduling.md)
+queues overlapping calls with bounded capacity and cancellation. Installation
+and a fresh connection are required to adopt that behavior; a successful local
+build does not change an existing connection.
+
 | Need | Tool and minimum fields | Result boundary |
 | --- | --- | --- |
 | Identify the connected runtime | `tool_info`: `{}` | Version, build revision/dirty flag and update capability; counters are per-session logical operations. |

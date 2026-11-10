@@ -3,6 +3,7 @@
 #define _POSIX_C_SOURCE 200809L
 #endif
 #include "cdx/json.h"
+#include "../../src/cdx-cli/request_queue.h"
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -326,19 +327,26 @@ static int string_is(const cdx_json *json, int object, const char *key, const ch
 static void process_query_cases(wire_client *client);
 static void ssh_cases(wire_client *client);
 
-static int tool_call(wire_client *client, const char *name, const char *arguments, unsigned id, cdx_json *data) {
+static int wire_tool_send(wire_client *client, const char *name, const char *arguments, unsigned id) {
     cdx_json_output request;
-    cdx_json response;
-    int valid, response_id;
-    memset(&response, 0, sizeof(response)); memset(data, 0, sizeof(*data));
+    int valid;
     cdx_json_output_init(&request);
     cdx_json_raw(&request, "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"id\":"); cdx_json_uint(&request, id);
     cdx_json_raw(&request, ",\"params\":{\"name\":"); cdx_json_quote(&request, name, strlen(name));
     cdx_json_raw(&request, ",\"arguments\":"); cdx_json_raw(&request, arguments); cdx_json_raw(&request, "}}\n");
-    valid = !request.failed && wire_send(client, request.data, request.size) && wire_read(client, &response);
+    valid = !request.failed && wire_send(client, request.data, request.size);
+    cdx_json_output_free(&request);
+    return valid;
+}
+
+static int tool_call(wire_client *client, const char *name, const char *arguments, unsigned id, cdx_json *data) {
+    cdx_json response;
+    int valid, response_id;
+    memset(&response, 0, sizeof(response)); memset(data, 0, sizeof(*data));
+    valid = wire_tool_send(client, name, arguments, id) && wire_read(client, &response);
     response_id = valid ? cdx_json_get(&response, 0, "id") : -1;
     valid = valid && response_id >= 0 && response.nodes[response_id].type == CDX_JSON_NUMBER && response.nodes[response_id].number == id && wire_tool_data(&response, data);
-    cdx_json_free(&response); cdx_json_output_free(&request);
+    cdx_json_free(&response);
     return valid;
 }
 
@@ -1878,6 +1886,198 @@ static void wire_execute(wire_client *client, const char *fixture, const char *m
     cdx_json_output_free(&request);
 }
 
+static int queue_error_is(const cdx_json *response, unsigned id, int code, const char *reason) {
+    int error = cdx_json_get(response, 0, "error");
+    int number = cdx_json_get(response, error, "code");
+    int data = cdx_json_get(response, error, "data");
+    int started = cdx_json_get(response, data, "request_started");
+    return number_is(response, "id", id) && number >= 0 && response->nodes[number].number == code &&
+        string_is(response, data, "reason", reason) && started >= 0 &&
+        response->nodes[started].type == CDX_JSON_BOOL && !response->nodes[started].boolean;
+}
+
+static int fixture_absent(const line_fixture *fixture) {
+#ifdef _WIN32
+    return GetFileAttributesW(fixture->path) == INVALID_FILE_ATTRIBUTES && GetLastError() == ERROR_FILE_NOT_FOUND;
+#else
+    return access(fixture->path, F_OK) != 0 && errno == ENOENT;
+#endif
+}
+
+static void queue_core_cases(void) {
+    static const char request_text[] = "{\"id\":9007199254740993,\"params\":{\"name\":\"tool_info\"}}";
+    cdx_mcp_queue queue;
+    cdx_mcp_request request, removed;
+    cdx_json_output output;
+    cdx_json decoded;
+    unsigned index;
+    int valid = 1;
+    memset(&queue, 0, sizeof(queue)); memset(&request, 0, sizeof(request)); memset(&decoded, 0, sizeof(decoded));
+    for (index = 0; index < CDX_MCP_QUEUE_CAPACITY && GetTickCount64() < deadline; ++index) {
+        if (!cdx_json_parse(&request.json, request_text, sizeof(request_text) - 1u)) { valid = 0; break; }
+        request.id = cdx_json_get(&request.json, 0, "id"); request.params = cdx_json_get(&request.json, 0, "params");
+        request.memory_bytes = sizeof(request_text) + request.json.capacity * sizeof(cdx_json_node);
+        request.enqueued_ms = 1000u;
+        if (!cdx_mcp_queue_push(&queue, &request)) { cdx_json_free(&request.json); valid = 0; break; }
+    }
+    record("MCP pending queue has a fixed request limit", valid && index == CDX_MCP_QUEUE_CAPACITY && !cdx_mcp_queue_push(&queue, &request));
+    record("MCP queue deadline expires at its bounded wait limit", cdx_mcp_queue_wait(&queue, 1000u) == CDX_MCP_QUEUE_WAIT_MS &&
+        cdx_mcp_queue_wait(&queue, 1000u + CDX_MCP_QUEUE_WAIT_MS - 1u) == 1u && cdx_mcp_queue_wait(&queue, 1000u + CDX_MCP_QUEUE_WAIT_MS) == 0);
+    if (queue.count) {
+        cdx_mcp_queue_remove(&queue, 0, &removed);
+        cdx_mcp_queue_error(&output, &removed, -32001, "queue_timeout", "Queued request timed out before execution", queue.count,
+            NULL, -1, -1, 0, 1000u + CDX_MCP_QUEUE_WAIT_MS);
+        valid = !output.failed && cdx_json_parse(&decoded, output.data, output.size);
+        index = valid ? (unsigned)cdx_json_get(&decoded, 0, "id") : 0;
+        record("MCP queue timeout preserves exact large request ids", valid && index < decoded.count && decoded.nodes[index].number_length == 16 &&
+            !memcmp(decoded.nodes[index].number_text, "9007199254740993", 16));
+        cdx_json_free(&decoded); cdx_json_output_free(&output); cdx_json_free(&removed.json);
+    }
+    for (index = 0; index < CDX_MCP_QUEUE_CAPACITY && queue.count && GetTickCount64() < deadline; ++index) {
+        cdx_mcp_queue_remove(&queue, 0, &removed); cdx_json_free(&removed.json);
+    }
+    record("MCP pending queue releases parsed storage accounting", queue.count == 0 && queue.memory_bytes == 0);
+    memset(&request, 0, sizeof(request));
+    request.memory_bytes = CDX_MCP_QUEUE_BYTES + 1u;
+    record("MCP pending queue bounds parsed request memory", !cdx_mcp_queue_push(&queue, &request) && queue.count == 0);
+}
+
+static void queue_cases(const char *program, const char *fixture) {
+    static const char ping[] = "{\"jsonrpc\":\"2.0\",\"id\":3199,\"method\":\"ping\"}\n";
+    static const char cancel_queued[] = "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":3101}}\n";
+    static const char cancel_active[] = "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":3100}}\n";
+    wire_client client;
+    line_fixture *files = (line_fixture *)calloc(4, sizeof(*files));
+    cdx_json_output read_args, write_args, directory_args, batch_args;
+    cdx_json response, data;
+    unsigned index;
+    int valid, node;
+    if (!files) { record("MCP queue fixtures allocated", 0); return; }
+    memset(&response, 0, sizeof(response)); memset(&data, 0, sizeof(data));
+    cdx_json_output_init(&read_args); cdx_json_output_init(&write_args);
+    cdx_json_output_init(&directory_args); cdx_json_output_init(&batch_args);
+    if (!create_line_fixture(&files[0], 3100, "queued\r\n", 8) || !create_line_fixture(&files[1], 3101, "", 0) ||
+        !filesystem_root(&files[2]) || !filesystem_child(&files[3], &files[2], "queued visible.txt") ||
+        !write_line_fixture(&files[3], "visible", 7, 1)) {
+        record("MCP queue fixtures created", 0); goto cleanup;
+    }
+    remove_line_fixture(&files[1]);
+    cdx_json_raw(&read_args, "{\"path\":"); cdx_json_quote(&read_args, files[0].utf8_path, strlen(files[0].utf8_path));
+    cdx_json_raw(&read_args, ",\"encoding\":\"utf-8\"}");
+    cdx_json_raw(&write_args, "{\"path\":"); cdx_json_quote(&write_args, files[1].utf8_path, strlen(files[1].utf8_path));
+    cdx_json_raw(&write_args, ",\"content\":\"must not run\"}");
+    cdx_json_raw(&directory_args, "{\"path\":");
+    cdx_json_quote(&directory_args, files[2].utf8_path, strlen(files[2].utf8_path));
+    cdx_json_raw(&directory_args, ",\"include_hidden\":true,\"max_entries\":100}");
+    cdx_json_raw(&batch_args, "{\"files\":["); cdx_json_raw(&batch_args, read_args.data); cdx_json_raw(&batch_args, "]}");
+    valid = initialize_client(&client, program);
+    if (!valid) { record("MCP queue server initializes", 0); (void)wire_stop(&client); goto cleanup; }
+    wire_execute(&client, fixture, "sleep", 3100);
+    valid = wire_tool_send(&client, "create_file", write_args.data, 3101) &&
+        wire_tool_send(&client, "read_file", read_args.data, 3102) && wire_tool_send(&client, "tool_info", "{}", 3103) &&
+        wire_tool_send(&client, "list_directory", directory_args.data, 3104) &&
+        wire_tool_send(&client, "read_files", batch_args.data, 3105) &&
+        wire_send(&client, ping, sizeof(ping) - 1u) && wire_read(&client, &response);
+    record("MCP queued calls keep ping responsive", valid && number_is(&response, "id", 3199)); cdx_json_free(&response);
+    valid = wire_send(&client, cancel_queued, sizeof(cancel_queued) - 1u) && wire_read(&client, &response);
+    record("MCP cancels a queued mutation before execution", valid && queue_error_is(&response, 3101, -32800, "cancelled") && fixture_absent(&files[1])); cdx_json_free(&response);
+    valid = wire_send(&client, cancel_active, sizeof(cancel_active) - 1u) && wire_read(&client, &response);
+    memset(&data, 0, sizeof(data)); valid = valid && number_is(&response, "id", 3100) && wire_tool_data(&response, &data);
+    record("MCP active cancellation still cleans its process tree", valid && string_is(&data, 0, "status", "cancelled") && bool_is(&data, "cleanup_complete", 1));
+    cdx_json_free(&response); cdx_json_free(&data);
+    valid = wire_read(&client, &response); memset(&data, 0, sizeof(data));
+    valid = valid && number_is(&response, "id", 3102) && wire_tool_data(&response, &data);
+    record("MCP read behind execution completes with original bytes", valid && string_is(&data, 0, "status", "ok") && string_is(&data, 0, "text", "queued\r\n"));
+    cdx_json_free(&response); cdx_json_free(&data);
+    valid = wire_read(&client, &response); memset(&data, 0, sizeof(data));
+    valid = valid && number_is(&response, "id", 3103) && wire_tool_data(&response, &data);
+    record("MCP FIFO and counters exclude the cancelled request", valid && number_is(&data, "calls", 3)); cdx_json_free(&response); cdx_json_free(&data);
+    valid = wire_read(&client, &response); memset(&data, 0, sizeof(data));
+    valid = valid && number_is(&response, "id", 3104) && wire_tool_data(&response, &data);
+    record("MCP directory listing waits behind an active operation and returns real entries", valid &&
+        directory_result(&data, files[2].utf8_path, 1, 0, 1) && directory_entry(&data, "queued visible.txt") >= 0);
+    cdx_json_free(&response); cdx_json_free(&data);
+    valid = wire_read(&client, &response); memset(&data, 0, sizeof(data));
+    valid = valid && number_is(&response, "id", 3105) && wire_tool_data(&response, &data);
+    {
+        int results = cdx_json_get(&data, 0, "results");
+        int item = results >= 0 ? data.nodes[results].first : -1;
+        int result = cdx_json_get(&data, item, "result");
+        record("MCP queued batch reads retain worker dispatch and exact file text", valid &&
+            string_is(&data, 0, "status", "ok") && number_is(&data, "completed", 1) &&
+            string_is(&data, result, "text", "queued\r\n"));
+    }
+    cdx_json_free(&response); cdx_json_free(&data);
+    wire_execute(&client, fixture, "streams", 3110);
+    valid = wire_tool_send(&client, "read_file", read_args.data, 3111) && wire_read(&client, &response);
+    record("MCP completes the first overlapping execution", valid && number_is(&response, "id", 3110)); cdx_json_free(&response);
+    valid = wire_read(&client, &response); memset(&data, 0, sizeof(data));
+    valid = valid && number_is(&response, "id", 3111) && wire_tool_data(&response, &data);
+    record("MCP drains queued reads without another client request", valid && string_is(&data, 0, "text", "queued\r\n")); cdx_json_free(&response); cdx_json_free(&data);
+    wire_execute(&client, fixture, "streams", 3112);
+    wire_execute(&client, fixture, "streams", 3113);
+    valid = wire_tool_send(&client, "tool_info", "{}", 3114);
+    for (index = 0; valid && index < 2 && GetTickCount64() < deadline; ++index) {
+        valid = wire_read(&client, &response); memset(&data, 0, sizeof(data));
+        valid = valid && number_is(&response, "id", 3112u + index) && wire_tool_data(&response, &data) &&
+            string_is(&data, 0, "status", "completed") && string_is(&data, 0, "stdout", "stdout\r\n\n") && bool_is(&data, "cleanup_complete", 1);
+        cdx_json_free(&response); cdx_json_free(&data);
+    }
+    record("MCP overlapping external programs finish in order with cleanup", valid && index == 2);
+    valid = wire_read(&client, &response); memset(&data, 0, sizeof(data));
+    valid = valid && number_is(&response, "id", 3114) && wire_tool_data(&response, &data);
+    record("MCP queued external programs execute once without replay", valid && number_is(&data, "calls", 10));
+    cdx_json_free(&response); cdx_json_free(&data);
+    record("MCP queued session exits cleanly", wire_stop(&client));
+    valid = initialize_client(&client, program);
+    if (!valid) { record("MCP overflow server initializes", 0); (void)wire_stop(&client); goto cleanup; }
+    wire_execute(&client, fixture, "sleep", 3100);
+    for (index = 0; valid && index < CDX_MCP_QUEUE_CAPACITY + 1u && GetTickCount64() < deadline; ++index)
+        valid = wire_tool_send(&client, "tool_info", "{}", 3200u + index);
+    valid = valid && wire_read(&client, &response);
+    node = valid ? cdx_json_get(&response, cdx_json_get(&response, 0, "error"), "data") : -1;
+    {
+        int active_id = cdx_json_get(&response, node, "active_request_id");
+        int queued = cdx_json_get(&response, node, "queued_requests");
+        record("MCP full queue rejects only the extra request with active identity", valid &&
+            queue_error_is(&response, 3200u + CDX_MCP_QUEUE_CAPACITY, -32001, "queue_full") &&
+            string_is(&response, node, "active_tool", "execute_program") &&
+            active_id >= 0 && response.nodes[active_id].number == 3100 &&
+            queued >= 0 && response.nodes[queued].number == CDX_MCP_QUEUE_CAPACITY);
+    }
+    cdx_json_free(&response);
+    valid = wire_send(&client, cancel_active, sizeof(cancel_active) - 1u) && wire_read(&client, &response);
+    valid = valid && number_is(&response, "id", 3100); cdx_json_free(&response);
+    for (index = 0; valid && index < CDX_MCP_QUEUE_CAPACITY && GetTickCount64() < deadline; ++index) {
+        valid = wire_read(&client, &response) && number_is(&response, "id", 3200u + index); cdx_json_free(&response);
+    }
+    record("MCP accepted concurrent requests drain once in FIFO order", valid && index == CDX_MCP_QUEUE_CAPACITY);
+    record("MCP overflow session exits cleanly", wire_stop(&client));
+    valid = initialize_client(&client, program);
+    if (!valid) { record("MCP EOF queue server initializes", 0); (void)wire_stop(&client); goto cleanup; }
+    wire_execute(&client, fixture, "sleep", 3100);
+    valid = wire_tool_send(&client, "create_file", write_args.data, 3101) && wire_send(&client, ping, sizeof(ping) - 1u) && wire_read(&client, &response);
+    cdx_json_free(&response);
+#ifdef _WIN32
+    CloseHandle(client.input); client.input = NULL;
+#else
+    close(client.input); client.input = -1;
+#endif
+    valid = valid && wire_read(&client, &response);
+    record("MCP EOF cancels queued writes before disk changes", valid && queue_error_is(&response, 3101, -32800, "session_closed") && fixture_absent(&files[1]));
+    cdx_json_free(&response);
+    valid = wire_read(&client, &response); memset(&data, 0, sizeof(data));
+    valid = valid && wire_tool_data(&response, &data);
+    record("MCP EOF cancels and cleans the active process", valid && string_is(&data, 0, "status", "cancelled") && bool_is(&data, "cleanup_complete", 1));
+    cdx_json_free(&response); cdx_json_free(&data);
+    record("MCP EOF queue session exits cleanly", wire_stop(&client));
+cleanup:
+    remove_line_fixture(&files[0]); remove_line_fixture(&files[1]);
+    remove_line_fixture(&files[3]); remove_fixture_directory(&files[2]); free(files);
+    cdx_json_output_free(&read_args); cdx_json_output_free(&write_args);
+    cdx_json_output_free(&directory_args); cdx_json_output_free(&batch_args);
+}
+
 #ifndef _WIN32
 static int await_fixture(wire_client *client, process_identity *identity) {
     unsigned iteration;
@@ -2223,6 +2423,8 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
     }
     cdx_json_free(&response);
     if (pilot) { create_file_cases(&client, 1); record("MCP EOF exits cleanly", wire_stop(&client)); return passed == total ? 0 : 1; }
+    queue_core_cases();
+    queue_cases(program, fixture);
     process_snapshot_cases(&client);
     screenshot_cases(&client);
     phone_cases(&client);

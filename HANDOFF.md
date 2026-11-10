@@ -1,5 +1,62 @@
 # Handoff
 
+## 0.5.0 release preparation (2026-11-10, Asia/Shanghai)
+
+The user authorized commit/push, a formal release and installation on the
+current computer. Version 0.5.0 combines the bounded MCP request scheduler
+with the previously committed VNC screenshot tool, for 35 tools total.
+The prior local gates below pass; source delivery, hosted CI, tagged
+publication, public archive verification and installation will be recorded
+as separate observed results. Existing 0.4.1 sessions keep their process
+until the client establishes a fresh connection.
+
+## MCP overlapping directory-listing repair (2026-11-10, Asia/Shanghai)
+
+The linked standard-protocol documentation chat submitted `tool_info`,
+`read_files` and `list_directory` concurrently. Its installed 0.4.1 connection
+rejected version/listing calls with JSON-RPC `-32001: An operation is running`;
+the same directory succeeded sequentially. An independent installed-binary
+reproduction confirms that the calls were rejected before filesystem work.
+The earlier FIFO commit `145af3c` is not an ancestor of the current main branch.
+
+Integrated its bounded queue into the current Windows/Linux dispatchers,
+retaining existing validation, asynchronous tool selection, phone sessions,
+result/error envelopes and owned-process cleanup. Limits remain 16 pending
+calls, 8 MiB of parsed source/node storage and 30 minutes of queue waiting.
+Cancellation, expiry, capacity and shutdown identify requests that never ran.
+Real MCP tests now also enumerate a populated directory behind a blocked
+operation and run an asynchronous batch read from the queue. Scheduling docs,
+tool guidance and both package manifests/count gates are updated together.
+
+Validation:
+
+- PASS: installed 0.4.1 reproduces two `-32001` responses. With the local build,
+  the same overlap lists the actual `D:\EEB` directory and reads tool info;
+  ping remains responsive. Receipts: `build/mcp-directory-20261110/before.json`
+  and `after.json`.
+- PASS: MSVC C11 `/W4 /WX` and full `eng/test.cmd` with actual Windows rg,
+  exit 0; real MCP **198/198**. First full run stopped on the existing ANCS
+  60 ms discovery deadline case; its independent **32/32** rerun and the full
+  rerun both passed without changing phone code. Both full logs are retained.
+- PASS: Ubuntu `/usr/bin/gcc` strict C11 and `eng/test-linux.sh`, exit 0;
+  real MCP **198/198**, Git adapters **17/17**. Native Linux rg is unavailable;
+  its discovery/adapter gates remain NOT_RUN.
+- PASS: MSVC `/analyze /analyze:external- /W4 /WX` on the Windows dispatcher
+  and shared queue. Linux dispatcher/shared queue instrumented with ASan/UBSan,
+  leak detection and halt-on-error passes **198/198** through the normal real
+  MCP driver. Other Linux objects retain their normal build instrumentation.
+- PASS: both portable-package gates at `0.4.1-dev`: 65 payload files and 67
+  SPDX files, repeatable archives and contained document links; Linux **539**
+  checks. Package signatures were NOT_RUN. Detailed logs and task receipts
+  remain in `build/mcp-directory-20261110/`.
+
+The shared VNC work was committed independently as `7957638` during validation;
+the reviewed dispatcher and regression changes remain local and unstaged.
+This task did not commit/push, publish a release, replace the installed runtime
+or restart shared MCP services. Existing installed 0.4.1 connections still
+require sequential calls until a runtime containing this fix is installed
+and a fresh client loads it. See [request scheduling](docs/mcp-request-scheduling.md).
+
 ## VNC operations screenshots (2026-11-08, Asia/Shanghai)
 
 Implemented the user's IP/port/password screenshot flow as `vnc_screenshot` in

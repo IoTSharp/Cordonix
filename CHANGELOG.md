@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.5.0 - 2026-11-10
+
+- Fixed same-connection MCP overlap returning `-32001` for valid directory listings and version reads while another tool was running. Integrated the earlier unmerged bounded FIFO into both current dispatchers, preserving validation, asynchronous tools, phone sessions and result envelopes. Queued cancellation, overflow/expiry/shutdown diagnostics and actual directory/batch-read regressions retain explicit unstarted outcomes.
+
 - Added Windows native `vnc_screenshot` to CLI/MCP: remote IPv4/IPv6, port 5900 by default, None/classic VNC authentication, complete framebuffer PNG capture and no overwrite. Reuses current-user Windows credentials or asks through a masked native dialog; supplied/prompted passwords are saved only after successful authentication. Dialog/network cancellation, limits, cleanup and credential/image outcomes remain explicit. Shared PNG encoding/publication, real RFB/MCP pixel/credential fixtures and optional native dialog tests; Linux returns `not_supported`.
 
 ## 0.4.1 - 2026-11-08

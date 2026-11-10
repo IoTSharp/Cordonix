@@ -141,6 +141,7 @@ try {
         'docs/native-vnc.md' = Join-Path $SourceRoot 'docs\native-vnc.md'
         'docs/data-query.md' = Join-Path $SourceRoot 'docs\data-query.md'
         'docs/mcp-tool-guide.md' = Join-Path $SourceRoot 'docs\mcp-tool-guide.md'
+        'docs/mcp-request-scheduling.md' = Join-Path $SourceRoot 'docs\mcp-request-scheduling.md'
         'docs/release-signing.md' = Join-Path $SourceRoot 'docs\release-signing.md'
         'docs/release-notes.md' = Join-Path $SourceRoot 'docs\release-notes.md'
         'docs/file-discovery.md' = Join-Path $SourceRoot 'docs\file-discovery.md'

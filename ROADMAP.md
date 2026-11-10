@@ -1,5 +1,9 @@
 # Cordonix Roadmap
 
+## MCP overlapping directory requests (2026-11-10)
+
+The bounded FIFO scheduler is integrated into both current Windows/Linux dispatchers for 0.5.0. The observed 0.4.1 failure rejected `list_directory` and `tool_info` while a batch read occupied the worker. Local directory/batch-read, ordering, cancellation, capacity and shutdown checks pass as part of 198/198 real MCP checks per platform. The user authorized source delivery, formal 0.5.0 publication and installation on this computer; hosted gates, public readback and installation remain separately recorded in HANDOFF.md. See [request scheduling](docs/mcp-request-scheduling.md).
+
 ## VNC operations screenshots (2026-11-08)
 
 The authorized addition is `vnc_screenshot`: remote IP, optional port defaulting

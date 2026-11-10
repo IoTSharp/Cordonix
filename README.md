@@ -1,10 +1,12 @@
 # Cordonix
 
-Development adds `vnc_screenshot` for operations: remote IP, default port 5900,
+Version 0.5.0 queues overlapping MCP tool calls in a bounded FIFO, including directory listings and batch reads. See [request scheduling](docs/mcp-request-scheduling.md) for cancellation, queue limits and installed-client adoption. Existing 0.4.1 connections require sequential calls until they load the updated runtime.
+
+Version 0.5.0 adds `vnc_screenshot` for operations: remote IP, default port 5900,
 and a new PNG path. Try no password first; when authentication is required,
 reuse the current user's saved credential or show a masked password dialog.
 Supplied passwords are saved only after successful authentication. See the
-[VNC screenshot contract](docs/native-vnc.md). The development MCP surface has
+[VNC screenshot contract](docs/native-vnc.md). The MCP surface has
 35 tools; this does not update an existing installed connection.
 
 Version 0.3.0 adds `stat` and `find_program` to the existing data, discovery and file-operation tools, bringing the MCP surface to 34 tools. Start with the [tool selection and client discovery guide](docs/mcp-tool-guide.md), then the [batch scope and validation](docs/capability-gaps-20261106.zh-CN.md), [data query](docs/data-query.md), [file metadata](docs/file-stat.md), [program discovery](docs/program-discovery.md), [file discovery](docs/file-discovery.md) and [regular-file operations](docs/file-operations.md).

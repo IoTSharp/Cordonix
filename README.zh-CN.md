@@ -1,8 +1,10 @@
 # Cordonix
 
-开发版新增运维工具 `vnc_screenshot`：给出远程 IP 和 PNG 保存路径即可截图，端口默认 `5900`。未提供密码时先尝试无密码访问；服务端要求认证时，复用当前用户的已存凭据，或弹出密码输入框。用户提供的密码只在认证成功后保存到 Windows 当前用户凭据管理器。详见 [VNC 截图](docs/native-vnc.md)。开发版现有 35 个 MCP 工具，已有安装版连接需要重新加载包含此功能的运行时。
+0.5.0 修复 MCP 重叠请求导致列目录报错的问题：同一连接的工具调用进入有界 FIFO，顺序执行，支持排队取消和明确的未执行诊断。详见[请求调度](docs/mcp-request-scheduling.md)。现有 0.4.1 连接在加载新版运行时之前，仍需逐个等待调用完成。
 
-未发布的更新改动：每天首次启动时开启独立的 `cdx --checkupgrade` 后台实例，主程序继续运行；GitHub 优先、Gitee 回退，保留显式关闭的选择并记录结果。打包门禁要求后续 Windows/Linux 发布携带并实际验证该命令。已有 0.3.1 使用独立更新脚本过渡，后续安装具备原生能力的版本时自动采用新命令。旧安装需要维护方迁移一次启动器，Linux 稳定入口为 `launch.sh`。详见[安装与自动更新](docs/install-update.md)。
+0.5.0 新增运维工具 `vnc_screenshot`：给出远程 IP 和 PNG 保存路径即可截图，端口默认 `5900`。未提供密码时先尝试无密码访问；服务端要求认证时，复用当前用户的已存凭据，或弹出密码输入框。用户提供的密码只在认证成功后保存到 Windows 当前用户凭据管理器。详见 [VNC 截图](docs/native-vnc.md)。现有 35 个 MCP 工具，已有安装版连接需要重新加载包含此功能的运行时。
+
+0.4.1 已提供每日首次启动时独立运行的 `cdx --checkupgrade` 后台实例，主程序继续运行；GitHub 优先、Gitee 回退，保留显式关闭的选择并记录结果。Windows/Linux 打包门禁实际验证该命令。旧安装需要维护方迁移一次启动器，Linux 稳定入口为 `launch.sh`。详见[安装与自动更新](docs/install-update.md)。
 
 0.3.0 新增 `stat` 和 `find_program`，接入既有数据查询、发现和文件操作能力，MCP 共 34 个工具。先看[工具选择与客户端发现指南](docs/mcp-tool-guide.md)，再看[缺口实施与验收](docs/capability-gaps-20261106.zh-CN.md)、[数据查询](docs/data-query.md)、[文件元数据](docs/file-stat.md)、[程序发现](docs/program-discovery.md)、[文件发现](docs/file-discovery.md)和[文件操作](docs/file-operations.md)。
 

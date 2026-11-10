@@ -1,6 +1,7 @@
 #include "cdx/operations.h"
 #include "cdx/presentation.h"
 #include "cdx/version.h"
+#include "request_queue.h"
 #include "cdx/phone.h"
 #include "cdx/screenshot.h"
 #include "cdx/vnc.h"
@@ -15,7 +16,7 @@
 #define SESSION_MAX_MS (24ull * 60ull * 60ull * 1000ull)
 #define SESSION_MAX_REQUESTS 100000u
 typedef struct input_reader { HANDLE available, consumed, stop; char *line; size_t line_length; int eof, oversized; } input_reader;
-typedef struct active_request { HANDLE thread, cancel; cdx_json json; cdx_json_output reply; int params, id; cdx_phone_session *phone; } active_request;
+typedef struct active_request { HANDLE thread, cancel; cdx_json json; cdx_json_output reply; int params, id; cdx_phone_session *phone; ULONGLONG started_ms; } active_request;
 static CRITICAL_SECTION output_lock;
 int cdx_phone_ui(const wchar_t *target, int smoke);
 int cdx_phone_ui_tray(const wchar_t *target);
@@ -29,9 +30,7 @@ static void send_output(cdx_json_output *output) {
 }
 static void response_start(cdx_json_output *output, const cdx_json *json, int id) {
     cdx_json_raw(output, "{\"jsonrpc\":\"2.0\",\"id\":");
-    if (id < 0) cdx_json_raw(output, "null");
-    else if (json->nodes[id].type == CDX_JSON_STRING) cdx_json_quote(output, json->nodes[id].string, strlen(json->nodes[id].string));
-    else cdx_json_rawn(output, json->nodes[id].number_text, json->nodes[id].number_length);
+    cdx_mcp_write_id(output, json, id);
 }
 static void build_rpc_error(cdx_json_output *output, const cdx_json *json, int id, int code, const char *message);
 static void rpc_error(const cdx_json *json, int id, int code, const char *message) {
@@ -89,12 +88,6 @@ static void build_rpc_error(cdx_json_output *output, const cdx_json *json, int i
     cdx_json_raw(output, ",\"message\":");
     cdx_json_quote(output, message, strlen(message));
     cdx_json_raw(output, "}}");
-}
-static int ids_equal(const cdx_json *a, int ai, const cdx_json *b, int bi) {
-    if (ai < 0 || bi < 0 || a->nodes[ai].type != b->nodes[bi].type) return 0;
-    if (a->nodes[ai].type == CDX_JSON_STRING) return !strcmp(a->nodes[ai].string, b->nodes[bi].string);
-    return a->nodes[ai].type == CDX_JSON_NUMBER && a->nodes[ai].number_length == b->nodes[bi].number_length &&
-        !memcmp(a->nodes[ai].number_text, b->nodes[bi].number_text, a->nodes[ai].number_length);
 }
 static void tool_response(const cdx_json *json, int params, int id, HANDLE cancellation, cdx_phone_session *phone, cdx_json_output *reply) {
     int name, arguments;
@@ -164,6 +157,36 @@ static int finish_active(active_request *active, int cancel) {
     CloseHandle(active->thread); CloseHandle(active->cancel); cdx_json_free(&active->json); memset(active, 0, sizeof(*active));
     return 1;
 }
+static void reject_pending(const cdx_mcp_request *request, const active_request *active, unsigned queued,
+                           int code, const char *reason, const char *message) {
+    cdx_json_output output;
+    cdx_mcp_queue_error(&output, request, code, reason, message, queued,
+        active->thread ? &active->json : NULL, active->id, active->params, active->started_ms, GetTickCount64());
+    send_output(&output); cdx_json_output_free(&output);
+}
+static void run_pending(cdx_mcp_queue *queue, active_request *active, cdx_phone_session *phone, ULONGLONG deadline) {
+    unsigned iteration;
+    for (iteration = 0; iteration < CDX_MCP_QUEUE_CAPACITY && queue->count && GetTickCount64() < deadline; ++iteration) {
+        cdx_mcp_request request;
+        if (cdx_mcp_queue_wait(queue, GetTickCount64()) == 0) {
+            cdx_mcp_queue_remove(queue, 0, &request);
+            reject_pending(&request, active, queue->count, -32001, "queue_timeout", "Queued request timed out before execution");
+            cdx_json_free(&request.json); continue;
+        }
+        if (active->thread) return;
+        cdx_mcp_queue_remove(queue, 0, &request);
+        if (asynchronous_tool(request.json.nodes[cdx_json_get(&request.json, request.params, "name")].string)) {
+            active->json = request.json; active->id = request.id; active->params = request.params;
+            active->phone = phone;
+            active->started_ms = GetTickCount64(); active->cancel = CreateEventW(NULL, TRUE, FALSE, NULL);
+            active->thread = active->cancel ? CreateThread(NULL, 0, execution_worker, active, 0, NULL) : NULL;
+            if (active->thread) return;
+            if (active->cancel) CloseHandle(active->cancel);
+            memset(active, 0, sizeof(*active)); rpc_error(&request.json, request.id, -32603, "Cannot start execution worker");
+        } else tool_response(&request.json, request.params, request.id, NULL, phone, NULL);
+        cdx_json_free(&request.json);
+    }
+}
 static DWORD WINAPI read_input(void *context) {
     input_reader *reader = (input_reader *)context;
     char chunk[4096];
@@ -195,25 +218,34 @@ end:
 static int run_mcp(void) {
     input_reader reader;
     active_request active;
+    cdx_mcp_queue queue;
     HANDLE input_thread;
-    unsigned count;
+    unsigned count = 0, iteration;
     ULONGLONG deadline = GetTickCount64() + SESSION_MAX_MS;
     int initialized = 0;
     cdx_phone_session *phone = cdx_phone_session_create();
     if (!phone) return 1;
-    memset(&reader, 0, sizeof(reader)); memset(&active, 0, sizeof(active));
+    memset(&reader, 0, sizeof(reader)); memset(&active, 0, sizeof(active)); memset(&queue, 0, sizeof(queue));
     reader.available = CreateEventW(NULL, FALSE, FALSE, NULL);
     reader.consumed = CreateEventW(NULL, FALSE, FALSE, NULL);
     reader.stop = CreateEventW(NULL, TRUE, FALSE, NULL);
     if (!reader.available || !reader.consumed || !reader.stop) return 1;
     input_thread = CreateThread(NULL, 0, read_input, &reader, 0, NULL);
     if (!input_thread) return 1;
-    for (count = 0; count < SESSION_MAX_REQUESTS && GetTickCount64() < deadline; ++count) {
+    for (iteration = 0; iteration < SESSION_MAX_REQUESTS * 3u && count < SESSION_MAX_REQUESTS && GetTickCount64() < deadline; ++iteration) {
         cdx_json json;
         cdx_json_output output;
         int method, id, params;
-        DWORD remaining = (DWORD)(deadline - GetTickCount64());
-        DWORD wait;
+        DWORD remaining, wait;
+        ULONGLONG now;
+        size_t input_bytes;
+        (void)finish_active(&active, 0);
+        if (reader.eof) break;
+        run_pending(&queue, &active, phone, deadline);
+        now = GetTickCount64();
+        if (now >= deadline) break;
+        remaining = (DWORD)(deadline - now);
+        if (queue.count && cdx_mcp_queue_wait(&queue, now) < remaining) remaining = (DWORD)cdx_mcp_queue_wait(&queue, now);
         if (active.thread) {
             HANDLE waits[2] = {active.thread, reader.available};
             wait = WaitForMultipleObjects(2, waits, FALSE, remaining > 1000 ? 1000 : remaining);
@@ -225,7 +257,9 @@ static int run_mcp(void) {
             continue;
         }
         if (wait != WAIT_OBJECT_0 || reader.eof) break;
+        ++count;
         if (!reader.line || !reader.line_length) { SetEvent(reader.consumed); continue; }
+        input_bytes = reader.line_length;
         if (!cdx_json_parse(&json, reader.line, reader.line_length)) {
             rpc_error(NULL, -1, -32700, "Invalid UTF-8 JSON request");
             cdx_json_free(&json);
@@ -239,12 +273,18 @@ static int run_mcp(void) {
             rpc_error(NULL, -1, -32600, "Invalid JSON-RPC request"); cdx_json_free(&json); continue;
         }
         if (string_node(&json, method, "notifications/cancelled")) {
-            if (active.thread && ids_equal(&json, cdx_json_get(&json, params, "requestId"), &active.json, active.id)) SetEvent(active.cancel);
+            cdx_mcp_request request;
+            int request_id = cdx_json_get(&json, params, "requestId");
+            if (active.thread && cdx_mcp_ids_equal(&json, request_id, &active.json, active.id)) SetEvent(active.cancel);
+            else if (cdx_mcp_queue_cancel(&queue, &json, request_id, &request)) {
+                reject_pending(&request, &active, queue.count, -32800, "cancelled", "Queued request cancelled before execution");
+                cdx_json_free(&request.json);
+            }
         } else if (id < 0) {
             /* Notifications never receive JSON-RPC responses. */
         } else if (string_node(&json, method, "initialize")) {
             cdx_json_output_init(&output); response_start(&output, &json, id);
-            cdx_json_raw(&output, ",\"result\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"Cordonix\",\"version\":\"" CDX_VERSION "\"},\"instructions\":\"Use typed argv. workspace_edit changes only memory; commit explicitly before external builds. Close or commit dirty documents before session end.\"}}");
+            cdx_json_raw(&output, ",\"result\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"Cordonix\",\"version\":\"" CDX_VERSION "\"},\"instructions\":\"Use typed argv. workspace_edit changes only memory; commit explicitly before external builds. Close or commit dirty documents before session end. Overlapping tool calls wait in a bounded FIFO; cancel unwanted queued requests through notifications/cancelled.\"}}");
             send_output(&output); cdx_json_output_free(&output); initialized = 1;
         } else if (string_node(&json, method, "ping")) {
             cdx_json_output_init(&output); response_start(&output, &json, id); cdx_json_raw(&output, ",\"result\":{}}"); send_output(&output); cdx_json_output_free(&output);
@@ -265,21 +305,23 @@ static int run_mcp(void) {
                     rpc_error(&json, id, -32602, "Unknown tool");
                 else if (tool_arguments >= 0 && json.nodes[tool_arguments].type != CDX_JSON_OBJECT)
                     rpc_error(&json, id, -32602, "Tool arguments must be an object");
-                else if (active.thread) rpc_error(&json, id, -32001, "An operation is running; wait or cancel that request");
-                else if (asynchronous_tool(json.nodes[tool_name].string)) {
-                    active.json = json; active.id = id; active.params = params; active.cancel = CreateEventW(NULL, TRUE, FALSE, NULL);
-                    active.phone = phone;
-                    active.thread = active.cancel ? CreateThread(NULL, 0, execution_worker, &active, 0, NULL) : NULL;
-                    if (active.thread) continue;
-                    if (active.cancel) CloseHandle(active.cancel);
-                    memset(&active, 0, sizeof(active)); rpc_error(&json, id, -32603, "Cannot start execution worker");
-                } else tool_response(&json, params, id, NULL, phone, NULL);
+                else {
+                    cdx_mcp_request request = {json, params, id, input_bytes + 1u + json.capacity * sizeof(cdx_json_node), GetTickCount64()};
+                    if (cdx_mcp_queue_push(&queue, &request)) continue;
+                    reject_pending(&request, &active, queue.count, -32001, "queue_full", "MCP request queue is full; this request was not started");
+                }
             }
         } else rpc_error(&json, id, -32601, "Unknown MCP method");
         cdx_json_free(&json);
     }
     SetEvent(reader.stop); CancelSynchronousIo(input_thread); SetEvent(reader.consumed);
     (void)WaitForSingleObject(input_thread, 2000); CloseHandle(input_thread);
+    for (iteration = 0; iteration < CDX_MCP_QUEUE_CAPACITY && queue.count; ++iteration) {
+        cdx_mcp_request request;
+        cdx_mcp_queue_remove(&queue, 0, &request);
+        reject_pending(&request, &active, queue.count, -32800, "session_closed", "MCP session closed before request execution");
+        cdx_json_free(&request.json);
+    }
     if (!finish_active(&active, 1)) {
         (void)fputs("Cordonix: operation cleanup did not finish before the shutdown deadline\n", stderr);
         ExitProcess(1);

@@ -1,36 +1,30 @@
-# Cordonix 0.4.1
+# Cordonix 0.5.0
 
-Cordonix 0.4.1 adds daily background update checks and makes file-creation errors identify the actual invalid argument. It retains all 34 MCP tools and their existing valid argument contracts.
+Cordonix 0.5.0 fixes valid directory listings failing when another MCP tool is running, and adds native Windows VNC screenshots. The MCP surface now contains 35 tools. Existing tool argument contracts remain compatible.
 
-## Daily background updates
+## Overlapping MCP requests
 
-- On the first startup of each local calendar day, the stable launcher starts a separate update worker and continues the main runtime. Later launches that day skip the check.
-- Windows and Linux provide `cdx --checkupgrade [--install-root absolute-directory]`; `tool_info.update_command` advertises the capability.
-- Update settings retain explicit opt-out, source/proxy choices and the last attempt. A shared installation lock coordinates update workers. GitHub remains the preferred source, with Gitee fallback.
-- Default startup checks need no scheduler. The installer retains the optional legacy scheduler path and migrates older launcher generations.
+A client can submit a batch read, a directory listing and a version query together. In 0.4.1, the first asynchronous call occupies the worker and the others can fail with `-32001: An operation is running`. In 0.5.0, overlapping tool calls wait in a FIFO and execute once in receive order.
 
-## Accurate file-creation errors
+- The pending queue is limited to 16 requests, 8 MiB of parsed source/node storage and 30 minutes of waiting per request.
+- Queued requests support cancellation before execution. Queue-full, queue-timeout and session-close errors explicitly report `request_started:false`.
+- Ping and cancellation remain responsive. Closing a session cancels pending work and cleans up the active operation through the existing ownership model.
+- The scheduler retains tool validation, asynchronous dispatch, phone sessions, exact request IDs and existing result/error envelopes. External mutations are never replayed automatically.
 
-`create_file` requires `path` and `content`. A request with `text` instead of `content` now returns:
+Real MCP tests cover a populated directory listing and an asynchronous batch read behind an occupied worker, FIFO ordering, queue bounds, cancellation before file creation and EOF cleanup. See [request scheduling](mcp-request-scheduling.md).
 
-```json
-{"status":"validation_error","message":"Missing required string parameter 'content'; rename 'text' to 'content'"}
-```
+## Native Windows VNC screenshots
 
-Missing or mistyped path/content, invalid encoding types, unsupported encoding names and actual `encoding: "auto"` requests receive distinct diagnostics before writing. Tool/property descriptions state the correct body field. UTF-8 remains the default; empty files, strict GBK/CP936 conversion and no-overwrite behavior remain supported.
+`vnc_screenshot` accepts a literal remote IPv4/IPv6 address, optional port (default 5900) and a new PNG output path. Windows supports RFB 3.3/3.7/3.8, None/classic VNC authentication and complete Raw framebuffer capture.
 
-## Complete MCP tool guidance
+When authentication is required, the client can reuse a current-user Windows credential or show a masked password dialog. Supplied or prompted passwords are saved only after successful authentication; failed authentication does not replace a saved credential. The tool sends a shared framebuffer request without keyboard, pointer or clipboard writes.
 
-All 34 tools have been reviewed against their implementations. Input properties now explain their purpose, including nested batch items, HTTP headers and SSH/SFTP endpoint fields. The guide covers exact field names, session-local document IDs, current-memory SHA values, read-mode selection, conditional action fields and write/commit boundaries. Tests inspect the real `tools/list` response for missing descriptions and invalid required names. Existing operation behavior is retained.
+PNG publication preserves no-overwrite behavior and exposes image/cleanup outcomes. The implementation reuses existing PNG, proxy and process ownership code without a new third-party dependency. Linux returns `not_supported`. Classic VNC uses its first-eight-Latin-1-character password convention; TLS/VeNCrypt authentication is outside this release. See [the VNC contract](native-vnc.md).
 
 ## Upgrade and verification
 
-Use the stable installer described in [Install and update](https://github.com/IoTSharp/Cordonix/blob/v0.4.1/docs/install-update.md). Existing installations need the updated launcher to adopt daily startup checks; the launcher selects the native command when the installed binary exposes it. An existing MCP connection retains its running executable until its client establishes a new connection.
+Use the stable installer described in [Install and update](install-update.md). Existing 0.4.1 processes retain their old scheduler until their client establishes a fresh connection. Installation, a newly started MCP process and adoption by an already-open chat are separate observations.
 
-Windows x64 ZIP and Linux x64 tar.gz packages include release notes, checksums, manifests, SPDX inventories and packaging provenance. Detached `.sigstore.json` bundles identify the exact source tag and archive digest; verification instructions are in [Release signing](https://github.com/IoTSharp/Cordonix/blob/v0.4.1/docs/release-signing.md). GitHub and Gitee carry the same package bytes.
+Windows x64 ZIP and Linux x64 tar.gz packages include these release notes, the scheduling and VNC contracts, checksums, manifests, SPDX inventories and packaging provenance. Detached `.sigstore.json` bundles identify the exact source tag and workflow for each archive; verification is described in [release signing](release-signing.md). This is artifact provenance, not Windows Authenticode or SmartScreen reputation.
 
-The release workflow requires native/MCP tests, package checks, SPDX validation, reproducibility and installation/update fixtures on both platforms before publication. Microsoft WinGet catalog acceptance remains a separate upstream process.
-
-The v0.4.0 tag was retained after package validation caught a missing release-notes file; no release assets were published for that tag. Version 0.4.1 includes the corrected package lists.
-
-Full changes: [v0.3.1...v0.4.1](https://github.com/IoTSharp/Cordonix/compare/v0.3.1...v0.4.1).
+Windows/Linux tagged builds must pass their native, real MCP, package, reproducibility and installer gates before publication. Local validation and the final hosted/public/installation results are recorded separately in [HANDOFF.md](../HANDOFF.md).
