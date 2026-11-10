@@ -1,5 +1,63 @@
 # Handoff
 
+## VNC operations screenshots (2026-11-08, Asia/Shanghai)
+
+Implemented the user's IP/port/password screenshot flow as `vnc_screenshot` in
+the native C11 CLI and MCP surface (35 tools). Port defaults to 5900. Without
+a password the client selects None when offered; when VNC authentication is
+required it reads the current user's credential, then asks through a masked
+native dialog if missing. `prompt_for_password:false` returns
+`credential_required` for an agent-mediated question. Supplied/prompted
+passwords are saved only after authentication succeeds. Wrong passwords do
+not replace saved credentials, and no authentication retry occurs.
+
+Windows supports RFB 3.3/3.7/3.8, None/classic VNC authentication and complete
+Raw framebuffers. It shares WIC PNG encoding and no-overwrite publication
+with local screenshots, uses the existing proxy and owned-process cores, and
+adds no third-party dependency. Only a shared framebuffer request is sent;
+there are no keyboard, pointer or clipboard writes. Linux explicitly returns
+`not_supported`. See [the complete contract](docs/native-vnc.md), including
+classic VNC's first-eight-Latin-1-character password behavior and unsupported
+TLS/VeNCrypt authentication.
+
+Validation on the final implementation:
+
+- PASS: MSVC C11 `/W4 /WX` build and full `eng/test.cmd`, exit 0; existing MCP
+  suite **175/175**, local screenshot regression **26/26**, real rg discovery
+  **18/18**, `NOT_RUN=0` for that discovery gate.
+- PASS: real loopback RFB through MCP **68/68**, including an actual connection
+  with omitted port to 5900, all three protocol versions, independent DES
+  response vector, decoded PNG pixels, fragmented/overlapping updates,
+  current-user credential save/readback/reuse, rejected-password preservation,
+  malformed inputs, timeouts and asynchronous cancellation.
+- PASS: real native masked dialog acceptance, dismissal, MCP cancellation and
+  timeout. Synthetic test passwords were persisted only after authentication;
+  all owned credential aliases were deleted and independently read back absent.
+- PASS: MSVC `/analyze /W4 /WX` on changed capture/protocol sources, with Windows
+  SDK headers excluded via `/analyze:external-`; no source warning suppression.
+  AddressSanitizer runtime executes the **54/54** noninteractive RFB/MCP checks.
+- PASS: Ubuntu `/usr/bin/gcc` strict C11 build and **2/2** Linux VNC MCP/platform
+  checks. Full Linux native regression was not run for this Windows-only feature.
+- PASS: Windows/Linux portable package gates, both containing the new guide
+  and request example, with 64 payload files and 66 SPDX files. Linux package
+  validation reports **530** checks. Signing/publication are not included.
+
+Receipts are under ignored `build/vnc-validation/`: `native-gate-final.json`
+and `.log`, `vnc-final-tests.json`, `final-tests-run.json`, `analyze-final.json`,
+`asan-tests.json`, `asan-run.json`, and `linux-vnc-tests.json`. The full Windows
+gate emits mixed GBK compiler and UTF-8 fixture text: its execution wrapper
+reports `encoding_error`, while `process_status=completed`, `exit_code=0`, and
+all actual test summaries pass. Original Base64 is retained; the readable log
+decodes each line strictly, without replacement or rerunning the gate for
+decoding. Process receipts confirm zero remaining owned descendants; socket,
+temporary screenshot and test-credential fixtures clean up after each run.
+
+At this validation checkpoint, source was uncommitted on `main` based on `96a1ccc`. The local development
+binary is `build/bin/cdx.exe`; installed `current.json` and this chat's runtime
+remain 0.3.1 / `0c50aab`. No installed MCP process was replaced. Hosted CI,
+real remote-server/field acceptance, release publication and installed-client
+adoption are **NOT_RUN**; no remote VNC endpoint was supplied for this task.
+
 ## 0.4.1 publication and OSChina receipts (2026-11-08, Asia/Shanghai)
 
 Version 0.4.1 is published from clean source `d8a67cf60d47bb9c4f11b57da55f5c8942ae1ec9`. Its annotated tag object is `2f8b46d55dae6b00c4aefa99c7ca4e8f36d3c51d` on GitHub and Gitee. [Main CI](https://github.com/IoTSharp/Cordonix/actions/runs/42393871424), [tag CI](https://github.com/IoTSharp/Cordonix/actions/runs/42394247743), and [release workflow attempt 2](https://github.com/IoTSharp/Cordonix/actions/runs/42394247803) pass. Windows/Linux native/MCP, package, SPDX, reproducibility, installer/update and signing gates are complete. The failed v0.4.0 tag remains unchanged at `12a3787`; it has no published release assets.

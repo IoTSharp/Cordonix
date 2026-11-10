@@ -1,0 +1,7 @@
+{
+  "operation": "vnc_screenshot",
+  "arguments": {
+    "host": "192.0.2.10",
+    "path": "D:\\captures\\server.png"
+  }
+}

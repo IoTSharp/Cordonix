@@ -63,6 +63,7 @@ connection under its lifecycle owner; do not terminate shared MCP services.
 | Create a directory | `create_directory`: absolute `path` | `parents` and `exist_ok` default false. Inspect `created` and `directories_created`; parents already created remain after a later failure. |
 | Create a new text file | `create_file`: absolute `path`, string `content` | Parent must exist; no overwrite. Use `content` for the body. `encoding` defaults to `utf-8`; `auto` is not supported. |
 | Capture a Windows desktop, region or window | `screenshot`: `path` and the selected target's fields | Saves a new PNG. Linux returns `not_supported`. `content_verified=false` requires visual inspection. |
+| Capture a remote VNC desktop | `vnc_screenshot`: IP `host`, new PNG `path` | Port defaults to 5900; no password first, then saved current-user credential or masked dialog if required. Check image and credential outcomes separately. Windows only. |
 
 Use `list_directory` for immediate children, `read_file` for one decoded text
 read, and `search_text` for matches within files. Keep program paths, arguments,
@@ -73,7 +74,7 @@ operation. Git, ripgrep and compilers remain explicit external executables.
 Detailed contracts: [data queries](data-query.md), [file metadata](file-stat.md),
 [program discovery](program-discovery.md), [file discovery](file-discovery.md),
 [regular-file operations](file-operations.md), [batch reads](batch-read.md), and
-[Windows screenshots](native-screenshot.md).
+[Windows screenshots](native-screenshot.md), and [VNC screenshots](native-vnc.md).
 
 ## Parameter and result rules
 
@@ -114,7 +115,13 @@ omit capture fields. Region capture needs all x/y/width/height fields. A window
 handle is a decimal or `0x` string from list_windows, not a numeric JSON value.
 Successful PNG creation still requires visual inspection.
 
-All 34 tool descriptions and every named property, including array objects
+For `vnc_screenshot`, omit `port` for 5900. An absent/empty password tries None
+when offered. If authentication is required, a saved credential or a masked
+native dialog supplies it; `prompt_for_password:false` returns
+`credential_required` so the agent can ask the user. A supplied `password`
+is saved only after authentication succeeds and is never echoed by the tool.
+
+All 35 tool descriptions and every named property, including array objects
 and SSH/SFTP endpoint definitions, are checked through the real MCP tool list.
 The test also checks that required names exist in their property definitions.
 Behavioral tests remain responsible for defaults, conflicts, encoding and

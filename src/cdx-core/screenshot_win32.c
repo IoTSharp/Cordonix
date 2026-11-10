@@ -22,9 +22,6 @@ static const char *const capture_status[] = {
 static const char *checkpoint(const cdx_screenshot_request *request, ULONGLONG deadline);
 static int valid_request(const cdx_screenshot_request *request);
 static void capture(const cdx_screenshot_request *request, ULONGLONG deadline, cdx_screenshot_result *result);
-static void publish_png(const cdx_screenshot_request *request, const wchar_t *path, const unsigned char *bytes,
-                        size_t size, ULONGLONG deadline, cdx_screenshot_result *result);
-static HRESULT encode_png(HBITMAP bitmap, IStream **output);
 
 typedef struct window_scan {
     const cdx_screenshot_request *request;
@@ -152,7 +149,7 @@ static void capture(const cdx_screenshot_request *request, ULONGLONG deadline, c
             if (!packet.code) {
                 size_t size = process.stdout_bytes.size - sizeof(packet);
                 if (size < 24 || memcmp(process.stdout_bytes.data + sizeof(packet), "\x89PNG\r\n\x1a\n", 8)) result->status = "encode_failed";
-                else publish_png(request, path, process.stdout_bytes.data + sizeof(packet), size, deadline, result);
+                else cdx_screenshot_publish_png(path, process.stdout_bytes.data + sizeof(packet), size, deadline, request->cancellation, result);
             }
         }
     } else if (process.status == CDX_COMPLETED) result->status = "capture_failed";
@@ -161,13 +158,16 @@ done:
     free(program); free(path);
 }
 
-static void publish_png(const cdx_screenshot_request *request, const wchar_t *path, const unsigned char *bytes,
-                        size_t size, ULONGLONG deadline, cdx_screenshot_result *result) {
+void cdx_screenshot_publish_png(const wchar_t *path, const unsigned char *bytes, size_t size,
+                        uint64_t deadline, cdx_cancel_handle cancellation, cdx_screenshot_result *result) {
     wchar_t *temporary;
     HANDLE file = INVALID_HANDLE_VALUE;
     DWORD written;
     size_t capacity = wcslen(path) + 80u;
-    const char *stop = checkpoint(request, deadline);
+    cdx_screenshot_request check = {0};
+    const char *stop;
+    check.cancellation = cancellation;
+    stop = checkpoint(&check, deadline);
     if (stop) { result->status = stop; return; }
     temporary = (wchar_t *)calloc(capacity, sizeof(wchar_t));
     if (!temporary) { result->status = "io_error"; return; }
@@ -179,7 +179,7 @@ static void publish_png(const cdx_screenshot_request *request, const wchar_t *pa
     }
     if (!CloseHandle(file)) { result->status = "io_error"; result->native_error = GetLastError(); file = INVALID_HANDLE_VALUE; goto cleanup; }
     file = INVALID_HANDLE_VALUE;
-    stop = checkpoint(request, deadline);
+    stop = checkpoint(&check, deadline);
     if (stop) { result->status = stop; goto cleanup; }
     if (!MoveFileExW(temporary, path, MOVEFILE_WRITE_THROUGH)) {
         result->native_error = GetLastError();
@@ -194,7 +194,7 @@ done:
     free(temporary);
 }
 
-static HRESULT encode_png(HBITMAP bitmap, IStream **output) {
+HRESULT cdx_screenshot_encode_png(HBITMAP bitmap, IStream **output) {
     IWICImagingFactory *factory = NULL;
     IWICBitmap *source = NULL;
     IWICBitmapSource *converted = NULL;
@@ -276,7 +276,7 @@ int cdx_screenshot_worker(int argc, wchar_t **argv) {
     hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     if (FAILED(hr)) { packet.code = 6; packet.error = (uint32_t)hr; goto done; }
     initialized = 1;
-    hr = encode_png(bitmap, &stream);
+    hr = cdx_screenshot_encode_png(bitmap, &stream);
     if (SUCCEEDED(hr)) hr = IStream_Stat(stream, &stat, STATFLAG_NONAME);
     if (SUCCEEDED(hr)) hr = GetHGlobalFromStream(stream, &global);
     if (FAILED(hr)) { packet.code = 6; packet.error = (uint32_t)hr; goto done; }

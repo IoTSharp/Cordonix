@@ -26,7 +26,7 @@ try {
     $archivePath = $second.archive
     $archive = [IO.Compression.ZipFile]::OpenRead($archivePath)
     try {
-        if ($archive.Entries.Count -ne 65) { throw 'Package must contain exactly 65 files.' }
+        if ($archive.Entries.Count -ne 67) { throw 'Package must contain exactly 67 files.' }
         foreach ($entry in $archive.Entries) {
             Assert-PackageBudget $deadline
             if ($entry.Length -gt 33554432) { throw 'Package entry exceeds 32 MiB.' }
@@ -37,7 +37,7 @@ try {
     $manifest = Get-Content -Raw -LiteralPath (Join-Path $extractRoot 'manifest.json') | ConvertFrom-Json
     $provenance = Get-Content -Raw -LiteralPath (Join-Path $extractRoot 'provenance.json') | ConvertFrom-Json
     $sbom = Get-Content -Raw -LiteralPath (Join-Path $extractRoot 'sbom.spdx.json') | ConvertFrom-Json
-    if ($manifest.format_version -ne 1 -or $manifest.version -cne $Version -or $manifest.target -cne 'windows-x64' -or @($manifest.files).Count -ne 62) { throw 'Invalid package manifest.' }
+    if ($manifest.format_version -ne 1 -or $manifest.version -cne $Version -or $manifest.target -cne 'windows-x64' -or @($manifest.files).Count -ne 64) { throw 'Invalid package manifest.' }
     foreach ($file in $manifest.files) {
         Assert-PackageBudget $deadline
         $path = Join-Path $extractRoot $file.path
@@ -64,7 +64,7 @@ try {
         $provenance.verified_executable_version -cne "Cordonix cdx $Version" -or $provenance.checkout_revision_at_packaging -notmatch '^[0-9a-f]{40}$' -or
         $provenance.input_executable_sha256 -cne ($manifest.files | Where-Object path -eq 'cdx.exe').sha256) { throw 'Invalid packaging provenance.' }
     if ($sbom.spdxVersion -cne 'SPDX-2.3' -or $sbom.dataLicense -cne 'CC0-1.0' -or $sbom.SPDXID -cne 'SPDXRef-DOCUMENT' -or
-        @($sbom.packages).Count -ne 1 -or @($sbom.files).Count -ne 64 -or @($sbom.relationships).Count -ne 65 -or
+        @($sbom.packages).Count -ne 1 -or @($sbom.files).Count -ne 66 -or @($sbom.relationships).Count -ne 67 -or
         $sbom.documentNamespace -notmatch '^https://github.com/IoTSharp/Cordonix/spdx/[0-9a-f]{64}$') { throw 'Invalid SPDX document shape.' }
     $package = $sbom.packages[0]
     if (-not $package.filesAnalyzed -or $package.versionInfo -cne $Version -or $package.licenseDeclared -cne 'Apache-2.0' -or

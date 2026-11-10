@@ -16,6 +16,9 @@ void cdx_network_call(const cdx_json *request, int arguments, cdx_cancel_handle 
 const char *cdx_network_tool_schema(void);
 void cdx_screenshot_call(const cdx_json *request, int arguments, cdx_cancel_handle cancellation, cdx_json_output *output);
 const char *cdx_screenshot_tool_schema(void);
+void cdx_vnc_call(const cdx_json *request, int arguments, cdx_cancel_handle cancellation, cdx_json_output *output);
+const char *cdx_vnc_tool_schema(void);
+int cdx_vnc_status_is_error(const char *status);
 void cdx_data_query_call(const cdx_json *request, int arguments, cdx_cancel_handle cancellation, cdx_json_output *output);
 const char *cdx_data_query_tool_schema(void);
 void cdx_file_ops_call(const char *operation, const cdx_json *request, int arguments, cdx_cancel_handle cancellation, cdx_json_output *output);

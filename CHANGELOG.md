@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added Windows native `vnc_screenshot` to CLI/MCP: remote IPv4/IPv6, port 5900 by default, None/classic VNC authentication, complete framebuffer PNG capture and no overwrite. Reuses current-user Windows credentials or asks through a masked native dialog; supplied/prompted passwords are saved only after successful authentication. Dialog/network cancellation, limits, cleanup and credential/image outcomes remain explicit. Shared PNG encoding/publication, real RFB/MCP pixel/credential fixtures and optional native dialog tests; Linux returns `not_supported`.
+
 ## 0.4.1 - 2026-11-08
 
 - Published clean source `d8a67cf` on GitHub and Gitee after Windows/Linux CI and tagged signing/package gates. All 12 mirrored asset pairs and four archive checksums pass public-download readback; exact-tag verification accepts four originals and rejects four tampered copies. Downloaded runtimes report the expected version/source and update command. WinGet PR #474302 has its own catalog acceptance gate; installed-client adoption remains separate.

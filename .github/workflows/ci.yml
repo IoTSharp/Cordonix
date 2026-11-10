@@ -23,6 +23,8 @@ jobs:
         run: python tests/acceptance/three_stage_baseline.py --executable build/bin/cdx.exe --output build/three-stage-ci-windows.json
       - name: Verify discovery regression with a real executable
         run: python tests/acceptance/discovery_regressions.py --executable build/bin/cdx.exe --output build/discovery-regressions.json
+      - name: Verify VNC pixels, authentication and current-user credentials
+        run: python tests/acceptance/vnc_screenshot.py --executable build/bin/cdx.exe --output build/vnc-tests.json
       - name: Verify the portable package and its provenance
         shell: pwsh
         run: ./eng/test-package.ps1 -Version $env:CDX_VERSION
@@ -56,6 +58,8 @@ jobs:
         run: timeout --kill-after=5s 250s python3 tests/acceptance/three_stage_baseline.py --executable build/linux/bin/cdx --output build/three-stage-ci-linux.json
       - name: Verify discovery and virtual environment launches
         run: timeout --kill-after=2s 60s python3 tests/acceptance/discovery_regressions.py --executable build/linux/bin/cdx --output build/discovery-regressions.json
+      - name: Verify the VNC platform contract
+        run: timeout --kill-after=2s 30s python3 tests/acceptance/vnc_screenshot.py --executable build/linux/bin/cdx --output build/vnc-tests-linux.json
       - name: Require the real Linux ripgrep adapter
         run: timeout --kill-after=5s 85s sh eng/test-adapters-linux.sh
       - name: Verify ext4 filenames and the documented metadata policy

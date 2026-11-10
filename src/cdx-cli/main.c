@@ -3,6 +3,7 @@
 #include "cdx/version.h"
 #include "cdx/phone.h"
 #include "cdx/screenshot.h"
+#include "cdx/vnc.h"
 #include <io.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -47,7 +48,7 @@ static int supported_tool(const char *name) {
         "create_file", "tool_info", "execute_program", "workspace_open", "list_directory",
         "resolve_path", "verify_encoding", "read_file", "workspace_read", "workspace_edit",
         "workspace_commit", "workspace_convert_encoding", "workspace_status", "workspace_search",
-        "workspace_close", "sftp", "http", "serial", "network", "read_files", "screenshot",
+        "workspace_close", "sftp", "http", "serial", "network", "read_files", "screenshot", "vnc_screenshot",
         "data_query", "find_files", "find_program", "hash_file", "copy_file", "move_file", "stat"
     };
     size_t i;
@@ -59,7 +60,7 @@ static int asynchronous_tool(const char *name) {
     return name && (!strcmp(name, "execute_program") || !strcmp(name, "search_text") ||
         !strcmp(name, "git_status") || !strcmp(name, "query_processes") || !strcmp(name, "ssh") ||
         !strcmp(name, "sftp") || !strcmp(name, "http") || !strcmp(name, "serial") ||
-        !strcmp(name, "network") || !strcmp(name, "phone") || !strcmp(name, "screenshot") ||
+        !strcmp(name, "network") || !strcmp(name, "phone") || !strcmp(name, "screenshot") || !strcmp(name, "vnc_screenshot") ||
         !strcmp(name, "data_query") || !strcmp(name, "find_files") || !strcmp(name, "find_program") ||
         !strcmp(name, "stat") || !strcmp(name, "hash_file") ||
         !strcmp(name, "copy_file") || !strcmp(name, "move_file") ||
@@ -134,6 +135,7 @@ static void tool_response(const cdx_json *json, int params, int id, HANDLE cance
         if (status_node >= 0 && parsed.nodes[status_node].type == CDX_JSON_STRING) {
             status = parsed.nodes[status_node].string;
             is_error = tool_status_is_error(status);
+            if (!strcmp(json->nodes[name].string, "vnc_screenshot")) is_error |= cdx_vnc_status_is_error(status);
         }
     }
     response_start(&output, json, id); cdx_json_raw(&output, ",\"result\":{\"content\":[{\"type\":\"text\",\"text\":");
@@ -359,6 +361,7 @@ int wmain(int argc, wchar_t **argv) {
     if (argc == 2 && !wcscmp(argv[1], L"--mcp")) result = run_mcp();
     else if (argc == 2 && !wcscmp(argv[1], L"--phone-helper")) result = run_phone_helper();
     else if (argc == 9 && !wcscmp(argv[1], L"--screenshot-worker")) result = cdx_screenshot_worker(argc, argv);
+    else if (argc == 3 && !wcscmp(argv[1], L"--vnc-password-prompt")) result = cdx_vnc_password_prompt(argc, argv);
     else if ((argc == 2 || argc == 3) && !wcscmp(argv[1], L"--phone-ui")) { FreeConsole(); result = cdx_phone_ui(argc == 3 ? argv[2] : L"", 0); }
     else if ((argc == 2 || argc == 3) && !wcscmp(argv[1], L"--phone-ui-tray")) { FreeConsole(); result = cdx_phone_ui_tray(argc == 3 ? argv[2] : L""); }
     else if (argc == 2 && !wcscmp(argv[1], L"--phone-ui-smoke")) result = cdx_phone_ui(L"", 1);

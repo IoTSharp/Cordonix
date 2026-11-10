@@ -44,6 +44,10 @@ typedef struct cdx_screenshot_result {
 
 void cdx_screenshot(const cdx_screenshot_request *request, cdx_screenshot_result *result);
 #ifdef _WIN32
+struct IStream;
+HRESULT cdx_screenshot_encode_png(HBITMAP bitmap, struct IStream **output);
+void cdx_screenshot_publish_png(const wchar_t *path, const unsigned char *bytes, size_t size,
+    uint64_t deadline, cdx_cancel_handle cancellation, cdx_screenshot_result *result);
 int cdx_screenshot_worker(int argc, wchar_t **argv);
 #endif
 #endif

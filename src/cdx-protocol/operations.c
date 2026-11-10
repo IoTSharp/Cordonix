@@ -1039,6 +1039,7 @@ void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx
     if (!strcmp(operation, "serial")) { cdx_serial_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "network")) { cdx_network_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "screenshot")) { cdx_screenshot_call(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "vnc_screenshot")) { cdx_vnc_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "data_query")) { cdx_data_query_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "find_files")) { cdx_discovery_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "find_program")) { cdx_program_discovery_call(request, arguments, cancellation, output); return; }

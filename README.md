@@ -1,5 +1,12 @@
 # Cordonix
 
+Development adds `vnc_screenshot` for operations: remote IP, default port 5900,
+and a new PNG path. Try no password first; when authentication is required,
+reuse the current user's saved credential or show a masked password dialog.
+Supplied passwords are saved only after successful authentication. See the
+[VNC screenshot contract](docs/native-vnc.md). The development MCP surface has
+35 tools; this does not update an existing installed connection.
+
 Version 0.3.0 adds `stat` and `find_program` to the existing data, discovery and file-operation tools, bringing the MCP surface to 34 tools. Start with the [tool selection and client discovery guide](docs/mcp-tool-guide.md), then the [batch scope and validation](docs/capability-gaps-20261106.zh-CN.md), [data query](docs/data-query.md), [file metadata](docs/file-stat.md), [program discovery](docs/program-discovery.md), [file discovery](docs/file-discovery.md) and [regular-file operations](docs/file-operations.md).
 
 Windows screenshot support provides native PNG capture for desktop, region, window and foreground targets, plus bounded window discovery. See [capture methods and outcomes](docs/native-screenshot.md). Existing installed connections keep their original tool schema until a new runtime is loaded.

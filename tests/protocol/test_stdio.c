@@ -2217,9 +2217,9 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
             if (string_is(&response, tool, "name", "find_program")) discovery_title = title >= 0;
         }
         record(pilot ? "MCP first tool exposes a title" : "MCP thirty-four tools expose human-readable titles",
-            titles_valid && (pilot ? count == 1 : count == 34 && tool < 0 && execution_title && stat_title && discovery_title));
+            titles_valid && (pilot ? count == 1 : count == 35 && tool < 0 && execution_title && stat_title && discovery_title));
         record("MCP tool descriptions cover nested fields and declared required names", schemas_valid &&
-            (pilot ? count == 1 : count == 34 && tool < 0));
+            (pilot ? count == 1 : count == 35 && tool < 0));
     }
     cdx_json_free(&response);
     if (pilot) { create_file_cases(&client, 1); record("MCP EOF exits cleanly", wire_stop(&client)); return passed == total ? 0 : 1; }

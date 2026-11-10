@@ -1,5 +1,16 @@
 # Cordonix Roadmap
 
+## VNC operations screenshots (2026-11-08)
+
+The authorized addition is `vnc_screenshot`: remote IP, optional port defaulting
+to 5900, optional password and a new PNG path. Windows native RFB supports None
+and classic VNC authentication; missing passwords use the current user's
+credential or a bounded masked dialog. Save only after successful authentication.
+The implementation shares PNG encoding/publication with local screenshots,
+adds no dependency, and exposes 35 development tools. Linux reports
+`not_supported`. See [the contract](docs/native-vnc.md) and HANDOFF.md for
+native/MCP/dialog validation and separate remote/install gates.
+
 ## 0.4.1 release (2026-11-08)
 
 Published from clean `d8a67cf` to GitHub and Gitee. Main/tag CI and release attempt 2 pass; all 12 mirrored asset pairs, archive checksums, exact-tag signatures and public runtime identities are verified. OSChina news 503467 is submitted pending editorial review; tweet 30402017 has verified text/image readback. WinGet PR #474302 remains an independent upstream gate. HANDOFF.md contains receipts and installed-client boundaries.

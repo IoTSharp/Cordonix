@@ -186,6 +186,7 @@ void cdx_summarize_call(const char *operation, const cdx_json *json, int argumen
     else if (!strcmp(operation, "verify_encoding")) action = "验证文件编码";
     else if (!strcmp(operation, "query_processes")) action = "查询 Windows 进程";
     else if (!strcmp(operation, "screenshot")) action = "截取窗口或屏幕";
+    else if (!strcmp(operation, "vnc_screenshot")) action = "截取 VNC 远程屏幕";
     else if (!strcmp(operation, "data_query")) action = "查询结构化数据";
     else if (!strcmp(operation, "find_files")) { action = "查找文件"; short_path(target, sizeof(target), arg_text(json, first_arg(json, arguments, "roots")), 2); }
     else if (!strcmp(operation, "hash_file")) action = "计算文件 SHA-256";
