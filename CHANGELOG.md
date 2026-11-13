@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added explicit MCP startup profiles: `full` remains the 35-tool default and `local-code` advertises 27 local coding tools using the same schemas. Unknown profiles fail clearly; direct calls retain the complete tool and argument validation contract.
+- Added opt-in `execute_program` `result_mode=full|summary`, bounded Base64 tails, captured-byte counts and SHA-256 values, and caller-selected new binary capture logs using native no-replace publication. Summary omission and process truncation remain separate. Log failure returns full captured output in the same response with independent log state, without executing the command again.
+- Added fixed-corpus context-efficiency measurements, unknown/failed sample accounting, exact optional tokenizer batching, and real profile/execution stdio regressions to Windows/Linux CI and release gates. Local native gates, five-round baseline, static analysis and Linux address/undefined-behavior sanitizer checks pass. Small-result median bytes increase while large-output P95 bytes decrease; tokens, billing and real agent task success remain NOT_MEASURED. Publication and installed-client adoption are separate.
+- Preserved the 2026-11-12 authorized roadmap and implementation plan, and recorded the 2026-11-13 local evidence in HANDOFF. CDX-14D/E/F/G remain follow-up work.
+
 ## 0.5.0 - 2026-11-10
 
 - Published clean source `00e07a0` on GitHub and Gitee after source/tag CI and signing/package gates. All 12 mirrored public asset pairs match; exact-tag attestation accepts four originals and rejects four modified copies. This computer upgraded from 0.4.1 through the existing Gitee fallback and retains updater settings. Installed Windows MCP 198/198, VNC 54/54 and downloaded Linux MCP 198/198 pass; a fresh stable-launcher process exposes all 35 tools. Existing chat processes retain their previous runtime until reconnection.

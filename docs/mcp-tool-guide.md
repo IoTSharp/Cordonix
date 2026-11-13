@@ -25,6 +25,61 @@ reads `current.json` for each launch. Both launchers start a separate update wor
 either pointer does not replace an existing MCP process. Start a new client
 connection under its lifecycle owner; do not terminate shared MCP services.
 
+## Tool profiles and execution projections
+
+The development executable accepts `cdx --mcp [--tool-profile full|local-code]`.
+Omission and explicit `full` advertise the same 35 tools, in the same order with
+the same schemas. `local-code` advertises 27 tools: it omits `ssh`, `sftp`, `http`,
+`network`, `serial`, `phone`, `screenshot` and `vnc_screenshot`. Every retained
+schema is identical to full. Selection is fixed for that process; start a new
+connection with another profile to change it. Unknown names exit with code 2 and
+an explicit stderr error. Profiles control advertisement; direct `tools/call`
+continues to validate the complete supported-tool set and original arguments.
+
+`execute_program` keeps `full` as its default result and adds three inputs:
+
+| Input | Default / limits | Behavior |
+| --- | --- | --- |
+| `result_mode` | `full` or `summary`; default `full` | Selects the representation after one execution; summary requires a log path. |
+| `summary_tail_bytes` | 1024; 1..8192 | Maximum captured raw bytes per stream returned in `stdout_tail_base64` and `stderr_tail_base64`. |
+| `capture_log_path` | Omitted for ordinary full; required for summary | Absolute new binary file with an existing parent. Existing paths are never replaced. The caller owns retention. |
+
+Both results preserve `status`, `process_status`, known/null `exit_code`, cleanup
+and remaining-process observations, declared output encoding, native errors and
+`output_truncated`. Summary adds `summary_truncated` for capture bytes omitted
+from its tails. This is independent of process truncation: the process might have
+produced bytes beyond the capture limit. Tail Base64 preserves arbitrary bytes,
+including split multibyte characters; decode only with the declared encoding and
+without silent replacement. Full retains decoded stdout/stderr, or each original
+Base64 stream when strict decoding fails.
+
+`stdout_bytes` / `stderr_bytes` and their SHA-256 values describe the bounded
+captured bytes. `captured_sha256` hashes captured stdout followed by captured
+stderr; `digest_scope="captured_stdout_then_stderr"` excludes any uncaptured
+output. No digest claims to cover unlimited output or the log header.
+
+The log starts with ASCII `CDX-CAPTURE-1`, then LF-separated `stdout_offset`,
+`stdout_bytes`, `stderr_offset` and `stderr_bytes` decimal fields and a blank line.
+The raw stdout bytes and raw stderr bytes follow with no added separators. The
+response's `capture_log` provides the same offsets, `header_bytes`, total `bytes`,
+`written_to_disk` and `cleanup_complete`. These offsets permit independent binary
+readback, including embedded NULs or invalid text. Publication reuses the native
+flushed temporary-file and no-replace mechanism with its bounded 15-second budget.
+
+Invalid mode, missing summary path or invalid path syntax is rejected before
+execution. A later log collision, missing parent, cancellation or write failure
+returns the full captured result in the same response (`result_mode="full"`),
+with independent `capture_log_status` and publication/cleanup fields. Cancellation
+can therefore produce a full fallback. Process status remains authoritative even
+when logging fails. No command is replayed to recover output; reconcile an unknown
+transport outcome before another execution.
+
+The fixed-corpus source harness is documented in
+`tests/acceptance/context_efficiency_baseline.md`. It measures schema/result/wire
+bytes, hashes and fixture outcomes. Tiny output can grow under summary because
+log/hash metadata costs bytes. Tokenizer/provider usage and real agent task
+success require independent measurements.
+
 ## Select a tool by the requested result
 
 On installed 0.4.1, await Cordonix calls sequentially within one connection:

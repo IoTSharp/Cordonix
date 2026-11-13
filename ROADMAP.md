@@ -1,5 +1,46 @@
 # Cordonix Roadmap
 
+## Active context-efficiency batch (2026-11-12)
+
+The user authorized a new implementation chat with multiple agents to deliver the next useful
+capabilities after the TokenEconomizer comparison. This batch takes priority over the historical
+worker-start instructions below. The [implementation plan](docs/context-efficiency-plan-2026-11-12.zh-CN.md)
+defines the interfaces to settle, non-overlapping ownership, compatibility and closing gates.
+CDX-14A/B/C now have local source acceptance below; they remain separate from
+released and installed capabilities.
+
+Current reference: clean source `22956e8` before this planning change; the connected installed
+runtime is 0.5.0 from `00e07a0`, exposing 35 tools. Its complete `tools/list` tools array is
+62,487 UTF-8 bytes after compact JSON serialization. Selecting the 27 local-code tools gives
+38,227 bytes (38.8% less). This is a local schema projection measurement, not model token,
+provider cost or task-success evidence. Existing read batches, HTTP representation and data
+query remain delivered capabilities rather than new work.
+
+| ID | Delivery | Priority / status | Dependencies and acceptance |
+|---|---|---|---|
+| CDX-14A | Explicit MCP tool profiles | ✅ Local source PASS, 2026-11-13 | `--mcp --tool-profile full\|local-code`: default/full 35, local-code 27; every retained schema is identical. C helper 46/46 and real stdio 11/11 on Windows/Linux prove membership, unknown-profile error and unchanged direct-call validation. Discovery selection is not authorization. |
+| CDX-14B | Compact execution results with raw-output readback | ✅ Local source PASS, 2026-11-13 | `result_mode=full\|summary`, required summary `capture_log_path`, bounded Base64 tails and captured-byte SHA-256; native no-replace logs with stream offsets. Real stdio 12 groups/27 calls on each platform prove status/encoding/output-limit/timeout/cancel, fallback and one execution. GCC analyzer and Linux ASan/UBSan projection suite pass. |
+| CDX-14C | Reproducible context-efficiency measurements | ✅ Local fixed-corpus PASS, 2026-11-13 | Five rounds per platform: 152 checks, 50 execution outcomes, 90 total RPC, 0 retries/unknown; exact schema/result/wire bytes, raw hashes and median/P95 retained. Twelve harness tests cover transport UNKNOWN and tokenizer batching. Actual tokens/provider usage/billing/real agent task success remain NOT_MEASURED. |
+| CDX-14D | Model-free project facts and failure fingerprints | P1 / follow-up after CDX-14C | Keep host-side evidence separate from C11 execution. Bound candidate/active/revoked facts, confirmation and contradiction evidence, normalized error signatures and injected context. Reuse observed commands and project rules before introducing an automatic learner. |
+| CDX-14E | Host-side failure-loop reminders | P1 / follow-up after CDX-14C/14D | Start with repeated-failure rules and progress evidence; one redirect per turn, human-controlled stopping. A model judge is a later explicit choice with its cost included. Timeout/UNKNOWN does not authorize replay. |
+| CDX-14F | Grouped search context and deterministic build/test diagnostics | P1 / complete CDX-11B2 and CDX-12C incrementally | Choose from representative real rg/build logs after the first batch. Preserve paths, error coverage, partial/unknown parsing and original-log access; no invented compiler semantics, LSP dependency or silent loss of unparsed lines. |
+| CDX-14G | Batched single-document edits and diff preview | P1 / complete CDX-12B after the first batch | Reuse encoding/current hash/count checks, specify edit ordering and overlap, and validate real CP936/BOM/EOL/conflict cases. Ordinary UTF-8 edits still use apply_patch; no multi-file atomicity claim. |
+
+Three workers implement CDX-14A, CDX-14B and CDX-14C with disjoint owned files. The coordinator
+settles the shared interfaces before parallel edits, owns shared schemas/CLI/build wiring and
+README/ROADMAP/HANDOFF/CHANGELOG, serializes builds and runs the final Windows/Linux gates.
+Raw fixture receipts belong under ignored `build/`. Full contracts and all named parameter
+descriptions must be readable before acceptance. Paid model calls, new dependencies, commit/push,
+release publication and replacement of shared installed runtimes are separate later actions.
+
+Current-tree acceptance uses `build/context-efficiency-20261113/`: Windows `eng/test.cmd`
+exit 0 (197/197 shared stdio), WSL Ubuntu `eng/test-linux.sh` exit 0 (198/198 shared
+stdio; native Linux rg remains NOT_RUN). Tools-array bytes are 63,569 full versus
+39,309 local-code; wire bytes are 63,614 versus 39,354. These are byte measurements,
+not token savings. For the fixed five-case execution mix, summary increases small-result
+median bytes while reducing P95; all receipts, corrections and unrun gates are in HANDOFF.
+This closes the first local implementation batch, not later host features or all roadmap stages.
+
 ## 0.5.0 release (2026-11-10)
 
 Published clean `00e07a0` on GitHub and Gitee. Source/tag CI and the final tagged release workflow pass. Twelve mirrored asset pairs, four original archive attestations and four tampering rejections pass public readback. This computer is upgraded from 0.4.1 to 0.5.0 with unchanged updater settings; installed Windows MCP 198/198, VNC 54/54 and downloaded Linux MCP 198/198 pass. A fresh stable-launcher process exposes 35 tools and completes overlapping directory/batch calls. Existing chat reconnection and WinGet catalog acceptance retain separate boundaries in HANDOFF.md.
@@ -72,7 +113,9 @@ Baseline: source and connected installed runtime retain separate evidence. Relea
 | CDX-13B | 3: Optional Windows UI Automation | Actual applications, CDX-13A evidence | ⬜ Prove element coverage and benefit before generalizing | Real window/element actions and state readback across selected DPI/theme cases |
 | CDX-13C | 3: Office/PDF content, rendering and delivery adapters | Concrete document tasks, engine/dependency decision | ⬜ Reuse existing approved engines; scope explicitly | Both content checks and rendered-page inspection; openable output and clear engine/font requirements |
 
-Stages describe dependencies, not three simultaneous full implementations. Start three independent workers on CDX-11A, CDX-11B1 and CDX-11C; the coordinator owns CDX-11D/11E verification, shared protocol/build wiring, integration and final acceptance. Parallel implementation does not change the single-active-request Cordonix contract or permit concurrent writes to shared build outputs. After each accepted slice, continue the next evidence-backed item; rejected/deferred items retain their reason and unclosed scope.
+The original first-wave worker assignments to CDX-11A, CDX-11B1 and CDX-11C are historical:
+those slices already have delivery evidence. The active 2026-11-12 batch above supersedes those
+start instructions. Stage dependencies and all remaining acceptance boundaries still apply.
 
 Completion requires a real CLI/MCP entry point, behavioral fixtures, the applicable current-tree platform gates, compatibility readback, an independently checked efficiency result and updated README/ROADMAP/HANDOFF/CHANGELOG. Package, installed-client adoption, remote CI and public release have separate status; publication, production changes, new dependencies and replacement of shared installed services are not implied by this program. Each implementation decision records the smallest alternative, evidence, expected cost and a falsification/stop condition. Details and the initial ownership matrix are in the implementation plan.
 

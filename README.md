@@ -44,6 +44,16 @@ Verified release: [v0.3.1 on GitHub](https://github.com/IoTSharp/Cordonix/releas
 
 [简体中文](README.zh-CN.md) · [Roadmap](ROADMAP.md) · [Install/update](docs/install-update.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
+The current source implements explicit `full` (default) and `local-code` MCP tool profiles,
+opt-in `execute_program` full/summary results with captured-byte log readback, and a bounded
+context-efficiency harness. Windows/Linux native and real stdio checks pass locally. Start a
+development binary with `cdx --mcp --tool-profile local-code` to advertise 27 local coding tools;
+omitting the profile advertises all 35. Profiles affect discovery, while direct-call validation
+remains available. See the [usage contract](docs/mcp-tool-guide.md#tool-profiles-and-execution-projections),
+[implementation and acceptance record](docs/context-efficiency-plan-2026-11-12.zh-CN.md) and
+[active roadmap](ROADMAP.md#active-context-efficiency-batch-2026-11-12). The published 0.5.0
+runtime has its own contract; local source validation does not update an installed connection.
+
 Cordonix, abbreviated **cdx**, gives agents a direct path to local programs and source files. Program arguments remain data. Text keeps its declared encoding. Repeated reads and edits can stay in memory until an explicit commit.
 
 Install from a published Windows x64 ZIP or Linux x64 tar.gz using the [installation guide](docs/install-update.md) or the [copyable AI prompt](examples/cordonix-install-update-prompt.md). The installers verify SHA-256 and the actual executable version and use Gitee when GitHub is unavailable. Version 0.4.1 enables a separate background `cdx --checkupgrade` instance on the first launch each day, preserves explicit opt-out and records results. The updated launcher selects the native command in 0.4.1; older 0.3.1 binaries retain the updater-script compatibility path. Windows/Linux package gates exercise the native command. Existing installations need one migration to the new launcher. Published tags use `vMAJOR.MINOR.PATCH`; both [GitHub](https://github.com/IoTSharp/Cordonix/releases) and [Gitee](https://gitee.com/IoTSharp/Cordonix/releases) carry the same assets.
@@ -72,7 +82,7 @@ Cordonix is a development MVP. Windows has first-party Codex usage evidence; Lin
 |---|---|---|
 | Windows process core | 35 checks passed locally, including isolated child environments | Broader application and long-running workload coverage continues |
 | Encoding and memory document core | 36 core checks plus 25 integration/encoding edge checks passed locally | External tools read disk; they do not see uncommitted memory revisions |
-| CLI and MCP | Thirty-four development tools, including `stat` and `find_program`; integrated validation is recorded in HANDOFF.md | Installed-client adoption, protocol migration and Codex UI rendering have separate gates |
+| CLI and MCP | 35 tools with default `full`, or 27 advertised with explicit `local-code`; full/summary execution projections and current integration checks are recorded in HANDOFF.md | Installed-client adoption, protocol migration and Codex UI rendering have separate gates |
 | Native SSH client | Windows loopback protocol 27/27; repeated on an AddressSanitizer client; static libssh2 with CNG | Deployed bastions NOT_RUN; Linux SSH NOT_SUPPORTED; current backend excludes Ed25519 |
 | New text files | 20 native checks on each platform plus eight shared MCP checks | Existing paths are never overwritten and parent directories must exist |
 | Linux | Earlier CI evidence includes 276 checks with full Git/rg adapters; the October 31 WSL rerun passed 102 MCP checks and 17/17 Git adapter checks while marking rg `NOT_RUN` because native rg is absent | Model-backed Linux Codex calls still need authentication. Other distributions and longer soak are separate |

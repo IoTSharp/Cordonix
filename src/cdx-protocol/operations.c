@@ -7,6 +7,7 @@
 #include "cdx/process_query.h"
 #include "cdx/phone.h"
 #include "cdx/version.h"
+#include "../cdx-core/file_ops_internal.h"
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>
@@ -584,21 +585,161 @@ static void base64_output(cdx_json_output *output, const cdx_byte_buffer *buffer
     }
     cdx_json_raw(output, "\"");
 }
+
+static void base64_slice(cdx_json_output *output, const unsigned char *bytes, size_t size) {
+    cdx_byte_buffer buffer;
+    buffer.data = (unsigned char *)bytes;
+    buffer.size = size;
+    buffer.observed = size;
+    base64_output(output, &buffer);
+}
+
+cdx_create_status cdx_create_publish(const cdx_path_char *path, const unsigned char *bytes,
+                                     size_t length, cdx_cancel_handle cancellation,
+                                     cdx_create_result *result);
+
+static int write_capture_log(const cdx_path_char *path, const cdx_byte_buffer *stdout_bytes,
+                             const cdx_byte_buffer *stderr_bytes, cdx_cancel_handle cancellation,
+                             cdx_create_result *result) {
+    unsigned char *payload = NULL;
+    size_t total = stdout_bytes->size + stderr_bytes->size;
+    size_t header_length;
+    char header[256];
+    memset(result, 0, sizeof(*result));
+    result->cleanup_complete = 1;
+    result->status = CDX_CREATE_IO_ERROR;
+    (void)snprintf(header, sizeof(header),
+                   "CDX-CAPTURE-1\nstdout_offset=%020llu\nstdout_bytes=%020llu\nstderr_offset=%020llu\nstderr_bytes=%020llu\n\n",
+                   0ULL, (unsigned long long)stdout_bytes->size,
+                   0ULL, (unsigned long long)stderr_bytes->size);
+    header_length = strlen(header);
+    (void)snprintf(header, sizeof(header),
+                   "CDX-CAPTURE-1\nstdout_offset=%020llu\nstdout_bytes=%020llu\nstderr_offset=%020llu\nstderr_bytes=%020llu\n\n",
+                   (unsigned long long)header_length,
+                   (unsigned long long)stdout_bytes->size,
+                   (unsigned long long)(header_length + stdout_bytes->size),
+                   (unsigned long long)stderr_bytes->size);
+    if (header_length + total > CDX_DOCUMENT_MAX_BYTES) return 0;
+    payload = (unsigned char *)malloc(header_length + total);
+    if (!payload) return 0;
+    memcpy(payload, header, header_length);
+    if (stdout_bytes->size) memcpy(payload + header_length, stdout_bytes->data, stdout_bytes->size);
+    if (stderr_bytes->size) memcpy(payload + header_length + stdout_bytes->size, stderr_bytes->data, stderr_bytes->size);
+    result->status = cdx_create_publish(path, payload, header_length + total, cancellation, result);
+    free(payload);
+    return result->status == CDX_CREATE_OK && result->written_to_disk;
+}
+
+static void capture_metadata(cdx_json_output *output, const cdx_exec_result *result,
+                              const char *log_path, const cdx_create_result *log_result,
+                              const char *digest) {
+    cdx_file_sha256 hash;
+    char stdout_digest[65], stderr_digest[65];
+    const char *log_status = log_result ? cdx_create_status_name(log_result->status) : "not_requested";
+    cdx_file_sha256_init(&hash);
+    cdx_file_sha256_update(&hash, result->stdout_bytes.data, result->stdout_bytes.size);
+    cdx_file_sha256_finish(&hash, stdout_digest);
+    cdx_file_sha256_init(&hash);
+    cdx_file_sha256_update(&hash, result->stderr_bytes.data, result->stderr_bytes.size);
+    cdx_file_sha256_finish(&hash, stderr_digest);
+    cdx_json_raw(output, ",\"stdout_bytes\":"); cdx_json_uint(output, result->stdout_bytes.size);
+    cdx_json_raw(output, ",\"stderr_bytes\":"); cdx_json_uint(output, result->stderr_bytes.size);
+    cdx_json_raw(output, ",\"captured_sha256\":"); cdx_json_quote(output, digest, 64u);
+    cdx_json_raw(output, ",\"stdout_sha256\":"); cdx_json_quote(output, stdout_digest, 64u);
+    cdx_json_raw(output, ",\"stderr_sha256\":"); cdx_json_quote(output, stderr_digest, 64u);
+    cdx_json_raw(output, ",\"digest_scope\":\"captured_stdout_then_stderr\",\"capture_log_status\":"); cdx_json_quote(output, log_status, strlen(log_status));
+    if (log_result) {
+        char header[256];
+        size_t header_length;
+        (void)snprintf(header, sizeof(header),
+                       "CDX-CAPTURE-1\nstdout_offset=%020llu\nstdout_bytes=%020llu\nstderr_offset=%020llu\nstderr_bytes=%020llu\n\n",
+                       0ULL, (unsigned long long)result->stdout_bytes.size,
+                       0ULL, (unsigned long long)result->stderr_bytes.size);
+        header_length = strlen(header);
+        cdx_json_raw(output, ",\"capture_log\":{\"path\":"); cdx_json_quote(output, log_path, strlen(log_path));
+        cdx_json_raw(output, ",\"written_to_disk\":"); cdx_json_raw(output, log_result->written_to_disk ? "true" : "false");
+        cdx_json_raw(output, ",\"cleanup_complete\":"); cdx_json_raw(output, log_result->cleanup_complete ? "true" : "false");
+        cdx_json_raw(output, ",\"header_bytes\":"); cdx_json_uint(output, header_length);
+        cdx_json_raw(output, ",\"stdout_offset\":"); cdx_json_uint(output, header_length);
+        cdx_json_raw(output, ",\"stderr_offset\":"); cdx_json_uint(output, header_length + result->stdout_bytes.size);
+        cdx_json_raw(output, ",\"bytes\":"); cdx_json_uint(output, header_length + result->stdout_bytes.size + result->stderr_bytes.size);
+        cdx_json_raw(output, "}");
+    }
+}
+
+static void emit_full_execution_result(cdx_json_output *output, const cdx_exec_result *result,
+                                        const decoded_output *stdout_text, const decoded_output *stderr_text,
+                                        const char *status, const char *encoding, const char *log_path,
+                                        const cdx_create_result *log_result, const char *digest) {
+    cdx_json_raw(output, "{\"status\":"); cdx_json_quote(output, status, strlen(status));
+    cdx_json_raw(output, ",\"process_status\":"); cdx_json_quote(output, cdx_status_name(result->status), strlen(cdx_status_name(result->status)));
+    cdx_json_raw(output, ",\"exit_code\":"); if (result->exit_code_known) cdx_json_uint(output, result->exit_code); else cdx_json_raw(output, "null");
+    cdx_json_raw(output, ",\"pid\":"); cdx_json_uint(output, result->pid);
+    cdx_json_raw(output, ",\"cleanup_complete\":"); cdx_json_raw(output, result->cleanup_complete ? "true" : "false");
+    cdx_json_raw(output, ",\"active_processes_before_cleanup\":"); cdx_json_uint(output, result->job_active_before_cleanup);
+    cdx_json_raw(output, ",\"active_processes_after_cleanup\":"); cdx_json_uint(output, result->job_active_after_cleanup);
+    cdx_json_raw(output, ",\"stdout\":"); if (stdout_text->valid) cdx_json_quote(output, stdout_text->text, stdout_text->length); else cdx_json_raw(output, "null");
+    cdx_json_raw(output, ",\"stderr\":"); if (stderr_text->valid) cdx_json_quote(output, stderr_text->text, stderr_text->length); else cdx_json_raw(output, "null");
+    if (!stdout_text->valid) { cdx_json_raw(output, ",\"stdout_base64\":"); base64_output(output, &result->stdout_bytes); }
+    if (!stderr_text->valid) { cdx_json_raw(output, ",\"stderr_base64\":"); base64_output(output, &result->stderr_bytes); }
+    cdx_json_raw(output, ",\"output_truncated\":"); cdx_json_raw(output, result->output_truncated ? "true" : "false");
+    cdx_json_raw(output, ",\"elapsed_ms\":"); cdx_json_uint(output, result->elapsed_ms);
+    cdx_json_raw(output, ",\"output_encoding\":"); cdx_json_quote(output, encoding, strlen(encoding));
+    cdx_json_raw(output, ",\"result_mode\":\"full\",\"summary_truncated\":false");
+    capture_metadata(output, result, log_path, log_result, digest);
+#ifdef _WIN32
+    cdx_json_raw(output, ",\"win32_error\":"); cdx_json_uint(output, result->win32_error);
+#else
+    cdx_json_raw(output, ",\"posix_error\":"); cdx_json_uint(output, (unsigned)result->posix_error);
+#endif
+    cdx_json_raw(output, "}");
+}
+
+static void emit_summary_execution_result(cdx_json_output *output, const cdx_exec_result *result,
+                                          const char *status, const char *encoding, size_t tail_bytes,
+                                          const char *log_path, const cdx_create_result *log_result,
+                                          const char *digest) {
+    size_t stdout_tail = result->stdout_bytes.size < tail_bytes ? result->stdout_bytes.size : tail_bytes;
+    size_t stderr_tail = result->stderr_bytes.size < tail_bytes ? result->stderr_bytes.size : tail_bytes;
+    int summary_truncated = stdout_tail != result->stdout_bytes.size || stderr_tail != result->stderr_bytes.size;
+    cdx_json_raw(output, "{\"status\":"); cdx_json_quote(output, status, strlen(status));
+    cdx_json_raw(output, ",\"process_status\":"); cdx_json_quote(output, cdx_status_name(result->status), strlen(cdx_status_name(result->status)));
+    cdx_json_raw(output, ",\"exit_code\":"); if (result->exit_code_known) cdx_json_uint(output, result->exit_code); else cdx_json_raw(output, "null");
+    cdx_json_raw(output, ",\"cleanup_complete\":"); cdx_json_raw(output, result->cleanup_complete ? "true" : "false");
+    cdx_json_raw(output, ",\"active_processes_before_cleanup\":"); cdx_json_uint(output, result->job_active_before_cleanup);
+    cdx_json_raw(output, ",\"active_processes_after_cleanup\":"); cdx_json_uint(output, result->job_active_after_cleanup);
+    cdx_json_raw(output, ",\"output_encoding\":"); cdx_json_quote(output, encoding, strlen(encoding));
+    cdx_json_raw(output, ",\"output_truncated\":"); cdx_json_raw(output, result->output_truncated ? "true" : "false");
+    cdx_json_raw(output, ",\"summary_truncated\":"); cdx_json_raw(output, summary_truncated ? "true" : "false");
+    cdx_json_raw(output, ",\"result_mode\":\"summary\",\"elapsed_ms\":"); cdx_json_uint(output, result->elapsed_ms);
+    cdx_json_raw(output, ",\"stdout_tail_base64\":"); base64_slice(output, stdout_tail ? result->stdout_bytes.data + result->stdout_bytes.size - stdout_tail : NULL, stdout_tail);
+    cdx_json_raw(output, ",\"stderr_tail_base64\":"); base64_slice(output, stderr_tail ? result->stderr_bytes.data + result->stderr_bytes.size - stderr_tail : NULL, stderr_tail);
+    capture_metadata(output, result, log_path, log_result, digest);
+#ifdef _WIN32
+    cdx_json_raw(output, ",\"win32_error\":"); cdx_json_uint(output, result->win32_error);
+#else
+    cdx_json_raw(output, ",\"posix_error\":"); cdx_json_uint(output, (unsigned)result->posix_error);
+#endif
+    cdx_json_raw(output, "}");
+}
 static void execute_program(const cdx_json *json, int arguments, cdx_cancel_handle cancellation, cdx_json_output *output) {
     int valid = 1, array, node;
     const char *program = string_arg(json, arguments, "program", NULL, &valid);
     const char *cwd = string_arg(json, arguments, "cwd", NULL, &valid);
     const char *stdin_text = string_arg(json, arguments, "stdin", "", &valid);
     const char *encoding = string_arg(json, arguments, "output_encoding", "utf-8", &valid);
-    cdx_path_char *wprogram = NULL, *wcwd = NULL, *argv[CDX_MAX_ARGS] = {0};
+    const char *result_mode = string_arg(json, arguments, "result_mode", "full", &valid);
+    const char *capture_log_path = string_arg(json, arguments, "capture_log_path", "", &valid);
+    cdx_path_char *wprogram = NULL, *wcwd = NULL, *wlog = NULL, *argv[CDX_MAX_ARGS] = {0};
     cdx_env_entry environment[CDX_MAX_ENV] = {{0}};
     int expected[32] = {0};
-    size_t arg_count = 0, expected_count = 1, env_count = 0, i;
+    size_t arg_count = 0, expected_count = 1, env_count = 0, summary_tail_bytes = 1024u, i;
     cdx_exec_request request;
     cdx_exec_result result;
     memset(&request, 0, sizeof(request));
     request.timeout_ms = (uint32_t)integer_arg(json, arguments, "timeout_ms", 30000, CDX_MAX_TIMEOUT_MS, &valid);
     request.output_limit_bytes = (size_t)integer_arg(json, arguments, "output_limit_bytes", 32768, 262144, &valid);
+    summary_tail_bytes = (size_t)integer_arg(json, arguments, "summary_tail_bytes", 1024, 8192, &valid);
     array = cdx_json_get(json, arguments, "args");
     if (array < 0 || json->nodes[array].type != CDX_JSON_ARRAY) valid = 0;
     else for (node = json->nodes[array].first; node >= 0; node = json->nodes[node].next) {
@@ -618,6 +759,14 @@ static void execute_program(const cdx_json *json, int arguments, cdx_cancel_hand
         }
     }
     if (strcmp(encoding, "utf-8") && strcmp(encoding, "cp936") && strcmp(encoding, "gbk")) valid = 0;
+    if (strcmp(result_mode, "full") && strcmp(result_mode, "summary")) valid = 0;
+    if (!strcmp(result_mode, "summary") && !*capture_log_path) valid = 0;
+    if (!summary_tail_bytes) valid = 0;
+    if (*capture_log_path) {
+        cdx_path_char *native_log = native_text(capture_log_path);
+        if (!native_log || cdx_fs_normalize_path(native_log, NULL, &wlog, NULL) != CDX_FS_OK) valid = 0;
+        free(native_log);
+    }
     array = cdx_json_get(json, arguments, "env");
     if (array >= 0) {
         if (json->nodes[array].type != CDX_JSON_OBJECT) valid = 0;
@@ -637,6 +786,9 @@ static void execute_program(const cdx_json *json, int arguments, cdx_cancel_hand
     else {
         decoded_output stdout_text, stderr_text;
         const char *status;
+        char digest[CDX_SHA256_HEX_LENGTH + 1] = {0};
+        cdx_create_result log_result;
+        int log_written = 0;
         request.program = wprogram; request.cwd = wcwd; request.args = (const cdx_path_char *const *)argv; request.arg_count = arg_count;
         request.expected_exit_codes = expected; request.expected_exit_count = expected_count;
         request.stdin_utf8 = (const unsigned char *)stdin_text; request.stdin_size = strlen(stdin_text); request.cancel_event = cancellation;
@@ -644,33 +796,27 @@ static void execute_program(const cdx_json *json, int arguments, cdx_cancel_hand
         cdx_result_init(&result); (void)cdx_execute(&request, &result);
         stdout_text = decode_output(&result.stdout_bytes, encoding); stderr_text = decode_output(&result.stderr_bytes, encoding);
         status = stdout_text.valid && stderr_text.valid ? cdx_status_name(result.status) : "encoding_error";
-        cdx_json_raw(output, "{\"status\":"); cdx_json_quote(output, status, strlen(status));
-        cdx_json_raw(output, ",\"process_status\":"); cdx_json_quote(output, cdx_status_name(result.status), strlen(cdx_status_name(result.status)));
-        cdx_json_raw(output, ",\"exit_code\":"); if (result.exit_code_known) cdx_json_uint(output, result.exit_code); else cdx_json_raw(output, "null");
-        cdx_json_raw(output, ",\"pid\":"); cdx_json_uint(output, result.pid);
-        cdx_json_raw(output, ",\"cleanup_complete\":"); cdx_json_raw(output, result.cleanup_complete ? "true" : "false");
-        cdx_json_raw(output, ",\"active_processes_before_cleanup\":"); cdx_json_uint(output, result.job_active_before_cleanup);
-        cdx_json_raw(output, ",\"active_processes_after_cleanup\":"); cdx_json_uint(output, result.job_active_after_cleanup);
-        cdx_json_raw(output, ",\"stdout\":"); if (stdout_text.valid) cdx_json_quote(output, stdout_text.text, stdout_text.length); else cdx_json_raw(output, "null");
-        cdx_json_raw(output, ",\"stderr\":"); if (stderr_text.valid) cdx_json_quote(output, stderr_text.text, stderr_text.length); else cdx_json_raw(output, "null");
-        if (!stdout_text.valid) { cdx_json_raw(output, ",\"stdout_base64\":"); base64_output(output, &result.stdout_bytes); }
-        if (!stderr_text.valid) { cdx_json_raw(output, ",\"stderr_base64\":"); base64_output(output, &result.stderr_bytes); }
-        cdx_json_raw(output, ",\"output_truncated\":"); cdx_json_raw(output, result.output_truncated ? "true" : "false");
-        cdx_json_raw(output, ",\"elapsed_ms\":"); cdx_json_uint(output, result.elapsed_ms);
-        cdx_json_raw(output, ",\"output_encoding\":"); cdx_json_quote(output, encoding, strlen(encoding));
-#ifdef _WIN32
-        cdx_json_raw(output, ",\"win32_error\":"); cdx_json_uint(output, result.win32_error);
-#else
-        cdx_json_raw(output, ",\"posix_error\":"); cdx_json_uint(output, (unsigned)result.posix_error);
-#endif
-        cdx_json_raw(output, "}");
+        {
+            cdx_file_sha256 hash;
+            cdx_file_sha256_init(&hash);
+            cdx_file_sha256_update(&hash, result.stdout_bytes.data, result.stdout_bytes.size);
+            cdx_file_sha256_update(&hash, result.stderr_bytes.data, result.stderr_bytes.size);
+            cdx_file_sha256_finish(&hash, digest);
+        }
+        if (*capture_log_path) {
+            log_written = write_capture_log(wlog, &result.stdout_bytes, &result.stderr_bytes, cancellation, &log_result);
+        }
+        if (!strcmp(result_mode, "summary") && log_written)
+            emit_summary_execution_result(output, &result, status, encoding, summary_tail_bytes, capture_log_path, &log_result, digest);
+        else
+            emit_full_execution_result(output, &result, &stdout_text, &stderr_text, status, encoding, capture_log_path, *capture_log_path ? &log_result : NULL, digest);
         cdx_result_free(&result); free(stdout_text.text); free(stderr_text.text);
     }
     for (i = 0; i < arg_count; ++i) free(argv[i]);
     for (i = 0; i < env_count; ++i) {
         free((void *)environment[i].name); free((void *)environment[i].value);
     }
-    free(wprogram); free(wcwd);
+    free(wprogram); free(wcwd); free(wlog);
 }
 
 typedef struct encoding_verification {

@@ -17,6 +17,7 @@ timeout --kill-after=2s 30s "$cc" $cflags "$version_define" tests/process/proces
 timeout --kill-after=2s 30s "$cc" $cflags "$version_define" tests/process/test_process_posix.c src/cdx-core/process_posix.c src/cdx-core/result.c -pthread -o "$tests/cdx-process-tests"
 timeout --kill-after=2s 30s "$cc" $cflags "$version_define" tests/protocol/test_json.c src/cdx-protocol/json.c -lm -o "$tests/cdx-json-tests"
 timeout --kill-after=2s 30s "$cc" $cflags tests/protocol/test_presentation.c src/cdx-protocol/presentation.c src/cdx-protocol/json.c -o "$tests/cdx-presentation-tests"
+timeout --kill-after=2s 15s "$cc" $cflags tests/protocol/test_tool_profiles.c src/cdx-protocol/tool_profiles.c -o "$tests/cdx-tool-profile-tests"
 timeout --kill-after=2s 30s "$cc" $cflags "$version_define" tests/protocol/test_stdio.c src/cdx-protocol/json.c -lm -o "$tests/cdx-stdio-tests"
 timeout --kill-after=2s 30s "$cc" $cflags "$version_define" tests/protocol/test_adapters.c src/cdx-protocol/adapters.c src/cdx-protocol/json.c src/cdx-core/process_posix.c src/cdx-core/result.c src/cdx-core/filesystem.c src/cdx-core/filesystem_posix.c src/cdx-workspace/encoding_posix.c -pthread -lm -o "$tests/cdx-adapter-tests"
 timeout --kill-after=2s 30s "$cc" $cflags "$version_define" tests/protocol/test_process_query.c src/cdx-protocol/json.c src/cdx-protocol/operations.c src/cdx-protocol/data_query.c src/cdx-protocol/discovery.c src/cdx-protocol/program_discovery.c src/cdx-protocol/file_operations.c src/cdx-core/file_ops.c src/cdx-core/file_ops_posix.c src/cdx-core/file_stat.c src/cdx-core/file_stat_posix.c src/cdx-protocol/adapters.c src/cdx-protocol/ssh.c src/cdx-protocol/http.c src/cdx-protocol/serial.c src/cdx-protocol/network.c src/cdx-protocol/screenshot.c src/cdx-protocol/vnc.c src/cdx-core/ssh_posix.c src/cdx-core/proxy_posix.c src/cdx-core/http_posix.c src/cdx-core/serial_posix.c src/cdx-core/network_posix.c src/cdx-core/screenshot_posix.c src/cdx-core/vnc_posix.c src/cdx-core/query_processes_posix.c src/cdx-core/phone.c src/cdx-core/phone_protocol.c src/cdx-core/phone_posix.c src/cdx-core/process_posix.c src/cdx-core/result.c src/cdx-core/filesystem.c src/cdx-core/filesystem_posix.c src/cdx-workspace/encoding_posix.c src/cdx-workspace/document_common.c src/cdx-workspace/document_posix.c src/cdx-workspace/create_file.c src/cdx-workspace/create_file_posix.c -pthread -lm -o "$tests/cdx-process-query-tests"
@@ -31,6 +32,7 @@ CDX_PILOT=1 timeout --kill-after=3s 30s ./cdx-document-tests "$tests"
 timeout --kill-after=3s 30s ./cdx-create-file-tests "$tests" --pilot
 timeout --kill-after=3s 15s ./cdx-json-tests --pilot
 timeout --kill-after=3s 10s ./cdx-presentation-tests --pilot
+timeout --kill-after=3s 10s ./cdx-tool-profile-tests --pilot
 timeout --kill-after=3s 15s ./cdx-stdio-tests "$root/build/linux/bin/cdx" "$tests/cdx-process-fixture" --pilot
 timeout --kill-after=3s 15s ./cdx-process-query-tests
 timeout --kill-after=3s 60s ./cdx-process-tests "$tests/cdx-process-fixture"
@@ -38,6 +40,7 @@ timeout --kill-after=3s 60s ./cdx-document-tests "$tests"
 timeout --kill-after=3s 30s ./cdx-create-file-tests "$tests"
 timeout --kill-after=3s 15s ./cdx-json-tests
 timeout --kill-after=3s 10s ./cdx-presentation-tests
+timeout --kill-after=3s 10s ./cdx-tool-profile-tests
 timeout --kill-after=3s 75s ./cdx-stdio-tests "$root/build/linux/bin/cdx" "$tests/cdx-process-fixture"
 if command -v rg >/dev/null 2>&1; then
     timeout --kill-after=5s 85s sh "$root/eng/test-adapters-linux.sh"

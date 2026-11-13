@@ -215,7 +215,7 @@ static DWORD WINAPI read_input(void *context) {
 end:
     free(line); reader->line = NULL; reader->eof = 1; SetEvent(reader->available); return 0;
 }
-static int run_mcp(void) {
+static int run_mcp(cdx_tool_profile profile) {
     input_reader reader;
     active_request active;
     cdx_mcp_queue queue;
@@ -290,7 +290,7 @@ static int run_mcp(void) {
             cdx_json_output_init(&output); response_start(&output, &json, id); cdx_json_raw(&output, ",\"result\":{}}"); send_output(&output); cdx_json_output_free(&output);
         } else if (!initialized) rpc_error(&json, id, -32002, "Initialize the MCP session first");
         else if (string_node(&json, method, "tools/list")) {
-            cdx_json_output_init(&output); response_start(&output, &json, id); cdx_json_raw(&output, ",\"result\":"); cdx_tool_list(&output); cdx_json_raw(&output, "}"); send_output(&output); cdx_json_output_free(&output);
+            cdx_json_output_init(&output); response_start(&output, &json, id); cdx_json_raw(&output, ",\"result\":"); cdx_tool_list_profile(&output, profile); cdx_json_raw(&output, "}"); send_output(&output); cdx_json_output_free(&output);
         } else if (string_node(&json, method, "tools/call")) {
             int tool_name = -1;
             int tool_arguments = -1;
@@ -400,7 +400,14 @@ int wmain(int argc, wchar_t **argv) {
     int result;
     (void)_setmode(_fileno(stdin), _O_BINARY); (void)_setmode(_fileno(stdout), _O_BINARY);
     InitializeCriticalSection(&output_lock);
-    if (argc == 2 && !wcscmp(argv[1], L"--mcp")) result = run_mcp();
+    if (argc == 2 && !wcscmp(argv[1], L"--mcp")) result = run_mcp(CDX_TOOL_PROFILE_FULL);
+    else if (argc == 4 && !wcscmp(argv[1], L"--mcp") && !wcscmp(argv[2], L"--tool-profile")) {
+        cdx_tool_profile profile;
+        if (!wcscmp(argv[3], L"full")) profile = CDX_TOOL_PROFILE_FULL;
+        else if (!wcscmp(argv[3], L"local-code")) profile = CDX_TOOL_PROFILE_LOCAL_CODE;
+        else { (void)fputs("Unknown tool profile; expected full or local-code.\n", stderr); profile = (cdx_tool_profile)-1; }
+        result = profile == (cdx_tool_profile)-1 ? 2 : run_mcp(profile);
+    }
     else if (argc == 2 && !wcscmp(argv[1], L"--phone-helper")) result = run_phone_helper();
     else if (argc == 9 && !wcscmp(argv[1], L"--screenshot-worker")) result = cdx_screenshot_worker(argc, argv);
     else if (argc == 3 && !wcscmp(argv[1], L"--vnc-password-prompt")) result = cdx_vnc_password_prompt(argc, argv);
@@ -410,8 +417,8 @@ int wmain(int argc, wchar_t **argv) {
     else if (argc == 3 && !wcscmp(argv[1], L"--request")) result = run_request(argv[2], 0);
     else if (argc == 2 && !wcscmp(argv[1], L"--checkupgrade")) result = check_upgrade(NULL);
     else if (argc == 4 && !wcscmp(argv[1], L"--checkupgrade") && !wcscmp(argv[2], L"--install-root")) result = check_upgrade(argv[3]);
-    else if (argc == 2 && !wcscmp(argv[1], L"--help")) { (void)puts("Usage: cdx --mcp | --request absolute-request.json | --checkupgrade [--install-root absolute-directory] | --version"); result = 0; }
+    else if (argc == 2 && !wcscmp(argv[1], L"--help")) { (void)puts("Usage: cdx --mcp [--tool-profile full|local-code] | --request absolute-request.json | --checkupgrade [--install-root absolute-directory] | --version"); result = 0; }
     else if (argc == 2 && !wcscmp(argv[1], L"--version")) { (void)puts(CDX_VERSION_TEXT); result = 0; }
-    else { (void)fputs("Usage: cdx --mcp | --request absolute-request.json | --phone-ui [phone-name] | --phone-ui-tray [phone-name] | --version\n", stderr); result = 2; }
+    else { (void)fputs("Usage: cdx --mcp [--tool-profile full|local-code] | --request absolute-request.json | --phone-ui [phone-name] | --phone-ui-tray [phone-name] | --version\n", stderr); result = 2; }
     DeleteCriticalSection(&output_lock); return result;
 }

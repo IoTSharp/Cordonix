@@ -2,6 +2,7 @@
 #define CDX_OPERATIONS_H
 #include "cdx/json.h"
 #include "cdx/platform.h"
+#include "cdx/tool_profiles.h"
 void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx_cancel_handle cancellation, cdx_json_output *output);
 void cdx_adapter_call(const char *operation, const cdx_json *request, int arguments, cdx_cancel_handle cancellation, cdx_json_output *output);
 void cdx_process_query_call(const cdx_json *request, int arguments, cdx_cancel_handle cancellation, cdx_json_output *output);
@@ -29,4 +30,5 @@ void cdx_program_discovery_call(const cdx_json *request, int arguments, cdx_canc
 const char *cdx_program_discovery_tool_schema(void);
 void cdx_workspace_clear(void);
 void cdx_tool_list(cdx_json_output *output);
+void cdx_tool_list_profile(cdx_json_output *output, cdx_tool_profile profile);
 #endif

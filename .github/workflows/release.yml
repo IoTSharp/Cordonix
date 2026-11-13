@@ -60,6 +60,17 @@ jobs:
       - name: Compile and test Windows C11
         shell: cmd
         run: eng\test.cmd
+      - name: Verify context-efficiency contracts and measurements
+        shell: pwsh
+        run: |
+          python tests/acceptance/context_efficiency_tests.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/protocol/tool_profile_stdio.py --executable build/bin/cdx.exe --output build/context-profile-release-windows
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/protocol/execution_projection.py --executable build/bin/cdx.exe --output build/context-projection-release-windows
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/acceptance/context_efficiency_baseline.py --executable build/bin/cdx.exe --output build/context-efficiency-release-windows.json --deadline-seconds 120
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Verify discovery regression with a real executable
         shell: pwsh
         run: python tests/acceptance/discovery_regressions.py --executable build/bin/cdx.exe --output build/discovery-regressions.json
@@ -120,6 +131,12 @@ jobs:
       - name: Compile and test Linux C11
         shell: bash
         run: timeout --kill-after=10s 300s sh eng/test-linux.sh
+      - name: Verify context-efficiency contracts and measurements
+        run: |
+          timeout --kill-after=5s 15s python3 tests/acceptance/context_efficiency_tests.py
+          timeout --kill-after=5s 65s python3 tests/protocol/tool_profile_stdio.py --executable build/linux/bin/cdx --output build/context-profile-release-linux
+          timeout --kill-after=5s 125s python3 tests/protocol/execution_projection.py --executable build/linux/bin/cdx --output build/context-projection-release-linux
+          timeout --kill-after=5s 125s python3 tests/acceptance/context_efficiency_baseline.py --executable build/linux/bin/cdx --output build/context-efficiency-release-linux.json --deadline-seconds 120
       - name: Require the real Linux ripgrep adapter
         run: timeout --kill-after=5s 85s sh eng/test-adapters-linux.sh
       - name: Verify discovery and virtual environment launches

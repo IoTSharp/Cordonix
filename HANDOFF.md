@@ -1,5 +1,112 @@
 # Handoff
 
+## CDX-14A/B/C local implementation acceptance (2026-11-13, Asia/Shanghai)
+
+The three requested implementation agents ran concurrently with separate ownership:
+A owned the profile helper/tests, B the execution projection/tests, and C the measurement
+harness/corpus/tests. The coordinator owns CLI/schema/build integration and documentation.
+The planning section below is preserved as the original handoff, superseded by this acceptance
+record for implementation status. Branch remains `main` at
+`22956e8841833da5e6ed61c548f19c0a83f34e9d`; no commit, push, installation or publication occurred.
+The initial ROADMAP edit and all five planning documents are preserved and updated.
+
+Implemented contracts:
+
+- `cdx --mcp [--tool-profile full|local-code]`: full is the default, advertises 35 tools;
+  local-code advertises 27. Retained schema objects are identical, unknown profile exits 2
+  with a clear error and no protocol output, and hidden tools retain direct-call validation.
+- `execute_program`: default `result_mode=full`; opt-in summary requires a new absolute
+  `capture_log_path`, uses `summary_tail_bytes=1024` (1..8192), and retains process/encoding/
+  cleanup/truncation outcomes, per-stream counts and SHA-256, concatenated captured-byte
+  digest and bounded Base64 tails. The ASCII log header describes exact raw stream offsets.
+  Native flush/no-replace publication is reused. Log failure returns the full captured result
+  with independent publication/cleanup status, in the same response without replay.
+- `context_efficiency_baseline.py`: fixed five-case corpus, 1..5 repetitions and bounded
+  stdio/process lifecycle; exact array/inner-result/wire bytes and hashes, calls/retries,
+  expected fixture success, failures, transport UNKNOWN and median/P95. Unknown samples
+  preserve null response bytes/hash; failed transports cannot dispatch another request.
+  Optional explicitly named tokenizer uses at most two sessions of 60 samples each; partial
+  failure cannot publish an aggregate. It remains an acceptance utility outside the C11 core.
+
+Final local evidence is under ignored `build/context-efficiency-20261113/`:
+
+| Gate | Result and receipt |
+| --- | --- |
+| Windows final gate | PASS: `eng/test.cmd` exit 0 in 117.7 s under a 240 s Job-owned launcher. `windows-final-gate.json/.log`; shared stdio 197/197, native profile 46/46, process 40/40, adapters 26/26, PowerShell 12/12. |
+| Linux final gate | PASS: `timeout --kill-after=5s 240s sh eng/test-linux.sh` exit 0. `linux-final-gate.log`; shared stdio 198/198, native profile 46/46, process 39/39, Git adapter 17/17. Native Linux rg/find_files cases NOT_RUN because rg is absent. |
+| Fresh profile stdio | PASS: 11/11 each platform. `windows-profiles/receipt.json`, `linux-profiles/receipt.json`; default/full exact equality, exact 27 members, unchanged member schemas, hidden direct-call and unknown tool/profile checks. |
+| Fresh execution projection stdio | PASS: 12 groups / 27 execute calls each platform. `windows-projection/receipt.json`, `linux-projection/receipt.json`; preflight zero-side-effect failures, existing/missing log paths, one execution on fallback, Unicode/CP936, invalid encoding, expected/unexpected exit 23, output limit, timeout, cancel and stopped descendants. |
+| Harness tests | PASS: 12/12 on Windows and Linux, including queue timeout/broken pipe UNKNOWN without replay, final aggregation, expected-status mismatch and optional tokenizer batching/partial failure. |
+| Final measurement | PASS: five repetitions per platform, 152/152 checks; 25 full + 25 requested-summary execution cases, 15 tools/list calls, 90 total RPC including setup and hidden direct-call checks. Twenty owned MCP processes cleaned per platform, 0 retries, 0 unknown samples. `windows-baseline.json`, `linux-baseline.json` plus raw archives. |
+| Static analysis | PASS: GCC `-fanalyzer -Wall -Wextra -Werror -pedantic` on modified operations.c/tools.c. |
+| Sanitizer | PASS: separate Linux C11 build with AddressSanitizer + UndefinedBehaviorSanitizer; `asan-projection/receipt.json` passes 12 groups / 27 calls, clean stderr and owned process cleanup. |
+
+Final measured binary SHA-256: Windows
+`94a0e697295e58d86491e88c18571f2b4d13acd2b6d882fc47a9f18117269c95`;
+Linux `11014833dad34e937592c10a1343491214eb6f617f6e37a0dd8f2af5a9d06bea`.
+Both are dirty development builds, separate from the installed 0.5.0 connection.
+
+Byte measurements include the cost of hashes, log metadata and fallback. On both platforms,
+the tools array is 63,569 bytes for default/full and 39,309 for local-code; complete wire frames
+are 63,614 and 39,354 bytes. For the fixed execution mix (25 samples per requested mode),
+Windows full/summary median wire bytes are 955/1,232 and P95 9,118/1,397; Linux median is
+950/1,214 and P95 9,112/1,378. Small output grows under summary; larger capture output shrinks.
+Cancellation's full fallback is included in the requested-summary group. Five repeats do not
+establish statistical significance or latency improvement. Actual tokenizer/provider usage,
+billing and real agent task success remain **NOT_MEASURED**.
+
+Earlier failures remain visible in ignored receipts: the old binary lacked profile selection;
+the initial Linux pilot found literal `\\n` in the log header; subsequent pilot corrected the
+header/payload hash and offsets. The first cancellation probe arrived before execution and
+exposed cancellation being classified as path validation, now fixed by doing lexical validation
+before observing process cancellation. Log cancellation then correctly returns full fallback.
+The coordinator's first Windows wiring accidentally omitted the existing file_operations.c;
+the linker failed, the source list was restored, and final gates pass. A profile test originally
+used an empty HTTP request that is `not_supported` on Linux; a definite type error now tests
+shared validation. No failure was hidden or counted as successful acceptance.
+
+CI and tag-release source workflows now include profile/projection stdio checks and the bounded
+baseline. The new plan is in both package source manifests. Remote CI, package creation/install,
+installed-client adoption and release/public readback are **NOT_RUN** for this change. No
+third-party dependency, model SDK, agent hook or script interpreter was added to the C core.
+CDX-14D/E/F/G and broader roadmap stages remain open.
+
+All task-owned MCP/process fixtures report cleanup; raw responses, capture logs and receipts are
+retained deliberately under ignored build/. Temporary fixture scripts are removed by their
+tests. An independently appearing `.publishing/` directory is outside this task's ownership and
+is preserved. No shared runtime or other chat's processes were replaced or terminated.
+Final native UTF-8/no-NUL/round-trip verification passes 28/28 owned files and `git diff --check`
+passes. A bounded independent Windows PID/creation-time readback confirms all 25 final MCP
+processes exited (`windows-process-readback.json`); the broader process snapshot was partial
+and is not used to claim a machine-wide absence of processes. The task-created Python cache
+and temporary gate/compiler helper scripts were removed; build receipts and test artifacts stay.
+
+## Active context-efficiency implementation handoff (2026-11-12, Asia/Shanghai)
+
+The user authorized recording the worthwhile TokenEconomizer follow-ups and starting a new
+Cordonix chat with multiple implementation agents. The current batch is CDX-14A (tool profiles),
+CDX-14B (compact execution with raw-output readback) and CDX-14C (reproducible measurements).
+Project facts, loop reminders, grouped diagnostics and edit batches retain follow-up IDs in
+ROADMAP.md. See [the implementation plan](docs/context-efficiency-plan-2026-11-12.zh-CN.md).
+
+Baseline: branch `main`, HEAD `22956e8841833da5e6ed61c548f19c0a83f34e9d`, initially clean and
+tracking `origin/main` at +0/-0. The connected runtime is clean 0.5.0 from `00e07a0`; that is a
+separate binary from the upcoming source changes. No model token or billing saving is measured.
+
+The planning chat owns the uncommitted changes to ROADMAP.md, README.md, HANDOFF.md,
+CHANGELOG.md and the new plan. They are authorized handoff work for the new implementation
+coordinator to preserve and update. New chat ID: `01a1cf54-d258-7722-96a3-c7cc248b3a5b` on the
+existing local `D:\GitHub\Cordonix` project. Its first turn has started. The coordinator must
+settle shared interfaces, start three actual workers with disjoint file ownership, serialize
+shared schema/build/document edits, and finish the applicable Windows/Linux native/MCP gates.
+
+This entry records planning and dispatch, not implementation acceptance. Documentation checks
+belong to the planning chat; implementation tests and their PASS/FAIL/UNKNOWN/NOT_RUN results
+belong to the new chat. Commit/push, paid model calls, dependency installation, release and
+replacement of shared installed services require their respective authorization. The planning
+chat leaves no build/process artifacts to recover; the earlier article browser was closed and
+its owned temporary files removed.
+
 ## 0.5.0 release and local installation (2026-11-10, Asia/Shanghai)
 
 Published source `00e07a0e9c462b8013b037a329abbeb82d27af40` as annotated

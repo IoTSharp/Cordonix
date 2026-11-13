@@ -30,9 +30,15 @@ build\protocol\cdx-serial-tests.exe "%cd%\build\serial-tests"
 if errorlevel 1 exit /b %errorlevel%
 cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 /Iinclude /Fobuild\protocol\ /Febuild\protocol\cdx-presentation-tests.exe tests\protocol\test_presentation.c src\cdx-protocol\presentation.c src\cdx-protocol\json.c
 if errorlevel 1 exit /b %errorlevel%
+cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 /Iinclude /Fobuild\protocol\ /Febuild\protocol\cdx-tool-profile-tests.exe tests\protocol\test_tool_profiles.c src\cdx-protocol\tool_profiles.c
+if errorlevel 1 exit /b %errorlevel%
 build\protocol\cdx-presentation-tests.exe --pilot
 if errorlevel 1 exit /b %errorlevel%
 build\protocol\cdx-presentation-tests.exe
+if errorlevel 1 exit /b %errorlevel%
+build\protocol\cdx-tool-profile-tests.exe --pilot
+if errorlevel 1 exit /b %errorlevel%
+build\protocol\cdx-tool-profile-tests.exe
 if errorlevel 1 exit /b %errorlevel%
 cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 %CDX_VERSION_DEFINE% /DUNICODE /D_UNICODE /Iinclude /Fobuild\protocol\ /Febuild\protocol\cdx-json-tests.exe tests\protocol\test_json.c src\cdx-protocol\json.c
 if errorlevel 1 exit /b %errorlevel%

@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "description": "Small deterministic process cases for CDX-14C. The executable path is supplied by the harness.",
+  "execute_cases": [
+    {"name": "streams", "args": ["streams"], "expected_status": "completed"},
+    {"name": "output_limit", "args": ["output"], "output_limit_bytes": 8192, "expected_status": "output_limit"},
+    {"name": "encoding_error", "args": ["invalid-utf8"], "output_encoding": "utf-8", "expected_status": "encoding_error"},
+    {"name": "timeout", "args": ["sleep"], "timeout_ms": 100, "expected_status": "timed_out"},
+    {"name": "cancel", "args": ["sleep"], "timeout_ms": 5000, "cancel": true, "expected_status": "cancelled"}
+  ]
+}

@@ -1,4 +1,5 @@
 #include "cdx/operations.h"
+#include <string.h>
 
 static const char stat_tool_schema[] =
     "{\"name\":\"stat\",\"title\":\"查询文件元数据\",\"description\":\"Read metadata for one absolute literal path without changing it. Reports file, directory, link or other type, regular-file size, platform fields, epoch nanosecond timestamps (null when unavailable), size/mode/flag availability and the native time representation unit. POSIX uses lstat and reports link names themselves; Windows classifies all reparse entries as link and uses 100 ns FILETIME units. Windows returns a normalized path; POSIX retains the supplied absolute spelling, including dot segments, to preserve intermediate-link traversal. Path context is retained on not_found when validation succeeds. No recursion, copy, move or delete.\",\"inputSchema\":{\"type\":\"object\",\"required\":[\"path\"],\"additionalProperties\":false,\"properties\":{\"path\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":32768,\"description\":\"Absolute UTF-8 filesystem path; literal traversal is preserved and code-shaped paths are rejected.\"},\"timeout_ms\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":60000,\"default\":5000,\"description\":\"Bound for normalization and metadata reads in milliseconds.\"}}},\"annotations\":{\"readOnlyHint\":true}}";
@@ -6,7 +7,35 @@ static const char stat_tool_schema[] =
 static const char read_files_tool_schema[] =
     "{\"name\":\"read_files\",\"title\":\"批量读取磁盘文件\",\"description\":\"Read 1..32 disk files in order using read_file line, tail or raw modes and strict decoding. Validate every item before reading. Preserve completed items and explicit not_run items after a shared deadline, cancellation or budget stop. max_total_bytes limits returned UTF-8 text; max_output_bytes limits the JSON-quoted tool result, excluding the MCP envelope. Each file still loads a fresh snapshot up to 8 MiB; reads are sequential and synchronous file I/O is not forcibly interrupted. No workspace slots or writes.\",\"inputSchema\":{\"type\":\"object\",\"required\":[\"files\"],\"properties\":{\"files\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":32,\"items\":{\"type\":\"object\",\"required\":[\"path\"],\"properties\":{\"path\":{\"type\":\"string\",\"description\":\"Absolute existing file path; each item reads a fresh snapshot.\"},\"encoding\":{\"type\":\"string\",\"enum\":[\"auto\",\"utf-8\",\"utf-8-bom\",\"utf-16-le\",\"utf-16-be\",\"cp936\",\"gbk\"],\"default\":\"auto\",\"description\":\"Disk decoding; omitted uses auto (BOM or strict UTF-8). Choose cp936 for GBK.\"},\"start_line\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":25165825,\"default\":1,\"description\":\"1-based first line; omit with tail/raw.\"},\"line_count\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":1000,\"default\":200,\"description\":\"Maximum requested lines; omit with tail/raw.\"},\"tail_lines\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":1000,\"description\":\"Last N lines; omit line fields and raw.\"},\"raw\":{\"type\":\"boolean\",\"default\":false,\"description\":\"True requests complete text; omit line/tail fields.\"},\"max_bytes\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":262144,\"default\":32768,\"description\":\"UTF-8 result byte cap; tail/raw must fit completely.\"}}},\"description\":\"Ordered file requests; each chooses one line/tail/raw mode.\"},\"timeout_ms\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":60000,\"default\":10000,\"description\":\"Shared batch deadline; later items can be not_run.\"},\"max_total_bytes\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":4194304,\"default\":1048576,\"description\":\"Total returned UTF-8 text budget across all items.\"},\"max_output_bytes\":{\"type\":\"integer\",\"minimum\":1024,\"maximum\":4194304,\"default\":4194304,\"description\":\"JSON-escaped operation result budget, excluding MCP envelope.\"}}},\"annotations\":{\"readOnlyHint\":true}}";
 
-void cdx_tool_list(cdx_json_output *output) {
+static int schema_advertised(cdx_tool_profile profile, const char *schema) {
+    static const char prefix[] = "{\"name\":\"";
+    char name[64];
+    size_t length = 0;
+    if (!schema || strncmp(schema, prefix, sizeof(prefix) - 1u)) return 0;
+    schema += sizeof(prefix) - 1u;
+    while (schema[length] && schema[length] != '\"' && length + 1u < sizeof(name)) ++length;
+    if (!schema[length] || length == 0u || length + 1u >= sizeof(name)) return 0;
+    memcpy(name, schema, length); name[length] = '\0';
+    return cdx_tool_profile_advertises(profile, name);
+}
+
+static void emit_schema(cdx_json_output *output, cdx_tool_profile profile, const char *schema, int *first) {
+    const char *marker;
+    if (!schema_advertised(profile, schema)) return;
+    if (!*first) cdx_json_raw(output, ",");
+    if (schema_advertised(CDX_TOOL_PROFILE_FULL, schema) &&
+        !strncmp(schema, "{\"name\":\"execute_program\"", sizeof("{\"name\":\"execute_program\"") - 1u)) {
+        marker = strstr(schema, "}},\"annotations\"");
+        if (marker) {
+            cdx_json_rawn(output, schema, (size_t)(marker - schema));
+            cdx_json_raw(output, ",\"result_mode\":{\"type\":\"string\",\"enum\":[\"full\",\"summary\"],\"default\":\"full\",\"description\":\"Result projection only; full retains decoded output. summary requires capture_log_path, keeps process/encoding/cleanup states and captured-byte hashes, and falls back to full in the same response if log publication fails. Never rerun a command to recover output.\"},\"summary_tail_bytes\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":8192,\"default\":1024,\"description\":\"Maximum raw bytes per stdout/stderr tail, returned as Base64. summary_truncated means omitted capture bytes; output_truncated independently means the process capture hit its limit.\"},\"capture_log_path\":{\"type\":\"string\",\"description\":\"New absolute binary log path with an existing parent; required for summary and optional for full. Never replaces an existing path. CDX-CAPTURE-1 header records stream lengths/offsets before captured stdout then stderr bytes. Hashes cover captured payload, excluding header and any uncaptured output. Caller owns log retention; failure preserves full output and an independent capture_log_status.\"}");
+            cdx_json_raw(output, marker);
+        } else cdx_json_raw(output, schema);
+    } else cdx_json_raw(output, schema);
+    *first = 0;
+}
+
+void cdx_tool_list_profile(cdx_json_output *output, cdx_tool_profile profile) {
     static const char *const tools[] = {
         "{\"name\":\"create_directory\",\"title\":\"创建目录\",\"description\":\"Create a directory at an absolute literal filesystem path and return its normalized path. parents=true creates up to 256 missing directories; exist_ok=true accepts an existing directory. Both default false. Existing files are never replaced. Returns created for the requested leaf and directories_created for all directories created by this call, including on failure, timeout or cancellation. Created parents are retained; inspect results before retrying. Uses native filesystem APIs without a shell. Existing directory links follow platform filesystem behavior; paths are lexical, not physical containment.\",\"inputSchema\":{\"type\":\"object\",\"required\":[\"path\"],\"properties\":{\"path\":{\"type\":\"string\",\"description\":\"Absolute directory path to create; no shell or wildcards.\"},\"parents\":{\"type\":\"boolean\",\"default\":false,\"description\":\"Create missing ancestors; false requires an existing parent.\"},\"exist_ok\":{\"type\":\"boolean\",\"default\":false,\"description\":\"Accept an existing directory; existing files still fail.\"},\"timeout_ms\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":60000,\"default\":5000,\"description\":\"Creation deadline in milliseconds; created parents remain on failure.\"}}},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":false,\"idempotentHint\":false}}",
         "{\"name\":\"ssh\",\"title\":\"SSH 连接与远程执行\",\"description\":\"Windows native SSH; Linux returns not_supported. Probe reports a key for independent verification; execute requires pins and credentials. Routes are direct, jump or interactive bastion PTY. Interactive output is combined; target trust belongs to the bastion. Each call closes its sockets/sessions. A dispatched timeout/cancel can be unknown; reconcile before retrying.\",\"inputSchema\":{\"type\":\"object\",\"required\":[\"target\"],\"properties\":{\"proxy\":{\"type\":\"string\",\"default\":\"auto\",\"description\":\"auto probes local 7890/1080 only after direct network connect fails; direct bypasses; explicit http://127.0.0.1:port or socks5://127.0.0.1:port selects one proxy. No retry after application dispatch.\"},\"action\":{\"type\":\"string\",\"enum\":[\"probe\",\"execute\"],\"default\":\"probe\",\"description\":\"probe reads a host key; execute authenticates and runs script.\"},\"route\":{\"type\":\"string\",\"enum\":[\"direct\",\"jump\",\"interactive\"],\"default\":\"direct\",\"description\":\"direct target, jump via bastion, or interactive bastion PTY.\"},\"target\":{\"$ref\":\"#/$defs/endpoint\",\"description\":\"Target IP and authentication; interactive targets omit key path and host-key pin.\"},\"bastion\":{\"$ref\":\"#/$defs/endpoint\",\"description\":\"Required for jump/interactive; supply its own credential and verified pin.\"},\"script\":{\"type\":\"string\",\"maxLength\":65536,\"description\":\"Nonempty LF Bash script for execute, passed as data. Interactive lines <=2048 UTF-8 bytes.\"},\"interaction\":{\"type\":\"object\",\"properties\":{\"ready_prompt\":{\"type\":\"string\",\"maxLength\":256,\"description\":\"Literal bastion prompt to wait for before selecting the target.\"},\"selection\":{\"type\":\"string\",\"maxLength\":2048,\"description\":\"Single line template containing {host}; {port} and {user} are also expanded. No local shell interpretation.\"},\"selection_prefix\":{\"type\":\"string\",\"maxLength\":16,\"description\":\"Optional literal prefix sent before the expanded selection line.\"},\"password_prompt\":{\"type\":\"string\",\"default\":\"Password:\",\"description\":\"Literal target password prompt; uses target.credential.\"},\"shell_prompt\":{\"type\":\"string\",\"maxLength\":256,\"description\":\"Required literal target-shell prompt after asset selection.\"},\"su_credential\":{\"type\":\"string\",\"description\":\"Optional Windows credential alias for su - root\"},\"su_password_prompt\":{\"type\":\"string\",\"default\":\"Password:\",\"description\":\"Literal password prompt for the optional su credential.\"},\"root_prompt\":{\"type\":\"string\",\"maxLength\":256,\"description\":\"Required literal root prompt when su_credential is supplied.\"}},\"description\":\"Required prompts and selection template for interactive execute.\"},\"require_root\":{\"type\":\"boolean\",\"default\":false,\"description\":\"Check id -u equals 0 before the script. Failure exits 77.\"},\"timeout_ms\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":300000,\"default\":30000,\"description\":\"Whole connection/command deadline in milliseconds.\"},\"output_limit_bytes\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":262144,\"default\":65536,\"description\":\"Combined captured-output byte cap.\"},\"output_encoding\":{\"type\":\"string\",\"enum\":[\"utf-8\",\"cp936\",\"gbk\"],\"default\":\"utf-8\",\"description\":\"Strict remote stdout/stderr decoder; does not set remote locale.\"}},\"$defs\":{\"endpoint\":{\"type\":\"object\",\"required\":[\"host\"],\"properties\":{\"host\":{\"type\":\"string\",\"description\":\"Explicit IPv4 or IPv6 literal\"},\"port\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":65535,\"default\":22,\"description\":\"SSH TCP port; default 22.\"},\"user\":{\"type\":\"string\",\"description\":\"Login user; overrides credential username and is required with a key.\"},\"credential\":{\"type\":\"string\",\"description\":\"Windows Generic UTF-16 credential alias; excludes private_key_path.\"},\"private_key_path\":{\"type\":\"string\",\"description\":\"Absolute local unencrypted supported key file; excludes credential.\"},\"host_key_sha256\":{\"type\":\"string\",\"pattern\":\"^[0-9a-fA-F]{64}$\",\"description\":\"Verified 64-hex pin for execute; omit on initial probe and interactive target.\"}}}}},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false}}",
@@ -31,22 +60,24 @@ void cdx_tool_list(cdx_json_output *output) {
         "{\"name\":\"workspace_close\",\"title\":\"关闭内存文档\",\"description\":\"Release one document. Dirty memory requires explicit discard=true or a successful commit first. Session termination discards memory, never implicitly commits.\",\"inputSchema\":{\"type\":\"object\",\"required\":[\"document_id\"],\"properties\":{\"document_id\":{\"type\":\"integer\",\"description\":\"document_id returned by workspace_open in this same MCP session.\"},\"discard\":{\"type\":\"boolean\",\"default\":false,\"description\":\"True discards dirty memory. Otherwise commit before closing.\"}}},\"annotations\":{\"readOnlyHint\":false,\"destructiveHint\":true,\"idempotentHint\":false}}"
     };
     size_t i;
+    int first = 1;
     cdx_json_raw(output, "{\"tools\":[");
-    for (i = 0; i < sizeof(tools) / sizeof(tools[0]); ++i) {
-        if (i) cdx_json_raw(output, ",");
-        cdx_json_raw(output, tools[i]);
-    }
-    cdx_json_raw(output, ","); cdx_json_raw(output, cdx_sftp_tool_schema());
-    cdx_json_raw(output, ","); cdx_json_raw(output, cdx_http_tool_schema());
-    cdx_json_raw(output, ","); cdx_json_raw(output, cdx_serial_tool_schema());
-    cdx_json_raw(output, ","); cdx_json_raw(output, cdx_network_tool_schema());
-    cdx_json_raw(output, ","); cdx_json_raw(output, read_files_tool_schema);
-    cdx_json_raw(output, ","); cdx_json_raw(output, cdx_screenshot_tool_schema());
-    cdx_json_raw(output, ","); cdx_json_raw(output, cdx_vnc_tool_schema());
-    cdx_json_raw(output, ","); cdx_json_raw(output, cdx_data_query_tool_schema());
-    cdx_json_raw(output, ","); cdx_json_raw(output, cdx_file_ops_tool_schema());
-    cdx_json_raw(output, ","); cdx_json_raw(output, cdx_discovery_tool_schema());
-    cdx_json_raw(output, ","); cdx_json_raw(output, cdx_program_discovery_tool_schema());
-    cdx_json_raw(output, ","); cdx_json_raw(output, stat_tool_schema);
+    for (i = 0; i < sizeof(tools) / sizeof(tools[0]); ++i) emit_schema(output, profile, tools[i], &first);
+    emit_schema(output, profile, cdx_sftp_tool_schema(), &first);
+    emit_schema(output, profile, cdx_http_tool_schema(), &first);
+    emit_schema(output, profile, cdx_serial_tool_schema(), &first);
+    emit_schema(output, profile, cdx_network_tool_schema(), &first);
+    emit_schema(output, profile, read_files_tool_schema, &first);
+    emit_schema(output, profile, cdx_screenshot_tool_schema(), &first);
+    emit_schema(output, profile, cdx_vnc_tool_schema(), &first);
+    emit_schema(output, profile, cdx_data_query_tool_schema(), &first);
+    emit_schema(output, profile, cdx_file_ops_tool_schema(), &first);
+    emit_schema(output, profile, cdx_discovery_tool_schema(), &first);
+    emit_schema(output, profile, cdx_program_discovery_tool_schema(), &first);
+    emit_schema(output, profile, stat_tool_schema, &first);
     cdx_json_raw(output, "]}");
+}
+
+void cdx_tool_list(cdx_json_output *output) {
+    cdx_tool_list_profile(output, CDX_TOOL_PROFILE_FULL);
 }

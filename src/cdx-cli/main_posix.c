@@ -252,7 +252,7 @@ static void run_pending(cdx_mcp_queue *queue, active_request *active, unsigned l
     }
 }
 
-static void dispatch(const char *line, size_t length, int *initialized, active_request *active, cdx_mcp_queue *queue) {
+static void dispatch(const char *line, size_t length, int *initialized, active_request *active, cdx_mcp_queue *queue, cdx_tool_profile profile) {
     cdx_json json;
     cdx_json_output output;
     int method, id, params;
@@ -297,7 +297,7 @@ static void dispatch(const char *line, size_t length, int *initialized, active_r
         cdx_json_output_init(&output);
         response_start(&output, &json, id);
         cdx_json_raw(&output, ",\"result\":");
-        cdx_tool_list(&output);
+        cdx_tool_list_profile(&output, profile);
         cdx_json_raw(&output, "}");
         send_output(&output);
         cdx_json_output_free(&output);
@@ -325,7 +325,7 @@ static void dispatch(const char *line, size_t length, int *initialized, active_r
     cdx_json_free(&json);
 }
 
-static int run_mcp(void) {
+static int run_mcp(cdx_tool_profile profile) {
     active_request active;
     cdx_mcp_queue queue;
     unsigned long long deadline = monotonic_ms() + SESSION_MAX_MS;
@@ -353,13 +353,13 @@ static int run_mcp(void) {
         received = read(STDIN_FILENO, chunk, sizeof(chunk));
         if (received < 0 && (errno == EINTR || errno == EAGAIN)) continue;
         if (received <= 0) {
-            if (length) dispatch(line, length, &initialized, &active, &queue);
+            if (length) dispatch(line, length, &initialized, &active, &queue, profile);
             break;
         }
         for (i = 0; i < received && messages < SESSION_MAX_REQUESTS && monotonic_ms() < deadline &&
              !interrupted && !atomic_load(&output_failed); ++i) {
             if (chunk[i] == '\n') {
-                dispatch(line, length, &initialized, &active, &queue); length = 0; ++messages;
+                dispatch(line, length, &initialized, &active, &queue, profile); length = 0; ++messages;
                 run_pending(&queue, &active, deadline);
             }
             else if (length == INPUT_LIMIT) { result = 2; goto done; }
@@ -454,19 +454,24 @@ int main(int argc, char **argv) {
     action.sa_handler = SIG_IGN;
     (void)sigaction(SIGPIPE, &action, NULL);
     if (flags < 0 || fcntl(STDOUT_FILENO, F_SETFL, flags | O_NONBLOCK) < 0) return 1;
-    if (argc == 2 && !strcmp(argv[1], "--mcp")) result = run_mcp();
+    if (argc == 2 && !strcmp(argv[1], "--mcp")) result = run_mcp(CDX_TOOL_PROFILE_FULL);
+    else if (argc == 4 && !strcmp(argv[1], "--mcp") && !strcmp(argv[2], "--tool-profile")) {
+        cdx_tool_profile profile;
+        if (cdx_tool_profile_parse(argv[3], &profile)) result = run_mcp(profile);
+        else { (void)fputs("Unknown tool profile; expected full or local-code.\n", stderr); result = 2; }
+    }
     else if (argc == 3 && !strcmp(argv[1], "--request")) result = run_request(argv[2], 0);
     else if (argc == 2 && !strcmp(argv[1], "--checkupgrade")) result = check_upgrade(NULL);
     else if (argc == 4 && !strcmp(argv[1], "--checkupgrade") && !strcmp(argv[2], "--install-root")) result = check_upgrade(argv[3]);
     else if (argc == 2 && !strcmp(argv[1], "--help")) {
-        static const char help[] = "Usage: cdx --mcp | --request absolute-request.json | --checkupgrade [--install-root absolute-directory] | --version\n";
+        static const char help[] = "Usage: cdx --mcp [--tool-profile full|local-code] | --request absolute-request.json | --checkupgrade [--install-root absolute-directory] | --version\n";
         result = write_output(help, sizeof(help) - 1u) ? 0 : 1;
     }
     else if (argc == 2 && !strcmp(argv[1], "--version")) {
         static const char version[] = CDX_VERSION_TEXT "\n";
         result = write_output(version, sizeof(version) - 1u) ? 0 : 1;
     } else {
-        (void)fputs("Usage: cdx --mcp | --request absolute-request.json | --version\n", stderr);
+        (void)fputs("Usage: cdx --mcp [--tool-profile full|local-code] | --request absolute-request.json | --version\n", stderr);
         result = 2;
     }
     /* stdout may share its open-file description with the invoking process. */
