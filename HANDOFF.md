@@ -1,5 +1,53 @@
 # Handoff
 
+## 0.6.0 publication and this computer's upgrade (2026-11-15, Asia/Shanghai)
+
+Released clean `ea8b86d93f7a667042155150718d1d4c9a1f586c` as annotated
+`v0.6.0` (tag object `bf2a10a6cc9fe6ce2334190aaf72a893219deab4`).
+GitHub and Gitee main/tag refs were independently read back. This release
+delivers CDX-14G / CDX-12B, the previously accepted CDX-14A/B/C and the staged
+daily updater. CDX-14D/E/F remain open.
+
+- PASS: source CI `43617337308`, attempt 2, both platforms. Attempt 1's Windows
+  screenshot fixture failed two linked color assertions; the screenshot source
+  was unchanged, an independent local check passed 26/26, and one rerun passed.
+  The precise runner cause remains UNKNOWN; no speculative screenshot change
+  was introduced. Linux passed on the original attempt.
+- PASS: tag CI `43618071222`, both platforms, and release `43618071180`,
+  attempt 2, all six jobs including signing, package/SPDX, reproducibility and
+  installer checks. Release attempt 1 uploaded nine Gitee assets then timed out.
+  Public reconciliation identified exactly three missing Windows ZIP/checksum/
+  bundle files. The credential-backed `gitee-release-publisher` uploaded those
+  three verified GitHub downloads once; public readback and the failed-job rerun
+  then passed. Existing tags, archives and attachments were preserved.
+- PASS: 12 uploaded public asset pairs are byte-identical across both hosts.
+  Four archive copies pass their checksums, all 67 payload hashes, embedded/
+  sidecar metadata equality and clean source identity. Exact-tag Sigstore policy
+  accepts four originals and rejects four byte-modified copies. Receipts are
+  `build/stage-20261115/public/receipt.json` and `attestation-final`.
+- PASS: this computer upgraded 0.5.0 -> 0.6.0 through the stable installer using
+  GitHub at 01:08 Asia/Shanghai. The Codex package-local pointer, archive SHA,
+  executable version and clean source identity agree. Existing source/proxy/
+  enabled/API settings are unchanged. A fresh invocation of the original stable
+  launcher passed seven real MCP calls, advertises 35 tools, applies a two-edit
+  batch in memory, reads its exact result and proves disk unchanged. Receipt:
+  `build/stage-20261115/installed-readback.json`.
+
+Windows ZIP SHA-256:
+`af45018ae31ed7d7689b8ea2de29d65090c7e663d181844a6f481f1a022ff5f8`.
+Linux archive SHA-256:
+`bf05bd05f36fc70e7acc245666541ba70fc2791f3f325e09d045f720c33da3f1`.
+Installed executable SHA-256:
+`37ea8be111771b8285c651278965d2e76a2357a21a366c8c6c8a29b24c46112b`.
+
+The old 0.5.0 executable remains locked by running processes, so old-version
+cleanup is deferred and reported explicitly. The next stable launch retries
+retired-directory cleanup; existing chat processes are preserved and require
+reconnection to adopt the new runtime. Adoption by this already-open Codex
+client remains UNKNOWN. WinGet upstream acceptance and Windows Authenticode
+are independent gates and are not claimed here. Task process fixtures/attestation
+jobs report cleanup; only ignored receipts/public artifacts are retained.
+
 ## 0.6.0 batch-edit delivery (2026-11-15, Asia/Shanghai)
 
 The user authorized one worthwhile roadmap phase with multiple implementation

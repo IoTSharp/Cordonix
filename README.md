@@ -7,7 +7,7 @@ edits using one initial SHA, with whole-batch memory rollback and a bounded diff
 Existing single-edit calls remain supported; disk writes still require an explicit commit.
 Current build/release/install evidence is recorded in [HANDOFF.md](HANDOFF.md).
 
-Verified release: [GitHub v0.5.0](https://github.com/IoTSharp/Cordonix/releases/tag/v0.5.0) / [Gitee v0.5.0](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.5.0), from clean source `00e07a0`. Windows/Linux CI, signed tagged publication and all 12 public asset pairs pass readback. This computer's 0.4.1-to-0.5.0 installation and fresh-launcher MCP adoption also pass; existing chat processes retain their previous runtime until reconnection. Receipts and boundaries are in [HANDOFF.md](HANDOFF.md).
+Verified release: [GitHub v0.6.0](https://github.com/IoTSharp/Cordonix/releases/tag/v0.6.0) / [Gitee v0.6.0](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.6.0), from clean source `ea8b86d`. Windows/Linux source/tag CI, signed publication and all 12 public asset pairs pass readback. This computer's 0.5.0-to-0.6.0 upgrade and fresh stable-launcher MCP batch editing also pass; existing chat processes adopt the runtime after reconnection. Receipts and boundaries are in [HANDOFF.md](HANDOFF.md).
 
 Version 0.5.0 queues overlapping MCP tool calls in a bounded FIFO, including directory listings and batch reads. See [request scheduling](docs/mcp-request-scheduling.md) for cancellation, queue limits and installed-client adoption. Existing 0.4.1 connections require sequential calls until they load the updated runtime.
 
@@ -54,12 +54,12 @@ Verified release: [v0.3.1 on GitHub](https://github.com/IoTSharp/Cordonix/releas
 The current source implements explicit `full` (default) and `local-code` MCP tool profiles,
 opt-in `execute_program` full/summary results with captured-byte log readback, and a bounded
 context-efficiency harness. Windows/Linux native and real stdio checks pass locally. Start a
-development binary with `cdx --mcp --tool-profile local-code` to advertise 27 local coding tools;
+0.6.0 binary with `cdx --mcp --tool-profile local-code` to advertise 27 local coding tools;
 omitting the profile advertises all 35. Profiles affect discovery, while direct-call validation
 remains available. See the [usage contract](docs/mcp-tool-guide.md#tool-profiles-and-execution-projections),
 [implementation and acceptance record](docs/context-efficiency-plan-2026-11-12.zh-CN.md) and
-[active roadmap](ROADMAP.md#active-context-efficiency-batch-2026-11-12). The published 0.5.0
-runtime has its own contract; local source validation does not update an installed connection.
+[active roadmap](ROADMAP.md#active-context-efficiency-batch-2026-11-12). The 0.6.0
+release includes these contracts; an existing installed connection adopts them after reconnection.
 
 Cordonix, abbreviated **cdx**, gives agents a direct path to local programs and source files. Program arguments remain data. Text keeps its declared encoding. Repeated reads and edits can stay in memory until an explicit commit.
 

@@ -2,6 +2,8 @@
 
 ## 0.6.0 - 2026-11-15
 
+- Published clean `ea8b86d` to GitHub and Gitee. Source/tag CI and all six release jobs pass; all 12 public asset pairs match and exact-tag provenance accepts four originals while rejecting four tampered copies. This computer upgraded from 0.5.0 with unchanged updater settings; a fresh stable-launcher MCP process verifies 0.6.0 and actual batch editing. Locked retired-directory cleanup and existing-client reconnection remain explicit in HANDOFF.
+
 - Added `workspace_edit.edits` for 1..32 ordered literal edits using one initial memory SHA. The batch previews by default, commits all memory changes together or rolls them all back, and leaves disk writes to `workspace_commit`. A bounded UTF-8 changed-span preview, candidate SHA, per-edit counts, timeout and cancellation make the result reviewable. Existing single-edit calls remain compatible; strict CP936, BOM and EOL rules are reused.
 - Fixed MCP error classification for failed anchors, rejected EOL and oversized edits. Native and real stdio regressions cover sequential dependencies, rollback of clean/dirty documents, preview truncation, exact encoded bytes and stale disk conflicts.
 - Repaired pending-update archive-hash receipts, concurrent launcher log ownership and bounded Windows apply-process cleanup. Installer fixtures also exercise tampered pending packages and offline installation.

@@ -6,7 +6,7 @@
 任一步失败则整批回滚，默认只返回有界差异预览。旧单次编辑调用继续兼容，写盘仍需显式提交。
 构建、发行与本机更新的当前证据见 [HANDOFF.md](HANDOFF.md)。
 
-已发布并验收：[GitHub v0.5.0](https://github.com/IoTSharp/Cordonix/releases/tag/v0.5.0) / [Gitee v0.5.0](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.5.0)，发行源码为干净的 `00e07a0`。Windows/Linux CI、标签发布、来源证明和两站 12 对公开附件均通过核验。本机已完成 0.4.1 → 0.5.0 安装，并验证稳定入口启动的新 MCP 进程；已有聊天仍需重连后采用新版。完整回执见 [HANDOFF.md](HANDOFF.md)。
+已发布并验收：[GitHub v0.6.0](https://github.com/IoTSharp/Cordonix/releases/tag/v0.6.0) / [Gitee v0.6.0](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.6.0)，发行源码为干净的 `ea8b86d`。Windows/Linux 源码及标签 CI、正式发布、来源证明和两站 12 对公开附件均通过核验。本机已完成 0.5.0 → 0.6.0 升级，并通过原有稳定入口启动新 MCP 进程，实际验证批量编辑；已有聊天需重连后采用新版。完整回执见 [HANDOFF.md](HANDOFF.md)。
 
 0.5.0 修复 MCP 重叠请求导致列目录报错的问题：同一连接的工具调用进入有界 FIFO，顺序执行，支持排队取消和明确的未执行诊断。详见[请求调度](docs/mcp-request-scheduling.md)。现有 0.4.1 连接在加载新版运行时之前，仍需逐个等待调用完成。
 
