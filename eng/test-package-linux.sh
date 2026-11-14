@@ -108,7 +108,7 @@ try:
     sbom = json.loads((extracted / 'sbom.spdx.json').read_text())
     require(manifest['format_version'] == 1 and manifest['version'] == version and manifest['target'] == 'linux-x64',
             'Invalid Linux package manifest')
-    require(1 <= len(manifest['files']) <= 65, 'Payload count exceeds package test limit')
+    require(len(manifest['files']) == 67, 'Expected 67 payload files including batch-edit and context-efficiency contracts')
     for record in manifest['files']:
         path = extracted / record['path']
         require(path.resolve().is_relative_to(extracted.resolve()) and path.is_file() and

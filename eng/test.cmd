@@ -85,4 +85,15 @@ if errorlevel 1 exit /b %errorlevel%
 "%CDX_PWSH%" -NoProfile -File eng\test-pwsh-windows.ps1
 if errorlevel 1 exit /b %errorlevel%
 build\protocol\cdx-process-query-tests.exe
+if errorlevel 1 exit /b %errorlevel%
+cl.exe /nologo /TC /std:c11 /W4 /WX /O2 /MT /utf-8 /DUNICODE /D_UNICODE /Iinclude /Fobuild\workspace\ /Febuild\workspace\edit-batch-tests.exe tests\workspace\test_edit_batch.c src\cdx-workspace\document_common.c src\cdx-workspace\document_win32.c src\cdx-workspace\encoding_win32.c /link bcrypt.lib
+if errorlevel 1 exit /b %errorlevel%
+build\workspace\edit-batch-tests.exe "%cd%\build\workspace" --pilot
+if errorlevel 1 exit /b %errorlevel%
+build\workspace\edit-batch-tests.exe "%cd%\build\workspace"
+if errorlevel 1 exit /b %errorlevel%
+set "CDX_EDIT_BATCH_OUT=build\edit-batch-windows-%RANDOM%-%RANDOM%"
+python tests\protocol\edit_batch_stdio.py --executable build\bin\cdx.exe --output "%CDX_EDIT_BATCH_OUT%\pilot" --pilot
+if errorlevel 1 exit /b %errorlevel%
+python tests\protocol\edit_batch_stdio.py --executable build\bin\cdx.exe --output "%CDX_EDIT_BATCH_OUT%\full"
 exit /b %errorlevel%

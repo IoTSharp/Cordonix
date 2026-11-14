@@ -1,11 +1,17 @@
 # Cordonix Changelog
 
-## Unreleased
+## 0.6.0 - 2026-11-15
 
+- Added `workspace_edit.edits` for 1..32 ordered literal edits using one initial memory SHA. The batch previews by default, commits all memory changes together or rolls them all back, and leaves disk writes to `workspace_commit`. A bounded UTF-8 changed-span preview, candidate SHA, per-edit counts, timeout and cancellation make the result reviewable. Existing single-edit calls remain compatible; strict CP936, BOM and EOL rules are reused.
+- Fixed MCP error classification for failed anchors, rejected EOL and oversized edits. Native and real stdio regressions cover sequential dependencies, rollback of clean/dirty documents, preview truncation, exact encoded bytes and stale disk conflicts.
+- Repaired pending-update archive-hash receipts, concurrent launcher log ownership and bounded Windows apply-process cleanup. Installer fixtures also exercise tampered pending packages and offline installation.
+- Included both the context-efficiency plan and batch-edit contract in portable packages and corrected their stale manifest/SPDX count assertions.
+
+- Changed automatic updates to a two-phase daily-startup flow: the hidden first-launch worker checks metadata and downloads a verified package into a pending area; the next stable-launch invocation validates and installs it, removes the replaced version directory when available, and reports the version change to the current agent on stderr. Windows and Linux installer fixtures cover the download, next-call installation and notification receipts.
 - Added explicit MCP startup profiles: `full` remains the 35-tool default and `local-code` advertises 27 local coding tools using the same schemas. Unknown profiles fail clearly; direct calls retain the complete tool and argument validation contract.
 - Added opt-in `execute_program` `result_mode=full|summary`, bounded Base64 tails, captured-byte counts and SHA-256 values, and caller-selected new binary capture logs using native no-replace publication. Summary omission and process truncation remain separate. Log failure returns full captured output in the same response with independent log state, without executing the command again.
 - Added fixed-corpus context-efficiency measurements, unknown/failed sample accounting, exact optional tokenizer batching, and real profile/execution stdio regressions to Windows/Linux CI and release gates. Local native gates, five-round baseline, static analysis and Linux address/undefined-behavior sanitizer checks pass. Small-result median bytes increase while large-output P95 bytes decrease; tokens, billing and real agent task success remain NOT_MEASURED. Publication and installed-client adoption are separate.
-- Preserved the 2026-11-12 authorized roadmap and implementation plan, and recorded the 2026-11-13 local evidence in HANDOFF. CDX-14D/E/F/G remain follow-up work.
+- Preserved the 2026-11-12 authorized roadmap and implementation plan, and recorded the 2026-11-13 local evidence in HANDOFF. CDX-14D/E/F remain follow-up work; this version implements CDX-14G.
 
 ## 0.5.0 - 2026-11-10
 

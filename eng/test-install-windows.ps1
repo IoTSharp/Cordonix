@@ -73,6 +73,9 @@ function Wait-UpgradeWorker {
 function Clear-UpgradeAttempt {
     param([string]$Root)
     foreach ($name in @('last-update-check.json','last-update-launch.json')) { [IO.File]::Delete((Join-Path $Root $name)) }
+    [IO.File]::Delete((Join-Path $Root 'pending-update.json'))
+    $pending = Join-Path $Root '.update-pending'
+    if ([IO.Directory]::Exists($pending)) { Remove-Item -LiteralPath $pending -Recurse -Force }
 }
 
 try {
@@ -84,7 +87,7 @@ try {
     [void][IO.Directory]::CreateDirectory($payload)
     Copy-Item -LiteralPath $binary -Destination (Join-Path $payload 'cdx.exe')
     [void][IO.Directory]::CreateDirectory((Join-Path $payload 'install'))
-    $newerUpdater = [IO.File]::ReadAllText((Join-Path $SourceRoot 'install/install.ps1')).Replace('# Cordonix updater generation: 3', '# Cordonix updater generation: 4')
+    $newerUpdater = [IO.File]::ReadAllText((Join-Path $SourceRoot 'install/install.ps1')).Replace('# Cordonix updater generation: 4', '# Cordonix updater generation: 5')
     [IO.File]::WriteAllText((Join-Path $payload 'install/install.ps1'), $newerUpdater, $utf8)
     $assetName = "cordonix-$binaryVersion-win-x64.zip"
     $archive = Join-Path $taskRoot 'archive.zip'
@@ -162,7 +165,7 @@ try {
     $result = Invoke-Installer $root '/fail'
     Assert-Case 'GitHub 503 falls back to Gitee and installs actual cdx' ($result.status -ceq 'PASS' -and $result.source -ceq 'gitee' -and $result.operation -ceq 'install' -and $result.installed_version -ceq $binaryVersion)
     Assert-Case 'Automatic updates are enabled by default without registering a test task' ($result.auto_update_enabled -and $result.schedule_registration -ceq 'NOT_RUN' -and -not $result.auto_update_registered)
-    Assert-Case 'The verified package refreshes the updater generation' ([IO.File]::ReadAllText((Join-Path $root 'update.ps1')).Contains('# Cordonix updater generation: 4'))
+    Assert-Case 'The verified package refreshes the updater generation' ([IO.File]::ReadAllText((Join-Path $root 'update.ps1')).Contains('# Cordonix updater generation: 5'))
     $pointer = [IO.File]::ReadAllText((Join-Path $root 'current.json'))
     $launcherProcess = [Diagnostics.Process]::new()
     $launcherProcess.StartInfo.FileName = Join-Path $PSHOME 'pwsh.exe'
@@ -184,7 +187,7 @@ try {
     }
     $result = Invoke-Installer $root
     Assert-Case 'Same version performs no replacement' ($result.operation -ceq 'up_to_date' -and $pointer -ceq [IO.File]::ReadAllText((Join-Path $root 'current.json')))
-    Assert-Case 'An older installer cannot downgrade the installed updater generation' ([IO.File]::ReadAllText((Join-Path $root 'update.ps1')).Contains('# Cordonix updater generation: 4'))
+    Assert-Case 'An older installer cannot downgrade the installed updater generation' ([IO.File]::ReadAllText((Join-Path $root 'update.ps1')).Contains('# Cordonix updater generation: 5'))
     $result = Invoke-Installer (Join-Path $taskRoot 'metadata-fallback') '/missing'
     Assert-Case 'Missing exact assets fall back to Gitee' ($result.source -ceq 'gitee')
     $result = Invoke-Installer (Join-Path $taskRoot 'truncated-fallback') '/truncated'
@@ -195,7 +198,7 @@ try {
     Copy-Item -LiteralPath $binary -Destination (Join-Path $oldVersionPath 'cdx.exe')
     [IO.File]::WriteAllText((Join-Path $updateRoot 'current.json'), '{"version":"0.0.0","format_version":1}', $utf8)
     $result = Invoke-Installer $updateRoot
-    Assert-Case 'An update switches the pointer and preserves the previous version directory' ($result.operation -ceq 'update' -and $result.previous_version -ceq '0.0.0' -and $result.installed_version -ceq $binaryVersion -and [IO.File]::Exists((Join-Path $oldVersionPath 'cdx.exe')))
+    Assert-Case 'An update switches the pointer and deletes the previous version directory' ($result.operation -ceq 'update' -and $result.previous_version -ceq '0.0.0' -and $result.installed_version -ceq $binaryVersion -and $result.old_version_deleted -and -not [IO.Directory]::Exists($oldVersionPath))
     $checkRoot = Join-Path $taskRoot 'check-only'
     $result = Invoke-Installer $checkRoot -Check
     Assert-Case 'CheckOnly does not create an installation directory' ($result.operation -ceq 'install' -and -not [IO.Directory]::Exists($checkRoot))
@@ -219,9 +222,42 @@ try {
     Clear-UpgradeAttempt $autoRoot
     $errors = Invoke-Launcher $autoRoot
     $attempt = [IO.File]::ReadAllText((Join-Path $autoRoot 'last-update-check.json')) | ConvertFrom-Json
-    Assert-Case 'Launching performs an actual verified update through Gitee without updater output on stdout' ($errors.Length -eq 0 -and $attempt.operation -ceq 'update' -and $attempt.source -ceq 'gitee' -and $attempt.installed_version -ceq $binaryVersion)
+    Assert-Case 'The first launch checks and downloads through Gitee without updater output on stdout' ($errors.Length -eq 0 -and $attempt.operation -ceq 'downloaded' -and $attempt.source -ceq 'gitee' -and $attempt.downloaded_version -ceq $binaryVersion -and [IO.File]::Exists((Join-Path $autoRoot 'pending-update.json')) -and [IO.File]::Exists((Join-Path $autoRoot 'versions/0.0.0/cdx.exe')))
     $workerAudit = [IO.File]::ReadAllText((Join-Path $autoRoot 'last-update-launch.json')) | ConvertFrom-Json
     Assert-Case 'The separate instance runs the native checkupgrade command' ($workerAudit.program -like '*cdx.exe' -and $workerAudit.arguments -ceq '--checkupgrade')
+    $held = [IO.File]::Open((Join-Path $autoRoot '.update-launch.lock'), [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    $applyOutput = Join-Path $autoRoot '.update-apply.stdout'
+    $applyErrors = Join-Path $autoRoot '.update-apply.stderr'
+    try {
+        [IO.File]::WriteAllText($applyOutput, 'owned by another launcher', $utf8)
+        [IO.File]::WriteAllText($applyErrors, 'owned by another launcher', $utf8)
+        $errors = Invoke-Launcher $autoRoot
+        Assert-Case 'A launcher without the pending-update lease preserves the owning launcher logs' ($errors.Length -eq 0 -and [IO.File]::Exists($applyOutput) -and [IO.File]::Exists($applyErrors))
+    } finally {
+        $held.Dispose()
+        [IO.File]::Delete($applyOutput)
+        [IO.File]::Delete($applyErrors)
+    }
+    $pending = [IO.File]::ReadAllText((Join-Path $autoRoot 'pending-update.json')) | ConvertFrom-Json
+    $downloadedBytes = [IO.File]::ReadAllBytes($pending.archive_path)
+    $pendingPointer = [IO.File]::ReadAllText((Join-Path $autoRoot 'current.json'))
+    try {
+        [IO.File]::WriteAllBytes($pending.archive_path, ($downloadedBytes + [byte]0))
+        $errors = Invoke-Launcher $autoRoot
+        Assert-Case 'A changed pending archive fails before switching the pointer and remains available for inspection' ($errors -like '*pending update could not be installed*' -and $pendingPointer -ceq [IO.File]::ReadAllText((Join-Path $autoRoot 'current.json')) -and [IO.File]::Exists((Join-Path $autoRoot 'pending-update.json')))
+    } finally { [IO.File]::WriteAllBytes($pending.archive_path, $downloadedBytes) }
+    $autoSettingsPath = Join-Path $autoRoot 'update-settings.json'
+    $onlineSettings = [IO.File]::ReadAllText($autoSettingsPath)
+    $offlineSettings = $onlineSettings | ConvertFrom-Json
+    $offlineSettings.github_api = $serverUrl + '/fail'; $offlineSettings.gitee_api = $serverUrl + '/fail'
+    [IO.File]::WriteAllText($autoSettingsPath, ($offlineSettings | ConvertTo-Json -Compress), $utf8)
+    try { $errors = Invoke-Launcher $autoRoot }
+    finally { [IO.File]::WriteAllText($autoSettingsPath, $onlineSettings, $utf8) }
+    $attempt = [IO.File]::ReadAllText((Join-Path $autoRoot 'last-update-check.json')) | ConvertFrom-Json
+    Assert-Case 'The next launch installs the verified download, deletes the old version and notifies the current agent' ($errors -like '*Cordonix update installed*' -and $attempt.operation -ceq 'update' -and $attempt.phase -ceq 'installed' -and $attempt.update_applied -and $attempt.old_version_deleted -and -not [IO.Directory]::Exists((Join-Path $autoRoot 'versions/0.0.0')) -and -not [IO.File]::Exists((Join-Path $autoRoot 'pending-update.json')))
+    $appliedPointer = [IO.File]::ReadAllText((Join-Path $autoRoot 'current.json')) | ConvertFrom-Json
+    Assert-Case 'The pending update publishes its verified archive hash in the installed pointer' ($appliedPointer.sha256 -ceq $hash)
+    Assert-Case 'A verified pending package installs while both release endpoints are offline' ($attempt.status -ceq 'PASS' -and $attempt.update_applied)
     $before = [IO.File]::ReadAllText((Join-Path $autoRoot 'last-update-check.json'))
     [void](Invoke-Launcher $autoRoot)
     Assert-Case 'Repeated launches on the same day skip the update check' ($before -ceq [IO.File]::ReadAllText((Join-Path $autoRoot 'last-update-check.json')))

@@ -1,5 +1,16 @@
 # Cordonix Roadmap
 
+## 0.6.0 delivery batch (2026-11-15)
+
+Prioritize CDX-14G / CDX-12B: ordered single-document edit batches and a bounded,
+deterministic changed-span preview. This reuses the existing encoding/hash/commit
+contract and reduces repeated edit calls without adding a dependency or tool.
+The batch includes the previously accepted CDX-14A/B/C and staged daily updater;
+hosted CI, signed publication and local installation are recorded separately in HANDOFF.
+Three workers own native implementation, independent stdio acceptance and updater
+repair/review; the coordinator owns protocol integration, packaging and final gates.
+See [the batch-edit contract](docs/single-document-edit-batches.md).
+
 ## Active context-efficiency batch (2026-11-12)
 
 The user authorized a new implementation chat with multiple agents to deliver the next useful
@@ -24,7 +35,7 @@ query remain delivered capabilities rather than new work.
 | CDX-14D | Model-free project facts and failure fingerprints | P1 / follow-up after CDX-14C | Keep host-side evidence separate from C11 execution. Bound candidate/active/revoked facts, confirmation and contradiction evidence, normalized error signatures and injected context. Reuse observed commands and project rules before introducing an automatic learner. |
 | CDX-14E | Host-side failure-loop reminders | P1 / follow-up after CDX-14C/14D | Start with repeated-failure rules and progress evidence; one redirect per turn, human-controlled stopping. A model judge is a later explicit choice with its cost included. Timeout/UNKNOWN does not authorize replay. |
 | CDX-14F | Grouped search context and deterministic build/test diagnostics | P1 / complete CDX-11B2 and CDX-12C incrementally | Choose from representative real rg/build logs after the first batch. Preserve paths, error coverage, partial/unknown parsing and original-log access; no invented compiler semantics, LSP dependency or silent loss of unparsed lines. |
-| CDX-14G | Batched single-document edits and diff preview | P1 / complete CDX-12B after the first batch | Reuse encoding/current hash/count checks, specify edit ordering and overlap, and validate real CP936/BOM/EOL/conflict cases. Ordinary UTF-8 edits still use apply_patch; no multi-file atomicity claim. |
+| CDX-14G | Batched single-document edits and diff preview | Implemented for 0.6.0; current gates in HANDOFF | `workspace_edit.edits` 1..32 sequential edits, one initial SHA, all-or-none memory changes, default preview with bounded UTF-8 diff and candidate SHA; real CP936/BOM/EOL/conflict, timeout/cancellation fixtures. Ordinary UTF-8 edits still use apply_patch; no multi-file atomicity claim. |
 
 Three workers implement CDX-14A, CDX-14B and CDX-14C with disjoint owned files. The coordinator
 settles the shared interfaces before parallel edits, owns shared schemas/CLI/build wiring and
@@ -74,7 +85,7 @@ An active chat supplied `text` instead of the required `content` while correctly
 
 ## Automatic update triggering (2026-11-07)
 
-The user reported stale installations, authorized installation and requested a separate `cdx --checkupgrade` instance on the first startup each day. Windows/Linux now provide that native command and advertise `tool_info.update_command`; stable launchers claim the local calendar day and start a bounded background worker while the main runtime continues. Daily startup is enabled by default without a scheduler, explicit opt-out persists, and optional legacy enable flags can add daily backup tasks. Future package gates must exercise the native command. This machine now has clean formal 0.3.1, a migrated launcher and a fresh 34-tool MCP readback; 0.3.1 uses the script-worker compatibility path until the new native command is published. The failing optional Windows task is disabled; the installed background startup check and same-day suppression pass. HANDOFF.md records gates and the retained active connection. The MCP tool count remains unchanged.
+The user reported stale installations, authorized installation and requested a separate `cdx --checkupgrade` instance on the first startup each day. Windows/Linux now provide that native command and advertise `tool_info.update_command`; stable launchers claim the local calendar day and start a bounded background worker while the main runtime continues. The worker checks metadata and downloads a verified package into a pending area; the next stable-launch invocation validates, installs and removes the replaced version directory when available, then reports the version change on stderr. Daily startup is enabled by default without a scheduler, explicit opt-out persists, and optional legacy enable flags can add daily backup tasks. Future package gates must exercise both phases and the native command. Existing installations need one launcher migration. HANDOFF.md records gates and the retained active connection. The MCP tool count remains unchanged.
 
 ## Measured capability gaps (2026-11-06)
 
@@ -104,7 +115,7 @@ Baseline: source and connected installed runtime retain separate evidence. Relea
 | CDX-11D | 1: Capability/version discovery and truthful package/document state | Actual schemas, package manifests; existing CDX-09E1 | ✅ Local schema/package drift repaired: 26 tools, 50 payload files, linked documents and runnable batch example; installed adoption separate | CLI/MCP/source/install boundaries agree; packaged links and examples resolve; current directory feature is not reimplemented |
 | CDX-11E | 1: MCP result semantics and protocol/client compatibility | Current official specification plus real client behavior | 🟡 Local deterministic mapping accepted on Windows/POSIX; modern SDK/client compatibility remains open | `tools/call` rejects malformed/unknown calls with `-32602`; deterministic domain failures add outer `isError` while preserving inner status; no blanket handshake rewrite or duplicated structured/text payload |
 | CDX-12A | 2: Finite background jobs with status/output/cancel | CDX-11C, CDX-11E; output-retention decision | 🟡 Deferred: current terminal lifecycle and cleanup contract remain sufficient; decision recorded in the handoff | Reopen after evidence of client deadline mismatch or a bounded task that needs cross-request status/output; preserve explicit deadline/cancel/EOF and uncertain outcomes |
-| CDX-12B | 2: Single-document edit batches and diff preview | Existing hash/count/encoding contract | ⬜ Select after first-wave measurements | Real multi-edit/conflict/encoding fixtures; unchanged ordinary apply_patch route; no multi-file atomicity claim |
+| CDX-12B | 2: Single-document edit batches and diff preview | Existing hash/count/encoding contract | Implemented with CDX-14G for 0.6.0 | 1..32 sequential literal edits, whole-batch rollback, bounded changed-span preview and separate disk commit; current evidence in HANDOFF |
 | CDX-12C | 2: Git change and build/test diagnostic views | CDX-11A/11C, actual high-frequency tools | ⬜ Deterministic views before general log intelligence | Exit status, errors and original-log access survive reduction; representative failed/successful builds |
 | CDX-12D | 2: Symbol-aware code navigation | Real target-language corpus and backend cost assessment | ⬜ Evaluate LSP/IDE reuse; no new dependency by implication | Cold/warm latency, references/diagnostics correctness and end-to-end benefit over rg; approve any required new dependency separately |
 | CDX-12E | 2: JSON/JSONL/CSV local projection and aggregation | CDX-11C; concrete data tasks | ✅ Implemented, behavior/sanitizer checked; reproduced C6001 repaired and `/analyze /W4 /WX` passes without suppression | Exact numeric tokens, strict decoding, partial counts/rows, pagination, real CLI/MCP and cancellation; see current HANDOFF evidence |

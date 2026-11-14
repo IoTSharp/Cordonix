@@ -1,4 +1,35 @@
-# Cordonix 0.5.0
+# Cordonix 0.6.0
+
+Cordonix 0.6.0 delivers ordered single-document edit batches, explicit MCP tool
+profiles, compact execution results with original-output readback, and two-phase
+daily startup updates. The default surface remains 35 tools; `local-code`
+advertises 27 using the same retained schemas.
+
+`workspace_edit` accepts either the existing `old`/`new` form or 1..32 `edits`.
+Each edit sees the previous temporary result. A stale SHA, wrong match count,
+encoding/EOL error, cancellation or shared deadline failure leaves pre-call
+memory unchanged. The default preview includes a candidate SHA and a deterministic
+changed span capped at 8192 UTF-8 bytes per side with explicit truncation. Applying
+a batch changes memory; `workspace_commit` still checks and writes one disk file.
+See [the contract and examples](single-document-edit-batches.md).
+
+`--mcp --tool-profile local-code` narrows discovery. `execute_program` can opt
+into `result_mode:summary` with a new `capture_log_path`; status, raw-output hashes,
+bounded tails and original-log access remain visible. Log publication failure
+returns captured full output without replaying the program. The fixed-corpus
+harness measures bytes and calls; token usage, provider cost and real agent task
+success remain unmeasured. See [usage guidance](mcp-tool-guide.md).
+
+The first launch each local day downloads a verified update into a pending area;
+the next stable-launch invocation installs it before starting the new runtime.
+Installer fixes preserve the verified archive hash and concurrent log ownership,
+bound the Windows apply process, and retain old-version/cleanup receipts. Offline
+pending installation and tampered archives have behavioral fixtures. Existing
+installations need one launcher migration. Existing MCP connections retain their
+running version until reconnection; [installation](install-update.md), hosted CI,
+public artifact verification and client adoption remain separate evidence.
+
+## Previous release: 0.5.0
 
 Cordonix 0.5.0 fixes valid directory listings failing when another MCP tool is running, and adds native Windows VNC screenshots. The MCP surface now contains 35 tools. Existing tool argument contracts remain compatible.
 

@@ -13,7 +13,7 @@ v0.0.4 开始，发布工作流为两个归档提供 GitHub OIDC 签名 provenan
 
 ## 输出与证据
 
-下一开发版包含 52 个 payload 文件、54 条 SPDX 文件记录和 55 个归档文件。新增中英文导航引用的项目/用户文档、`call-summaries.md`、批量读取与 MCP 审计说明及 `read-files.json`、原生截图说明与 `screenshot.json`。两平台包门禁逐一核验包内 Markdown 相对链接的文件目标。下述 34/36/37 数量仍专指已发布的 0.1.0，不用于新的开发包。
+0.6.0 包含 67 个 payload 文件、69 条 SPDX 文件记录和 70 个归档文件。新增上下文效率实施计划和单文档批量编辑契约，并保留中英文导航引用的项目/用户文档、调用概要、批量读取、MCP 审计与截图说明。两平台包门禁逐一核验包内 Markdown 相对链接的文件目标和清单摘要。下述 34/36/37 数量仍专指已发布的 0.1.0。
 
 默认输出在 `build\packaging`：
 
@@ -31,7 +31,7 @@ v0.0.4 开始，发布工作流为两个归档提供 GitHub OIDC 签名 provenan
 
 `test-package.ps1` 连续生成两次并比较 ZIP SHA-256，在包含中文和空格的独占目录中解压，核验清单、大小、许可证、SPDX 文件哈希及关系、verification code、外部元数据一致性，再运行包内 `--version` 和 `--request tool_info`，断言准确版本、`platform=windows`、`runtime=C11`。完整源码门禁仍是 `eng\test.cmd`；SPDX 官方 schema 验证、签名、安装器和正式发布是独立门禁。
 
-便携包可解压后直接执行。使用[安装器](install-update.md)可得到版本目录、稳定 MCP 入口和可选的用户级自动检查；安装器保留旧版本，不改系统 PATH。打包步骤的签名字段保持 `NOT_RUN`；正式归档由后续 CI 签发 OIDC provenance，独立验证以随包发布的 `.sigstore.json` 为准。
+便携包可解压后直接执行。使用[安装器](install-update.md)可得到版本目录、稳定 MCP 入口和可选的用户级自动检查；每日首次启动先下载并保存待安装包，下一次入口调用完成安装替换并清理被替换的旧版本目录，不改系统 PATH。打包步骤的签名字段保持 `NOT_RUN`；正式归档由后续 CI 签发 OIDC provenance，独立验证以随包发布的 `.sigstore.json` 为准。
 
 ## Linux x64 包
 

@@ -105,6 +105,7 @@ build does not change an existing connection.
 | Find memory text | `workspace_search`: `document_id`, literal `pattern` | Returns UTF-8 byte offsets, up to 100 matches; no regex. |
 | Inspect a memory revision | `workspace_status`: `document_id` | The disk SHA is the loaded/last-committed snapshot, not a fresh disk check. |
 | Replace memory text | `workspace_edit`: `document_id`, current `expected_sha256`, `old`, `new` | Expected count defaults 1. Preview by default; `dry_run:false` applies only in memory. |
+| Batch ordered edits in one document | `workspace_edit`: `document_id`, initial `expected_sha256`, `edits:[{old,new,expected_count}]` | 1..32 sequential edits, all succeed or memory rolls back; default preview includes bounded before/after text and explicit truncation. Do not mix with top-level `old`/`new`/`expected_count`. [Contract](single-document-edit-batches.md). |
 | Convert encoding | `workspace_convert_encoding`: `document_id`, current `expected_sha256`, `encoding` | Lossless memory conversion; preview by default. Commit separately. |
 | Save a memory document | `workspace_commit`: `document_id` | Rechecks disk identity/SHA before one-file replacement; inspect `written_to_disk`. |
 | Release a memory document | `workspace_close`: `document_id` | Dirty memory requires a successful commit or explicit `discard:true`. |

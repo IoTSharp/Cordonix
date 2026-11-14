@@ -1,12 +1,18 @@
 # Cordonix
 
+0.6.0 提供[单文档顺序批量编辑](docs/single-document-edit-batches.md)、显式 MCP 工具配置、
+可回读原始输出的执行摘要，以及分两阶段完成的每日启动更新。
+`workspace_edit.edits` 用一次初始 SHA 校验执行 1..32 次顺序编辑，全部成功才更新内存；
+任一步失败则整批回滚，默认只返回有界差异预览。旧单次编辑调用继续兼容，写盘仍需显式提交。
+构建、发行与本机更新的当前证据见 [HANDOFF.md](HANDOFF.md)。
+
 已发布并验收：[GitHub v0.5.0](https://github.com/IoTSharp/Cordonix/releases/tag/v0.5.0) / [Gitee v0.5.0](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.5.0)，发行源码为干净的 `00e07a0`。Windows/Linux CI、标签发布、来源证明和两站 12 对公开附件均通过核验。本机已完成 0.4.1 → 0.5.0 安装，并验证稳定入口启动的新 MCP 进程；已有聊天仍需重连后采用新版。完整回执见 [HANDOFF.md](HANDOFF.md)。
 
 0.5.0 修复 MCP 重叠请求导致列目录报错的问题：同一连接的工具调用进入有界 FIFO，顺序执行，支持排队取消和明确的未执行诊断。详见[请求调度](docs/mcp-request-scheduling.md)。现有 0.4.1 连接在加载新版运行时之前，仍需逐个等待调用完成。
 
 0.5.0 新增运维工具 `vnc_screenshot`：给出远程 IP 和 PNG 保存路径即可截图，端口默认 `5900`。未提供密码时先尝试无密码访问；服务端要求认证时，复用当前用户的已存凭据，或弹出密码输入框。用户提供的密码只在认证成功后保存到 Windows 当前用户凭据管理器。详见 [VNC 截图](docs/native-vnc.md)。现有 35 个 MCP 工具，已有安装版连接需要重新加载包含此功能的运行时。
 
-0.4.1 已提供每日首次启动时独立运行的 `cdx --checkupgrade` 后台实例，主程序继续运行；GitHub 优先、Gitee 回退，保留显式关闭的选择并记录结果。Windows/Linux 打包门禁实际验证该命令。旧安装需要维护方迁移一次启动器，Linux 稳定入口为 `launch.sh`。详见[安装与自动更新](docs/install-update.md)。
+0.4.1 已提供每日首次启动时独立运行的 `cdx --checkupgrade` 后台实例，主程序继续运行；该实例只检查并下载校验后的包，下一次稳定入口调用时安装替换、删除旧版本目录，并通过 stderr 通知当前智能体。GitHub 优先、Gitee 回退，保留显式关闭的选择并记录结果。Windows/Linux 打包门禁实际验证检查、下载和下一次安装两个阶段。旧安装需要维护方迁移一次启动器，Linux 稳定入口为 `launch.sh`。详见[安装与自动更新](docs/install-update.md)。
 
 0.3.0 新增 `stat` 和 `find_program`，接入既有数据查询、发现和文件操作能力，MCP 共 34 个工具。先看[工具选择与客户端发现指南](docs/mcp-tool-guide.md)，再看[缺口实施与验收](docs/capability-gaps-20261106.zh-CN.md)、[数据查询](docs/data-query.md)、[文件元数据](docs/file-stat.md)、[程序发现](docs/program-discovery.md)、[文件发现](docs/file-discovery.md)和[文件操作](docs/file-operations.md)。
 
@@ -43,7 +49,7 @@ WinGet 发行正在以 `IoTSharp.Cordonix` 提交收录；安装边界、入库�
 
 Cordonix，简称 **cdx**，为智能体提供直接调用本地程序和处理源文件的工具。程序参数保持原样，文本编码明确可控，多次读取和编辑可以留在内存中，直到显式提交。
 
-通过[安装与更新说明](docs/install-update.md)或[可复制 AI 提示词](examples/cordonix-install-update-prompt.md)安装 Windows x64 ZIP 或 Linux x64 tar.gz。安装器检查 SHA-256 和实际程序版本，GitHub 不通时转向 Gitee；0.4.1 默认在每日首次启动时开启独立后台更新，新启动器使用原生 `cdx --checkupgrade`。旧安装需完成一次启动器迁移，已有 MCP 连接继续使用原程序。正式 tag 使用 `vMAJOR.MINOR.PATCH`；[GitHub Release](https://github.com/IoTSharp/Cordonix/releases) 和 [Gitee Release](https://gitee.com/IoTSharp/Cordonix/releases) 提供相同成果物。
+通过[安装与更新说明](docs/install-update.md)或[可复制 AI 提示词](examples/cordonix-install-update-prompt.md)安装 Windows x64 ZIP 或 Linux x64 tar.gz。安装器检查 SHA-256 和实际程序版本，GitHub 不通时转向 Gitee；每日首次启动的独立后台实例先下载并保存校验后的包，下一次稳定入口调用时再安装替换、删除旧版本并通知当前智能体。旧安装需完成一次启动器迁移，已有 MCP 连接继续使用原程序。正式 tag 使用 `vMAJOR.MINOR.PATCH`；[GitHub Release](https://github.com/IoTSharp/Cordonix/releases) 和 [Gitee Release](https://gitee.com/IoTSharp/Cordonix/releases) 提供相同成果物。
 
 当前实现是 **支持 Windows 和 Linux 的纯 C11 MVP**，可执行程序运行时不依赖 Python 或 PowerShell。Windows 构建使用 MSVC；Linux 使用 GCC、系统 libc/iconv 和 pthread。Cordonix 是独立开源项目，不属于 OpenAI 官方产品。
 

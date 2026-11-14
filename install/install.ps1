@@ -1,5 +1,5 @@
 #requires -Version 7.0
-# Cordonix updater generation: 3
+# Cordonix updater generation: 4
 [CmdletBinding()]
 param(
     [string]$InstallRoot = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Cordonix'),
@@ -11,6 +11,7 @@ param(
     [switch]$ScheduleDryRun,
     [switch]$Automatic,
     [switch]$StartupCheck,
+    [switch]$ApplyPending,
     [ValidateRange(1, 150)][int]$TimeBudgetSeconds = 150,
     [uri]$Proxy,
     [uri]$GitHubApi = 'https://api.github.com/repos/IoTSharp/Cordonix/releases/latest',
@@ -117,7 +118,7 @@ function Get-UpdateTaskXml {
     return @"
 <?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <RegistrationInfo><Description>Cordonix user update check; keeps previous versions.</Description></RegistrationInfo>
+  <RegistrationInfo><Description>Cordonix user update check; removes replaced versions after validation.</Description></RegistrationInfo>
   <Triggers><LogonTrigger><UserId>$user</UserId><Delay>PT1M</Delay><Enabled>true</Enabled></LogonTrigger><TimeTrigger><Repetition><Interval>P1D</Interval><StopAtDurationEnd>false</StopAtDurationEnd></Repetition><StartBoundary>$boundary</StartBoundary><Enabled>true</Enabled></TimeTrigger></Triggers>
   <Principals><Principal id="Author"><UserId>$user</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
   <Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><StartWhenAvailable>true</StartWhenAvailable><RunOnlyIfNetworkAvailable>true</RunOnlyIfNetworkAvailable><ExecutionTimeLimit>PT3M</ExecutionTimeLimit><Enabled>true</Enabled></Settings>
@@ -139,7 +140,7 @@ try {
     if (-not $IsWindows -or [Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne [Runtime.InteropServices.Architecture]::X64) { throw 'This installer supports Windows x64 only.' }
     if (-not [IO.Path]::IsPathFullyQualified($InstallRoot) -or $InstallRoot -match '[\x00\r\n"`]|\$\(') { throw 'InstallRoot must be an absolute literal directory.' }
     $InstallRoot = [IO.Path]::GetFullPath($InstallRoot).TrimEnd('\')
-    if (($EnableAutoUpdate -and $DisableAutoUpdate) -or ($CheckOnly -and ($EnableAutoUpdate -or $DisableAutoUpdate))) { throw 'CheckOnly, EnableAutoUpdate and DisableAutoUpdate cannot conflict.' }
+    if (($EnableAutoUpdate -and $DisableAutoUpdate) -or ($CheckOnly -and ($EnableAutoUpdate -or $DisableAutoUpdate)) -or ($ApplyPending -and (-not $Automatic -or $CheckOnly -or $EnableAutoUpdate -or $DisableAutoUpdate))) { throw 'CheckOnly, auto-update switches and ApplyPending cannot conflict.' }
     foreach ($endpoint in @($GitHubApi, $GiteeApi)) {
         if ($endpoint.Scheme -ne 'https' -and -not ($endpoint.Scheme -eq 'http' -and $endpoint.IsLoopback)) { throw 'Release endpoints require HTTPS or loopback HTTP for tests.' }
     }
@@ -147,6 +148,9 @@ try {
     $taskName = 'CordonixUpdate-' + $taskHash
     $taskProgram = Join-Path $PSHOME 'pwsh.exe'
     $updaterPath = Join-Path $InstallRoot 'update.ps1'
+    $pendingRoot = Join-Path $InstallRoot '.update-pending'
+    $pendingManifestPath = Join-Path $InstallRoot 'pending-update.json'
+    $noticePath = Join-Path $InstallRoot 'last-update-notice.json'
     $taskXml = Get-UpdateTaskXml $taskProgram $updaterPath $InstallRoot
     if ($TaskDefinitionOnly) {
         [ordered]@{ status = 'PASS'; operation = 'task_definition'; task_name = $taskName; task_xml = $taskXml; registered = $false } | ConvertTo-Json -Depth 5
@@ -166,7 +170,7 @@ try {
         [void][IO.Directory]::CreateDirectory($InstallRoot)
         try { $updateLock = [IO.File]::Open((Join-Path $InstallRoot '.update.lock'), [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None) }
         catch [IO.IOException] { if ($Automatic) { return }; throw }
-        if ($Automatic -and $StartupCheck -and [IO.File]::Exists($attemptPath)) {
+        if (-not $ApplyPending -and $Automatic -and $StartupCheck -and [IO.File]::Exists($attemptPath)) {
             $last = [IO.File]::ReadAllText($attemptPath, $utf8) | ConvertFrom-Json
             if (([datetime]$last.checked_utc).ToLocalTime().Date -eq [datetime]::Now.Date) { return }
         }
@@ -206,52 +210,116 @@ try {
         $previous = [IO.File]::ReadAllText($currentPath, $utf8) | ConvertFrom-Json
         if ('v' + $previous.version -notmatch $stablePattern) { throw 'The installed version pointer is invalid.' }
     }
-    $handler = [Net.Http.HttpClientHandler]::new()
-    if ($Proxy) { $handler.Proxy = [Net.WebProxy]::new($Proxy); $handler.UseProxy = $true }
-    $http = [Net.Http.HttpClient]::new($handler)
-    $http.DefaultRequestHeaders.UserAgent.ParseAdd('Cordonix-Installer/1.0')
-    $http.Timeout = [Threading.Timeout]::InfiniteTimeSpan
-    $sources = if ($Source -eq 'auto') { @('github', 'gitee') } else { @($Source) }
     $release = $null; $selected = $null; $archive = $null; $checksum = $null
     $sourceErrors = [Collections.Generic.List[string]]::new()
-    foreach ($candidate in $sources) {
-        try {
-            $sourceDeadline = if ($Automatic -and $Source -eq 'auto' -and $candidate -eq 'github') { [datetime]::UtcNow.AddMilliseconds([Math]::Max(1, ($deadline - [datetime]::UtcNow).TotalMilliseconds / 2)) } else { $deadline }
-            $uri = if ($candidate -eq 'github') { $GitHubApi } else { $GiteeApi }
-            $releases = @(Read-Download $uri 1048576 | ConvertFrom-Json)
-            if ($releases.Count -gt 100) { throw 'Release metadata contains more than 100 releases.' }
-            $eligible = @($releases | Where-Object { $_.tag_name -cmatch $stablePattern -and -not $_.prerelease -and -not $_.draft } | Sort-Object { [version]$_.tag_name.Substring(1) } -Descending)
-            if ($eligible.Count -eq 0) { throw 'No stable release is available.' }
-            $release = $eligible[0]
-            $version = $release.tag_name.Substring(1)
-            $assetName = "cordonix-$version-win-x64.zip"
-            $archive = @($release.assets | Where-Object name -CEQ $assetName)
-            $checksum = @($release.assets | Where-Object name -CEQ ($assetName + '.sha256'))
-            if ($archive.Count -ne 1 -or $checksum.Count -ne 1) { throw 'The exact archive and checksum assets are required.' }
-            $operation = if (-not $previous) { 'install' } elseif ([version]$previous.version -eq [version]$version) { 'up_to_date' } elseif ([version]$previous.version -gt [version]$version) { 'older_release' } else { 'update' }
-            if (-not $CheckOnly -and $operation -in @('install', 'update')) {
-                if (-not $taskRoot) {
-                    [void][IO.Directory]::CreateDirectory($InstallRoot)
-                    $taskRoot = Join-Path $InstallRoot ('.install-' + [guid]::NewGuid().ToString('N'))
-                    [void][IO.Directory]::CreateDirectory($taskRoot)
+    $applyPendingCandidate = $false
+    $oldVersionDeleted = $null
+    $oldVersionCleanupError = $null
+    if ($ApplyPending) {
+        if (-not [IO.File]::Exists($pendingManifestPath)) {
+            [ordered]@{ status = 'PASS'; operation = 'no_pending_update'; changed = $false } | ConvertTo-Json -Compress
+            return
+        }
+        $pending = [IO.File]::ReadAllText($pendingManifestPath, $utf8) | ConvertFrom-Json
+        if ($pending.status -cne 'ready') {
+            [ordered]@{ status = 'PASS'; operation = 'pending_update_not_ready'; pending_status = $pending.status; changed = $false } | ConvertTo-Json -Compress
+            return
+        }
+        $version = [string]$pending.version
+        $assetName = [string]$pending.asset
+        if ('v' + $version -notmatch $stablePattern -or $assetName -cne ("cordonix-$version-win-x64.zip")) { throw 'The pending update manifest is invalid.' }
+        if ($previous -and [version]$previous.version -ge [version]$version) {
+            if ([IO.Directory]::Exists($pendingRoot)) { Remove-Item -LiteralPath $pendingRoot -Recurse -Force }
+            [IO.File]::Delete($pendingManifestPath)
+            [ordered]@{ status = 'PASS'; operation = 'pending_update_stale'; previous_version = $previous.version; pending_version = $version; changed = $false } | ConvertTo-Json -Compress
+            return
+        }
+        $archivePath = [IO.Path]::GetFullPath([string]$pending.archive_path)
+        if (-not $archivePath.StartsWith($pendingRoot + '\', [StringComparison]::OrdinalIgnoreCase) -or -not [IO.File]::Exists($archivePath)) { throw 'The pending update archive is missing or outside the install root.' }
+        $expectedHash = ([string]$pending.sha256).ToLowerInvariant()
+        if ((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant() -cne $expectedHash) { throw [Security.SecurityException]::new('Pending update SHA-256 mismatch; the previous installation is intact.') }
+        $selected = [string]$pending.source
+        $release = [ordered]@{ tag_name = 'v' + $version }
+        $operation = 'update'
+        $applyPendingCandidate = $true
+        $taskRoot = Join-Path $InstallRoot ('.install-' + [guid]::NewGuid().ToString('N'))
+        [void][IO.Directory]::CreateDirectory($taskRoot)
+    } else {
+        $handler = [Net.Http.HttpClientHandler]::new()
+        if ($Proxy) { $handler.Proxy = [Net.WebProxy]::new($Proxy); $handler.UseProxy = $true }
+        $http = [Net.Http.HttpClient]::new($handler)
+        $http.DefaultRequestHeaders.UserAgent.ParseAdd('Cordonix-Installer/1.0')
+        $http.Timeout = [Threading.Timeout]::InfiniteTimeSpan
+        $sources = if ($Source -eq 'auto') { @('github', 'gitee') } else { @($Source) }
+        foreach ($candidate in $sources) {
+            try {
+                $sourceDeadline = if ($Automatic -and $Source -eq 'auto' -and $candidate -eq 'github') { [datetime]::UtcNow.AddMilliseconds([Math]::Max(1, ($deadline - [datetime]::UtcNow).TotalMilliseconds / 2)) } else { $deadline }
+                $uri = if ($candidate -eq 'github') { $GitHubApi } else { $GiteeApi }
+                $releases = @(Read-Download $uri 1048576 | ConvertFrom-Json)
+                if ($releases.Count -gt 100) { throw 'Release metadata contains more than 100 releases.' }
+                $eligible = @($releases | Where-Object { $_.tag_name -cmatch $stablePattern -and -not $_.prerelease -and -not $_.draft } | Sort-Object { [version]$_.tag_name.Substring(1) } -Descending)
+                if ($eligible.Count -eq 0) { throw 'No stable release is available.' }
+                $release = $eligible[0]
+                $version = $release.tag_name.Substring(1)
+                $assetName = "cordonix-$version-win-x64.zip"
+                $archive = @($release.assets | Where-Object name -CEQ $assetName)
+                $checksum = @($release.assets | Where-Object name -CEQ ($assetName + '.sha256'))
+                if ($archive.Count -ne 1 -or $checksum.Count -ne 1) { throw 'The exact archive and checksum assets are required.' }
+                $operation = if (-not $previous) { 'install' } elseif ([version]$previous.version -eq [version]$version) { 'up_to_date' } elseif ([version]$previous.version -gt [version]$version) { 'older_release' } else { 'update' }
+                if (-not $CheckOnly -and $operation -in @('install', 'update')) {
+                    if ($Automatic -and $StartupCheck) {
+                        if ([IO.File]::Exists($pendingManifestPath)) {
+                            $existingPending = [IO.File]::ReadAllText($pendingManifestPath, $utf8) | ConvertFrom-Json
+                            if ($existingPending.status -ceq 'ready') {
+                                $selected = $candidate
+                                $operation = 'pending_update_ready'
+                                break
+                            }
+                        }
+                        if ([IO.Directory]::Exists($pendingRoot)) { Remove-Item -LiteralPath $pendingRoot -Recurse -Force }
+                        [void][IO.Directory]::CreateDirectory($pendingRoot)
+                        $archivePath = Join-Path $pendingRoot $assetName
+                        $checksumPath = Join-Path $pendingRoot ($assetName + '.sha256')
+                        Write-AtomicText $pendingManifestPath (@{ status = 'downloading'; version = $version; asset = $assetName; source = $candidate; sha256 = $null; archive_path = $archivePath; started_utc = [datetime]::UtcNow.ToString('o') } | ConvertTo-Json -Compress)
+                        try {
+                            Read-Download ([uri]$checksum[0].browser_download_url) 4096 $checksumPath
+                            $checksumText = [IO.File]::ReadAllText($checksumPath, $utf8)
+                            $checksumPattern = '^([0-9a-fA-F]{64})  ' + [regex]::Escape($assetName) + '\r?\n?$'
+                            if ($checksumText -cnotmatch $checksumPattern) { throw [Security.SecurityException]::new('The checksum file has an invalid hash or filename.') }
+                            $expectedHash = $Matches[1].ToLowerInvariant()
+                            Read-Download ([uri]$archive[0].browser_download_url) 268435456 $archivePath
+                            if ((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant() -cne $expectedHash) { throw [Security.SecurityException]::new('Archive SHA-256 mismatch; the previous installation is intact.') }
+                            Write-AtomicText $pendingManifestPath (@{ status = 'ready'; version = $version; tag = $release.tag_name; asset = $assetName; source = $candidate; sha256 = $expectedHash; archive_path = $archivePath; downloaded_utc = [datetime]::UtcNow.ToString('o') } | ConvertTo-Json -Compress)
+                            $selected = $candidate
+                            $receipt = [ordered]@{ status = 'PASS'; operation = 'downloaded'; phase = 'pending'; source = $candidate; tag = $release.tag_name; previous_version = $previous.version; downloaded_version = $version; pending_update = $pendingManifestPath; changed = $true }
+                            Write-AtomicText $attemptPath ($receipt | ConvertTo-Json -Depth 5 -Compress)
+                            $receipt | ConvertTo-Json -Depth 5
+                            return
+                        } catch { if ([IO.Directory]::Exists($pendingRoot)) { Remove-Item -LiteralPath $pendingRoot -Recurse -Force }; throw }
+                    }
+                    if (-not $taskRoot) {
+                        [void][IO.Directory]::CreateDirectory($InstallRoot)
+                        $taskRoot = Join-Path $InstallRoot ('.install-' + [guid]::NewGuid().ToString('N'))
+                        [void][IO.Directory]::CreateDirectory($taskRoot)
+                    }
+                    $archivePath = Join-Path $taskRoot ($candidate + '-' + $assetName)
+                    $checksumText = Read-Download ([uri]$checksum[0].browser_download_url) 4096
+                    $checksumPattern = '^([0-9a-fA-F]{64})  ' + [regex]::Escape($assetName) + '\r?\n?$'
+                    if ($checksumText -cnotmatch $checksumPattern) { throw [Security.SecurityException]::new('The checksum file has an invalid hash or filename.') }
+                    $expectedHash = $Matches[1].ToLowerInvariant()
+                    Read-Download ([uri]$archive[0].browser_download_url) 268435456 $archivePath
+                    if ((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant() -cne $expectedHash) { throw [Security.SecurityException]::new('Archive SHA-256 mismatch; the previous installation is intact.') }
                 }
-                $archivePath = Join-Path $taskRoot ($candidate + '-' + $assetName)
-                $checksumText = Read-Download ([uri]$checksum[0].browser_download_url) 4096
-                $checksumPattern = '^([0-9a-fA-F]{64})  ' + [regex]::Escape($assetName) + '\r?\n?$'
-                if ($checksumText -cnotmatch $checksumPattern) { throw [Security.SecurityException]::new('The checksum file has an invalid hash or filename.') }
-                $expectedHash = $Matches[1].ToLowerInvariant()
-                Read-Download ([uri]$archive[0].browser_download_url) 268435456 $archivePath
-                if ((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant() -cne $expectedHash) { throw [Security.SecurityException]::new('Archive SHA-256 mismatch; the previous installation is intact.') }
-            }
-            $selected = $candidate
-            break
-        } catch [Security.SecurityException] { throw }
-        catch { $sourceErrors.Add($candidate + ': ' + $_.Exception.Message) }
-    }
-    if (-not $selected) { throw ($sourceErrors -join '; ') }
-    if ($CheckOnly) {
-        [ordered]@{ status = 'PASS'; operation = $operation; source = $selected; tag = $release.tag_name; previous_version = $previous.version; available_version = $version; changed = $false } | ConvertTo-Json -Compress
-        return
+                $selected = $candidate
+                break
+            } catch [Security.SecurityException] { throw }
+            catch { $sourceErrors.Add($candidate + ': ' + $_.Exception.Message) }
+        }
+        if (-not $selected) { throw ($sourceErrors -join '; ') }
+        if ($CheckOnly) {
+            [ordered]@{ status = 'PASS'; operation = $operation; source = $selected; tag = $release.tag_name; previous_version = $previous.version; available_version = $version; changed = $false } | ConvertTo-Json -Compress
+            return
+        }
     }
     if ($operation -in @('install', 'update')) {
         $staging = Join-Path $taskRoot 'version'
@@ -290,12 +358,79 @@ try {
         }
         $state = [ordered]@{ format_version = 1; version = $version; tag = $release.tag_name; source = $selected; asset = $assetName; sha256 = $expectedHash; installed_utc = [datetime]::UtcNow.ToString('o'); supports_checkupgrade = $info.update_command -ceq '--checkupgrade' }
         Write-AtomicText $currentPath ($state | ConvertTo-Json -Compress)
+        $oldVersionDeleted = $true
+        if ($previous -and $previous.version -cne $version) {
+            $oldVersionPath = Join-Path $versions ([string]$previous.version)
+            if ([IO.Directory]::Exists($oldVersionPath)) {
+                try { Remove-Item -LiteralPath $oldVersionPath -Recurse -Force }
+                catch { $oldVersionDeleted = $false; $oldVersionCleanupError = $_.Exception.Message }
+            }
+        }
+        if ($applyPendingCandidate) {
+            $notice = [ordered]@{ status = 'PASS'; operation = 'update_installed'; previous_version = $previous.version; installed_version = $version; old_version_deleted = $oldVersionDeleted; old_version_cleanup_error = $oldVersionCleanupError; notified_utc = [datetime]::UtcNow.ToString('o'); message = 'Cordonix updated; reconnect the current agent to use the new runtime.' }
+            Write-AtomicText $noticePath ($notice | ConvertTo-Json -Depth 5 -Compress)
+            if ([IO.Directory]::Exists($pendingRoot)) { Remove-Item -LiteralPath $pendingRoot -Recurse -Force }
+            if ([IO.File]::Exists($pendingManifestPath)) { [IO.File]::Delete($pendingManifestPath) }
+        }
     }
     [void][IO.Directory]::CreateDirectory($InstallRoot)
     $launcher = @'
 #requires -Version 7.0
 param([Parameter(ValueFromRemainingArguments = $true)][string[]]$CdxArguments)
 $ErrorActionPreference = 'Stop'
+function Invoke-PendingUpdate {
+    $manifestPath = Join-Path $PSScriptRoot 'pending-update.json'
+    if (-not [IO.File]::Exists($manifestPath)) { return }
+    $lease = $null; $worker = $null
+    $stdoutPath = Join-Path $PSScriptRoot '.update-apply.stdout'
+    $stderrPath = Join-Path $PSScriptRoot '.update-apply.stderr'
+    try {
+        try { $lease = [IO.File]::Open((Join-Path $PSScriptRoot '.update-launch.lock'), [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None) }
+        catch [IO.IOException] { return }
+        $updater = Join-Path $PSScriptRoot 'update.ps1'
+        $arguments = '-NoLogo -NoProfile -NonInteractive -File "' + $updater + '" -InstallRoot "' + $PSScriptRoot + '" -Automatic -ApplyPending'
+        $program = Join-Path $PSHOME 'pwsh.exe'
+        $worker = Start-Process -FilePath $program -ArgumentList $arguments -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
+        $audit = @{ pid = $worker.Id; parent_pid = $PID; started_utc = $worker.StartTime.ToUniversalTime().ToString('o'); program = $program; arguments = $arguments }
+        [IO.File]::WriteAllText((Join-Path $PSScriptRoot 'last-update-apply.json'), ($audit | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
+        if (-not $worker.WaitForExit(180000)) { throw 'Pending update exceeded its three-minute deadline.' }
+        $result = $null
+        if ([IO.File]::Exists($stdoutPath)) {
+            try { $result = [IO.File]::ReadAllText($stdoutPath) | ConvertFrom-Json } catch { $result = $null }
+        }
+        if ($worker.ExitCode -eq 0 -and $result -and $result.status -ceq 'PASS' -and $result.update_applied) {
+            [Console]::Error.WriteLine(('Cordonix update installed: ' + $result.previous_version + ' -> ' + $result.installed_version + '; reconnect the current agent.'))
+        } elseif ($worker.ExitCode -ne 0) {
+            [Console]::Error.WriteLine('Cordonix pending update could not be installed; using the installed version.')
+        }
+    } catch { [Console]::Error.WriteLine('Cordonix pending update could not be installed; using the installed version.') }
+    finally {
+        if ($worker) {
+            if (-not $worker.HasExited) { $worker.Kill($true); [void]$worker.WaitForExit(3000) }
+            $worker.Dispose()
+        }
+        if ($lease) {
+            foreach ($path in @($stdoutPath, $stderrPath)) { if ([IO.File]::Exists($path)) { [IO.File]::Delete($path) } }
+            $lease.Dispose()
+        }
+    }
+}
+function Retry-RetiredVersionCleanup {
+    $noticePath = Join-Path $PSScriptRoot 'last-update-notice.json'
+    if (-not [IO.File]::Exists($noticePath)) { return }
+    try {
+        $notice = [IO.File]::ReadAllText($noticePath) | ConvertFrom-Json
+        if ($notice.status -cne 'PASS' -or $notice.old_version_deleted) { return }
+        if ([string]$notice.previous_version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') { return }
+        $oldPath = Join-Path $PSScriptRoot ('versions/' + $notice.previous_version)
+        if ([IO.Directory]::Exists($oldPath)) { Remove-Item -LiteralPath $oldPath -Recurse -Force }
+        $notice.old_version_deleted = $true
+        $notice.old_version_cleanup_error = $null
+        $temporary = Join-Path $PSScriptRoot 'last-update-notice.new'
+        [IO.File]::WriteAllText($temporary, ($notice | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
+        [IO.File]::Move($temporary, $noticePath, $true)
+    } catch { }
+}
 function Start-DailyUpgrade {
     $lease = $null
     try {
@@ -325,6 +460,8 @@ function Start-DailyUpgrade {
     } catch { [Console]::Error.WriteLine('Cordonix could not start its background update check; using the installed version.') }
     finally { if ($lease) { $lease.Dispose() } }
 }
+Invoke-PendingUpdate
+Retry-RetiredVersionCleanup
 Start-DailyUpgrade
 $current = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'current.json')) | ConvertFrom-Json
 if ($current.version -cnotmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') { throw 'Invalid Cordonix current version.' }
@@ -366,7 +503,7 @@ exit $LASTEXITCODE
         $registered = $true
       } catch { $scheduleError = $_.Exception.Message }
     }
-    $receipt = [ordered]@{ status = 'PASS'; operation = $operation; source = $selected; tag = $release.tag_name; previous_version = $previous.version; installed_version = $installedVersion; install_root = $InstallRoot; launcher = Join-Path $InstallRoot 'launch.ps1'; task_name = $taskName; auto_update_enabled = [bool]$settings.enabled; auto_update_registered = $registered; schedule_error = $scheduleError; schedule_registration = if ($Automatic -or $ScheduleDryRun) { 'NOT_RUN' } elseif ($registered) { 'PASS' } elseif ($scheduleError) { 'FAIL' } else { 'not_requested' }; config_updated = $false; source_errors = @($sourceErrors); checked_utc = [datetime]::UtcNow.ToString('o') }
+    $receipt = [ordered]@{ status = 'PASS'; operation = $operation; phase = if ($applyPendingCandidate) { 'installed' } elseif ($Automatic -and $StartupCheck -and $operation -eq 'pending_update_ready') { 'pending' } else { 'complete' }; source = $selected; tag = $release.tag_name; previous_version = $previous.version; installed_version = $installedVersion; pending_update = if ($applyPendingCandidate) { $null } elseif ($operation -eq 'pending_update_ready') { $pendingManifestPath } else { $null }; update_applied = [bool]$applyPendingCandidate; old_version_deleted = $oldVersionDeleted; old_version_cleanup_error = $oldVersionCleanupError; install_root = $InstallRoot; launcher = Join-Path $InstallRoot 'launch.ps1'; task_name = $taskName; auto_update_enabled = [bool]$settings.enabled; auto_update_registered = $registered; schedule_error = $scheduleError; schedule_registration = if ($Automatic -or $ScheduleDryRun) { 'NOT_RUN' } elseif ($registered) { 'PASS' } elseif ($scheduleError) { 'FAIL' } else { 'not_requested' }; config_updated = $false; source_errors = @($sourceErrors); checked_utc = [datetime]::UtcNow.ToString('o') }
     Write-AtomicText $attemptPath ($receipt | ConvertTo-Json -Depth 5 -Compress)
     $receipt | ConvertTo-Json -Depth 5
 } catch {

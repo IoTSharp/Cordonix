@@ -1,5 +1,5 @@
 #!/bin/sh
-# Cordonix updater generation: 3
+# Cordonix updater generation: 4
 set -eu
 
 command -v python3 >/dev/null 2>&1 || { echo 'Python 3 is required by the installer; the cdx runtime itself does not require Python.' >&2; exit 2; }
@@ -226,6 +226,7 @@ def main():
     parser.add_argument("--schedule-dry-run", action="store_true", help="Write isolated unit definitions under the install root without registering a user timer")
     parser.add_argument("--automatic", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--startup-check", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--apply-pending", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--time-budget", type=int, default=170, help=argparse.SUPPRESS)
     parser.add_argument("--github-api", default=GITHUB, help=argparse.SUPPRESS)
     parser.add_argument("--gitee-api", default=GITEE, help=argparse.SUPPRESS)
@@ -255,6 +256,8 @@ def main():
         args.gitee_api = settings["gitee_api"]
         args.allow_test_http = settings["allow_test_http"]
         os.environ.update(settings["proxy_env"])
+    if args.apply_pending and (args.check or not args.automatic or args.enable_auto_update or args.disable_auto_update):
+        raise ValueError("--apply-pending requires --automatic and cannot change auto-update settings")
     if not args.check:
         UPDATE_LOCK = (root / ".update.lock").open("a")
         try:
@@ -263,7 +266,7 @@ def main():
             if args.automatic:
                 return {"status": "PASS", "operation": "update_in_progress"}, 0
             raise RuntimeError("Another updater owns this installation")
-        if args.automatic and args.startup_check and attempt_path.exists():
+        if not args.apply_pending and args.automatic and args.startup_check and attempt_path.exists():
             last = json.loads(attempt_path.read_text(encoding="utf-8"))
             if time.localtime(last["checked_unix"])[:3] == time.localtime()[:3]:
                 return {"status": "PASS", "operation": "check_throttled"}, 0
@@ -279,6 +282,9 @@ def main():
         ATTEMPT_PATH = attempt_path
         atomic_json(attempt_path, {"status": "checking", "checked_unix": time.time()})
     current = root / "current"
+    pending_root = root / ".update-pending"
+    pending_manifest = root / "pending-update.json"
+    notice_path = root / "last-update-notice.json"
     if current.exists() and not current.is_symlink():
         raise ValueError("The current installation entry must be an installer-managed symlink")
     previous = "none"
@@ -287,28 +293,112 @@ def main():
         previous = report[len("Cordonix cdx "):] if report.startswith("Cordonix cdx ") else ""
         if report != "Cordonix cdx " + previous or version_tuple("v" + previous) is None:
             raise ValueError("Current installation has an unknown version")
-    sources = ("github", "gitee") if args.source == "auto" else (args.source,)
     receipt = {"status": "PASS", "operation": "install", "source": "none", "previous_version": previous, "config_updated": False, "auto_update": "disabled" if not settings["enabled"] else "daily_startup", "command": str(root / "launch.sh")}
+    pending = None
+    if args.apply_pending:
+        if not pending_manifest.exists():
+            result = dict(receipt, operation="no_pending_update", changed=False)
+            if not args.check:
+                atomic_json(attempt_path, result)
+            return result, 0
+        pending = json.loads(pending_manifest.read_text(encoding="utf-8"))
+        if pending.get("status") != "ready":
+            result = dict(receipt, operation="pending_update_not_ready", pending_status=pending.get("status"), changed=False)
+            if not args.check:
+                atomic_json(attempt_path, result)
+            return result, 0
+        version = pending.get("version")
+        asset = pending.get("asset")
+        if version_tuple("v" + str(version)) is None or asset != "cordonix-" + str(version) + "-linux-x64.tar.gz":
+            raise ValueError("Pending update manifest is invalid")
+        pending_archive = Path(pending.get("archive_path", ""))
+        if pending_archive.resolve().parent != pending_root.resolve() or not pending_archive.is_file() or pending_archive.is_symlink():
+            raise ValueError("Pending update archive is missing or outside the install root")
+        pending_digest = str(pending.get("sha256", "")).lower()
+        if len(pending_digest) != 64 or any(character not in "0123456789abcdef" for character in pending_digest):
+            raise ValueError("Pending update checksum is invalid")
+        if previous != "none" and version_tuple("v" + str(previous)) >= version_tuple("v" + str(version)):
+            shutil.rmtree(pending_root, ignore_errors=True)
+            pending_manifest.unlink(missing_ok=True)
+            result = dict(receipt, operation="pending_update_stale", pending_version=version, changed=False)
+            if not args.check:
+                atomic_json(attempt_path, result)
+            return result, 0
+        sources = (str(pending.get("source", "unknown")),)
+    else:
+        sources = ("github", "gitee") if args.source == "auto" else (args.source,)
+    old_version_deleted = None
+    old_version_cleanup_error = None
     with tempfile.TemporaryDirectory(prefix=".install-", dir=root) as temporary:
         work = Path(temporary)
         failures = []
         for source in sources:
             try:
-                SOURCE_DEADLINE = time.monotonic() + (DEADLINE - time.monotonic()) / 2 if args.automatic and args.source == "auto" and source == "github" else DEADLINE
-                endpoint = args.github_api if source == "github" else args.gitee_api
-                download(endpoint, work / "release.json", 1048576, args.allow_test_http)
-                version, asset, urls = release_candidate(json.loads((work / "release.json").read_text(encoding="utf-8")))
-                for url in urls:
-                    check_url(url, args.allow_test_http)
-                receipt.update(source=source, tag="v" + version, asset=asset, installed_version=previous)
-                comparison = 1 if previous == "none" else (version_tuple("v" + version) > version_tuple("v" + previous)) - (version_tuple("v" + version) < version_tuple("v" + previous))
+                if args.apply_pending:
+                    urls = ()
+                    receipt.update(source=source, tag="v" + version, asset=asset, installed_version=previous)
+                    comparison = 1
+                else:
+                    SOURCE_DEADLINE = time.monotonic() + (DEADLINE - time.monotonic()) / 2 if args.automatic and args.source == "auto" and source == "github" else DEADLINE
+                    endpoint = args.github_api if source == "github" else args.gitee_api
+                    download(endpoint, work / "release.json", 1048576, args.allow_test_http)
+                    version, asset, urls = release_candidate(json.loads((work / "release.json").read_text(encoding="utf-8")))
+                    for url in urls:
+                        check_url(url, args.allow_test_http)
+                    receipt.update(source=source, tag="v" + version, asset=asset, installed_version=previous)
+                    comparison = 1 if previous == "none" else (version_tuple("v" + version) > version_tuple("v" + previous)) - (version_tuple("v" + version) < version_tuple("v" + previous))
                 if comparison <= 0 or args.check:
                     receipt["operation"] = "up_to_date" if comparison == 0 else "older_release" if comparison < 0 else "update_available"
                     break
-                download(urls[0], work / asset, 268435456, args.allow_test_http)
-                download(urls[1], work / (asset + ".sha256"), 4096, args.allow_test_http)
-                checksum = (work / (asset + ".sha256")).read_text(encoding="ascii")
-                match = re.fullmatch(r"([0-9A-Fa-f]{64})[ \t]+\*?" + re.escape(asset) + r"\r?\n?", checksum)
+                if args.automatic and args.startup_check and not args.apply_pending:
+                    if pending_manifest.exists():
+                        existing_pending = json.loads(pending_manifest.read_text(encoding="utf-8"))
+                        if existing_pending.get("status") == "ready":
+                            result = dict(receipt, operation="pending_update_ready", phase="pending", pending_update=str(pending_manifest))
+                            atomic_json(attempt_path, result)
+                            return result, 0
+                    shutil.rmtree(pending_root, ignore_errors=True)
+                    pending_root.mkdir(parents=True, exist_ok=True)
+                    pending_archive = pending_root / asset
+                    pending_checksum = pending_root / (asset + ".sha256")
+                    atomic_json(pending_manifest, {"status": "downloading", "version": version, "asset": asset, "source": source, "sha256": None, "archive_path": str(pending_archive), "started_unix": time.time()})
+                    try:
+                        download(urls[1], pending_checksum, 4096, args.allow_test_http)
+                        checksum = pending_checksum.read_text(encoding="ascii")
+                        match = re.fullmatch(r"([0-9A-Fa-f]{64})[ \t]+\*?" + re.escape(asset) + r"\r?\n?", checksum)
+                        if not match:
+                            raise ValueError("SHA-256 checksum or its filename is invalid")
+                        expected_digest = match[1].lower()
+                        download(urls[0], pending_archive, 268435456, args.allow_test_http)
+                        digest = hashlib.sha256()
+                        with pending_archive.open("rb") as downloaded:
+                            for _ in range(4097):
+                                budget()
+                                block = downloaded.read(65536)
+                                if not block:
+                                    break
+                                digest.update(block)
+                        actual = digest.hexdigest()
+                        if actual != expected_digest:
+                            raise ValueError("SHA-256 checksum or its filename does not match the downloaded asset")
+                        atomic_json(pending_manifest, {"status": "ready", "version": version, "tag": "v" + version, "asset": asset, "source": source, "sha256": expected_digest, "archive_path": str(pending_archive), "downloaded_unix": time.time()})
+                        result = dict(receipt, status="PASS", operation="downloaded", phase="pending", downloaded_version=version, pending_update=str(pending_manifest), changed=True)
+                        atomic_json(attempt_path, result)
+                        return result, 0
+                    except Exception:
+                        shutil.rmtree(pending_root, ignore_errors=True)
+                        raise
+                if args.apply_pending:
+                    shutil.copyfile(pending_archive, work / asset)
+                    digest = pending_digest
+                else:
+                    download(urls[0], work / asset, 268435456, args.allow_test_http)
+                    download(urls[1], work / (asset + ".sha256"), 4096, args.allow_test_http)
+                    checksum = (work / (asset + ".sha256")).read_text(encoding="ascii")
+                    match = re.fullmatch(r"([0-9A-Fa-f]{64})[ \t]+\*?" + re.escape(asset) + r"\r?\n?", checksum)
+                    if not match:
+                        raise ValueError("SHA-256 checksum or its filename is invalid")
+                    digest = match[1].lower()
                 digest = hashlib.sha256()
                 with (work / asset).open("rb") as downloaded:
                     for _ in range(4097):
@@ -318,7 +408,7 @@ def main():
                             break
                         digest.update(block)
                 actual = digest.hexdigest()
-                if not match or match[1].lower() != actual:
+                if actual != (pending_digest if args.apply_pending else match[1].lower()):
                     raise ValueError("SHA-256 checksum or its filename does not match the downloaded asset")
                 payload = work / "payload"
                 payload.mkdir()
@@ -334,7 +424,21 @@ def main():
                 pointer = work / "current.new"
                 pointer.symlink_to(destination)
                 os.replace(pointer, current)
-                receipt.update(operation="install" if previous == "none" else "update", installed_version=version, install_path=str(destination), sha256=actual)
+                old_version_deleted = True
+                if previous != "none" and previous != version:
+                    old_path = root / "versions" / previous
+                    if old_path.exists():
+                        try:
+                            shutil.rmtree(old_path)
+                        except OSError as error:
+                            old_version_deleted = False
+                            old_version_cleanup_error = str(error)
+                receipt.update(operation="install" if previous == "none" else "update", phase="installed" if args.apply_pending else "complete", installed_version=version, install_path=str(destination), sha256=actual, update_applied=bool(args.apply_pending), old_version_deleted=old_version_deleted, old_version_cleanup_error=old_version_cleanup_error)
+                if args.apply_pending:
+                    notice = {"status": "PASS", "operation": "update_installed", "previous_version": previous, "installed_version": version, "old_version_deleted": old_version_deleted, "old_version_cleanup_error": old_version_cleanup_error, "notified_unix": time.time(), "message": "Cordonix updated; reconnect the current agent to use the new runtime."}
+                    atomic_json(notice_path, notice)
+                    shutil.rmtree(pending_root, ignore_errors=True)
+                    pending_manifest.unlink(missing_ok=True)
                 break
             except InterruptedError:
                 raise
@@ -375,6 +479,47 @@ python3 - "$root" <<'LAUNCH' || :
 import fcntl, json, os, subprocess, sys, time
 from pathlib import Path
 root = Path(sys.argv[1])
+def apply_pending():
+    manifest = root / "pending-update.json"
+    if not manifest.exists():
+        return
+    lease = None
+    process = None
+    try:
+        lease = (root / ".update-launch.lock").open("a+")
+        fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        arguments = [sys.executable, str(root / "updater/install.py"), str(root / "updater/install.sh"), "--root", str(root), "--automatic", "--apply-pending"]
+        process = subprocess.Popen(arguments, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+        try:
+            stdout, _ = process.communicate(timeout=180)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(process.pid, 9)
+            except ProcessLookupError:
+                pass
+            process.wait(timeout=5)
+            print("Cordonix pending update timed out; using the installed version.", file=sys.stderr)
+            return
+        if process.returncode == 0:
+            try:
+                result = json.loads(stdout.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                result = {}
+            if result.get("operation") == "update" and result.get("update_applied"):
+                print("Cordonix update installed: " + str(result.get("previous_version")) + " -> " + str(result.get("installed_version")) + "; reconnect the current agent.", file=sys.stderr)
+        else:
+            print("Cordonix pending update could not be installed; using the installed version.", file=sys.stderr)
+    except (BlockingIOError, OSError, ValueError, KeyError):
+        return
+    finally:
+        if process is not None and process.poll() is None:
+            try:
+                os.killpg(process.pid, 9)
+            except ProcessLookupError:
+                pass
+        if lease is not None:
+            lease.close()
+apply_pending()
 try:
     settings = json.loads((root / "update-settings.json").read_text(encoding="utf-8"))
     if settings["enabled"]:

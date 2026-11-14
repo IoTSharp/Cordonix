@@ -173,6 +173,7 @@ try {
         'docs/phone-native.md' = Join-Path $SourceRoot 'docs\phone-native.md'
         'docs/implementation-plan-2026-11-05.zh-CN.md' = Join-Path $SourceRoot 'docs\implementation-plan-2026-11-05.zh-CN.md'
         'docs/context-efficiency-plan-2026-11-12.zh-CN.md' = Join-Path $SourceRoot 'docs\context-efficiency-plan-2026-11-12.zh-CN.md'
+        'docs/single-document-edit-batches.md' = Join-Path $SourceRoot 'docs\single-document-edit-batches.md'
         'docs/competitive-assessment-2026-11-05.zh-CN.md' = Join-Path $SourceRoot 'docs\competitive-assessment-2026-11-05.zh-CN.md'
         'docs/batch-read.md' = Join-Path $SourceRoot 'docs\batch-read.md'
         'docs/mcp-compatibility.md' = Join-Path $SourceRoot 'docs\mcp-compatibility.md'

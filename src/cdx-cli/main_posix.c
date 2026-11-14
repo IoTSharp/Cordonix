@@ -111,13 +111,13 @@ static int asynchronous_tool(const char *name) {
         !strcmp(name, "stat") || !strcmp(name, "hash_file") ||
         !strcmp(name, "copy_file") || !strcmp(name, "move_file") ||
         !strcmp(name, "verify_encoding") || !strcmp(name, "create_file") ||
-        !strcmp(name, "create_directory") || !strcmp(name, "read_files"));
+        !strcmp(name, "create_directory") || !strcmp(name, "read_files") || !strcmp(name, "workspace_edit"));
 }
 
 static int tool_status_is_error(const char *status) {
     static const char *const failures[] = {
         "failed", "spawn_error", "execution_error", "validation_error", "not_found", "dirty_in_memory",
-        "file_changed", "conflict", "ambiguous_match", "encoding_error", "io_error",
+        "file_changed", "conflict", "anchor_mismatch", "ambiguous_match", "mixed_eol", "too_large", "encoding_error", "io_error",
         "commit_error", "connection_error", "tls_error", "permission_denied",
         "access_denied", "access_denied_or_busy", "busy", "error"
     };
@@ -177,6 +177,8 @@ static void tool_response(const cdx_json *json, int params, int id, cdx_cancel_h
         if (status_node >= 0 && parsed.nodes[status_node].type == CDX_JSON_STRING) {
             status = parsed.nodes[status_node].string;
             is_error = tool_status_is_error(status);
+            if (!strcmp(json->nodes[name].string, "workspace_edit") &&
+                (!strcmp(status, "cancelled") || !strcmp(status, "timed_out"))) is_error = 1;
             if (!strcmp(json->nodes[name].string, "vnc_screenshot")) is_error |= cdx_vnc_status_is_error(status);
         }
     }

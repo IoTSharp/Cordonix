@@ -18,6 +18,30 @@ static uint64_t document_milliseconds(void) {
 #endif
 }
 
+typedef struct edit_control {
+    uint64_t deadline;
+    cdx_cancel_handle cancel_event;
+    cdx_document_status interrupted;
+} edit_control;
+
+static int edit_interrupted(edit_control *control) {
+    if (control->cancel_event) {
+#ifdef _WIN32
+        if (WaitForSingleObject(control->cancel_event, 0) == WAIT_OBJECT_0) {
+#else
+        if (atomic_load(control->cancel_event)) {
+#endif
+            control->interrupted = CDX_STATUS_CANCELLED;
+            return 1;
+        }
+    }
+    if (document_milliseconds() >= control->deadline) {
+        control->interrupted = CDX_STATUS_TIMED_OUT;
+        return 1;
+    }
+    return 0;
+}
+
 void cdx_free_bytes(unsigned char **value) { if (value && *value) free(*value); if (value) *value = NULL; }
 void cdx_free_text(char **value) { if (value && *value) free(*value); if (value) *value = NULL; }
 
@@ -48,21 +72,20 @@ cdx_eol cdx_detect_eol(const char *text, size_t length) {
     return CDX_EOL_NONE;
 }
 
-static int make_replacement(const char *text, size_t text_length, const char *old_text, size_t old_length, const char *new_text, size_t new_length, size_t expected_count, char **updated, size_t *updated_length, size_t *actual_count) {
+static int make_replacement(const char *text, size_t text_length, const char *old_text, size_t old_length, const char *new_text, size_t new_length, size_t expected_count, char **updated, size_t *updated_length, size_t *actual_count, edit_control *control) {
     size_t index = 0, count = 0, cursor = 0, output_cursor = 0;
     size_t previous_end = 0;
     int overlap = 0;
     size_t result_length;
     char *result;
-    uint64_t deadline = document_milliseconds() + 15000u;
-    while (index + old_length <= text_length && document_milliseconds() < deadline) {
+    while (index + old_length <= text_length && !edit_interrupted(control)) {
         if (memcmp(text + index, old_text, old_length) == 0) {
             if (count != 0 && index < previous_end) overlap = 1;
             ++count; previous_end = index + old_length;
         }
         ++index;
     }
-    if (document_milliseconds() >= deadline) return 0;
+    if (edit_interrupted(control)) return 0;
     *actual_count = count;
     if (overlap) return -1;
     if (count != expected_count || count == 0) return 1;
@@ -73,7 +96,7 @@ static int make_replacement(const char *text, size_t text_length, const char *ol
     result = (char *)malloc(result_length + 1u);
     if (!result) return 0;
     index = 0; cursor = 0; output_cursor = 0;
-    while (index + old_length <= text_length && document_milliseconds() < deadline) {
+    while (index + old_length <= text_length && !edit_interrupted(control)) {
         if (memcmp(text + index, old_text, old_length) == 0) {
             size_t before = index - cursor;
             memcpy(result + output_cursor, text + cursor, before); output_cursor += before;
@@ -83,7 +106,7 @@ static int make_replacement(const char *text, size_t text_length, const char *ol
             ++index;
         }
     }
-    if (document_milliseconds() >= deadline) { free(result); return 0; }
+    if (edit_interrupted(control)) { free(result); return 0; }
     memcpy(result + output_cursor, text + cursor, text_length - cursor); output_cursor += text_length - cursor;
     result[result_length] = '\0';
     *updated = result;
@@ -97,6 +120,7 @@ const char *cdx_document_status_name(cdx_document_status status) {
     case CDX_STATUS_NOT_FOUND: return "not_found"; case CDX_STATUS_ENCODING_ERROR: return "encoding_error"; case CDX_STATUS_FILE_CHANGED: return "file_changed";
     case CDX_STATUS_ANCHOR_MISMATCH: return "anchor_mismatch"; case CDX_STATUS_AMBIGUOUS_MATCH: return "ambiguous_match"; case CDX_STATUS_MIXED_EOL: return "mixed_eol";
     case CDX_STATUS_TOO_LARGE: return "too_large"; case CDX_STATUS_IO_ERROR: return "io_error"; case CDX_STATUS_COMMIT_ERROR: return "commit_error";
+    case CDX_STATUS_CANCELLED: return "cancelled"; case CDX_STATUS_TIMED_OUT: return "timed_out";
     default: return "unknown";
     }
 }
@@ -110,20 +134,17 @@ const char *cdx_eol_name(cdx_eol eol) {
 }
 
 
-cdx_document_status cdx_document_edit_utf8(cdx_document *document, const char *expected_sha256, const char *old_text, const char *new_text, size_t expected_count, int dry_run, cdx_edit_result *result) {
+static cdx_document_status apply_document_edit(cdx_document *document, const char *old_text, const char *new_text, size_t expected_count, int dry_run, cdx_edit_result *result, edit_control *control) {
     char *updated = NULL; size_t updated_length = 0, actual_count = 0; unsigned char *encoded = NULL; size_t encoded_length = 0; cdx_document_status status = CDX_STATUS_OK;
     char next_hash[CDX_SHA256_HEX_LENGTH + 1];
     size_t old_length, new_length;
     int replacement_result;
     if (result) memset(result, 0, sizeof(*result));
-    if (!document || !document->text_utf8 || !expected_sha256 || !old_text || !new_text || !*old_text || expected_count == 0 || expected_count > 10000u || (dry_run != 0 && dry_run != 1)) return edit_status(result, CDX_STATUS_VALIDATION_ERROR);
     if (result) result->dirty_in_memory = document->dirty_in_memory;
-    old_length = strnlen(old_text, CDX_DOCUMENT_MAX_BYTES + 1u); new_length = strnlen(new_text, CDX_DOCUMENT_MAX_BYTES + 1u);
-    if (!cdx_validate_utf8(old_text, old_length) || !cdx_validate_utf8(new_text, new_length)) return edit_status(result, CDX_STATUS_ENCODING_ERROR);
-    if (strcmp(expected_sha256, document->current_sha256) != 0) { if (result) result->status = CDX_STATUS_FILE_CHANGED; return CDX_STATUS_FILE_CHANGED; }
     if (document->eol == CDX_EOL_MIXED || document->eol == CDX_EOL_CR) return edit_status(result, CDX_STATUS_MIXED_EOL);
-    replacement_result = make_replacement(document->text_utf8, document->text_length, old_text, old_length, new_text, new_length, expected_count, &updated, &updated_length, &actual_count);
-    if (replacement_result == 0) return edit_status(result, CDX_STATUS_TOO_LARGE);
+    old_length = strnlen(old_text, CDX_DOCUMENT_MAX_BYTES + 1u); new_length = strnlen(new_text, CDX_DOCUMENT_MAX_BYTES + 1u);
+    replacement_result = make_replacement(document->text_utf8, document->text_length, old_text, old_length, new_text, new_length, expected_count, &updated, &updated_length, &actual_count, control);
+    if (replacement_result == 0) return edit_status(result, control->interrupted ? control->interrupted : CDX_STATUS_TOO_LARGE);
     if (replacement_result < 0) { if (result) { result->status = CDX_STATUS_AMBIGUOUS_MATCH; result->actual_count = actual_count; result->expected_count = expected_count; } return CDX_STATUS_AMBIGUOUS_MATCH; }
     if (actual_count != expected_count) { status = actual_count > expected_count ? CDX_STATUS_AMBIGUOUS_MATCH : CDX_STATUS_ANCHOR_MISMATCH; if (result) { result->status = status; result->expected_count = expected_count; result->actual_count = actual_count; } return status; }
     if (cdx_detect_eol(updated, updated_length) == CDX_EOL_MIXED || (document->eol == CDX_EOL_CRLF && cdx_detect_eol(updated, updated_length) == CDX_EOL_LF) ||
@@ -144,6 +165,154 @@ cdx_document_status cdx_document_edit_utf8(cdx_document *document, const char *e
     }
     if (encoded) free(encoded);
     if (updated) free(updated);
+    return status;
+}
+
+cdx_document_status cdx_document_edit_utf8(cdx_document *document, const char *expected_sha256, const char *old_text, const char *new_text, size_t expected_count, int dry_run, cdx_edit_result *result) {
+    edit_control control = {0};
+    cdx_document_status status;
+    size_t old_length, new_length;
+    if (result) memset(result, 0, sizeof(*result));
+    if (!document || !document->text_utf8 || !expected_sha256 || !old_text || !new_text || !*old_text || expected_count == 0 || expected_count > 10000u || (dry_run != 0 && dry_run != 1)) return edit_status(result, CDX_STATUS_VALIDATION_ERROR);
+    if (result) result->dirty_in_memory = document->dirty_in_memory;
+    old_length = strnlen(old_text, CDX_DOCUMENT_MAX_BYTES + 1u); new_length = strnlen(new_text, CDX_DOCUMENT_MAX_BYTES + 1u);
+    if (!cdx_validate_utf8(old_text, old_length) || !cdx_validate_utf8(new_text, new_length)) return edit_status(result, CDX_STATUS_ENCODING_ERROR);
+    if (strcmp(expected_sha256, document->current_sha256) != 0) return edit_status(result, CDX_STATUS_FILE_CHANGED);
+    if (document->eol == CDX_EOL_MIXED || document->eol == CDX_EOL_CR) return edit_status(result, CDX_STATUS_MIXED_EOL);
+    control.deadline = document_milliseconds() + 15000u;
+    status = apply_document_edit(document, old_text, new_text, expected_count, dry_run, result, &control);
+    /* The legacy single-edit API historically classifies its fixed scan limit as too_large. */
+    return status == CDX_STATUS_TIMED_OUT ? edit_status(result, CDX_STATUS_TOO_LARGE) : status;
+}
+
+static cdx_document_status validate_batch(cdx_document *document, const char *expected_sha256,
+                                         const cdx_document_edit *edits, size_t edit_count,
+                                         int dry_run, unsigned timeout_ms, cdx_edit_batch_result *result) {
+    size_t i;
+    if (edit_count == 0 || edit_count > CDX_DOCUMENT_MAX_EDITS || (dry_run != 0 && dry_run != 1) ||
+        timeout_ms == 0 || timeout_ms > 60000u) return CDX_STATUS_VALIDATION_ERROR;
+    for (i = 0; i < edit_count; ++i) {
+        size_t old_length, new_length;
+        cdx_document_status status = CDX_STATUS_OK;
+        result->failed_edit_index = i;
+        if (!edits[i].old_text || !edits[i].new_text || !*edits[i].old_text ||
+            edits[i].expected_count == 0 || edits[i].expected_count > 10000u) {
+            result->edit_results[i].status = CDX_STATUS_VALIDATION_ERROR;
+            return CDX_STATUS_VALIDATION_ERROR;
+        }
+        old_length = strnlen(edits[i].old_text, CDX_DOCUMENT_MAX_BYTES + 1u);
+        new_length = strnlen(edits[i].new_text, CDX_DOCUMENT_MAX_BYTES + 1u);
+        if (old_length > CDX_DOCUMENT_MAX_BYTES || new_length > CDX_DOCUMENT_MAX_BYTES) status = CDX_STATUS_TOO_LARGE;
+        else if (!cdx_validate_utf8(edits[i].old_text, old_length) || !cdx_validate_utf8(edits[i].new_text, new_length)) status = CDX_STATUS_ENCODING_ERROR;
+        if (status != CDX_STATUS_OK) { result->edit_results[i].status = status; return status; }
+    }
+    result->failed_edit_index = SIZE_MAX;
+    if (strcmp(expected_sha256, document->current_sha256) != 0) return CDX_STATUS_FILE_CHANGED;
+    if (document->eol == CDX_EOL_MIXED || document->eol == CDX_EOL_CR) return CDX_STATUS_MIXED_EOL;
+    return CDX_STATUS_OK;
+}
+
+static size_t preview_side(char *target, const char *source, size_t length) {
+    size_t shown = length < CDX_DOCUMENT_DIFF_SIDE_BYTES ? length : CDX_DOCUMENT_DIFF_SIDE_BYTES;
+    while (shown && shown < length && ((unsigned char)source[shown] & 0xc0u) == 0x80u) --shown;
+    memcpy(target, source, shown);
+    target[shown] = '\0';
+    return shown;
+}
+
+static int batch_preview(const cdx_document *before, const cdx_document *after,
+                         cdx_edit_batch_result *result, edit_control *control) {
+    size_t prefix = 0, suffix = 0;
+    while (prefix < before->text_length && prefix < after->text_length &&
+           before->text_utf8[prefix] == after->text_utf8[prefix] && !edit_interrupted(control)) ++prefix;
+    if (edit_interrupted(control)) return 0;
+    while (prefix && prefix < before->text_length && ((unsigned char)before->text_utf8[prefix] & 0xc0u) == 0x80u) --prefix;
+    while (suffix < before->text_length - prefix && suffix < after->text_length - prefix &&
+           before->text_utf8[before->text_length - suffix - 1u] == after->text_utf8[after->text_length - suffix - 1u] && !edit_interrupted(control)) ++suffix;
+    if (edit_interrupted(control)) return 0;
+    while (suffix && (((unsigned char)before->text_utf8[before->text_length - suffix] & 0xc0u) == 0x80u ||
+                      ((unsigned char)after->text_utf8[after->text_length - suffix] & 0xc0u) == 0x80u)) --suffix;
+    result->prefix_bytes = prefix;
+    result->removed_bytes = before->text_length - prefix - suffix;
+    result->added_bytes = after->text_length - prefix - suffix;
+    result->before_length = preview_side(result->before, before->text_utf8 + prefix, result->removed_bytes);
+    result->after_length = preview_side(result->after, after->text_utf8 + prefix, result->added_bytes);
+    result->truncated = result->before_length < result->removed_bytes || result->after_length < result->added_bytes;
+    return 1;
+}
+
+cdx_document_status cdx_document_edit_batch_utf8(cdx_document *document, const char *expected_sha256,
+                                                const cdx_document_edit *edits, size_t edit_count,
+                                                int dry_run, cdx_cancel_handle cancel_event,
+                                                unsigned timeout_ms, cdx_edit_batch_result *result) {
+    cdx_document working;
+    edit_control control = {0};
+    cdx_document_status status;
+    size_t i;
+    if (!result) return CDX_STATUS_VALIDATION_ERROR;
+    memset(result, 0, sizeof(*result));
+    result->edit_count = edit_count;
+    result->failed_edit_index = SIZE_MAX;
+    if (document) {
+        result->bytes_before = result->bytes_after = document->current_size;
+        result->dirty_in_memory = document->dirty_in_memory;
+    }
+    if (!document || !document->text_utf8 || !expected_sha256 || !edits) {
+        result->status = CDX_STATUS_VALIDATION_ERROR;
+        return CDX_STATUS_VALIDATION_ERROR;
+    }
+    control.deadline = document_milliseconds() + timeout_ms;
+    control.cancel_event = cancel_event;
+    status = validate_batch(document, expected_sha256, edits, edit_count, dry_run, timeout_ms, result);
+    if (status != CDX_STATUS_OK) {
+        result->status = status;
+        return status;
+    }
+    if (edit_interrupted(&control)) { result->status = control.interrupted; return control.interrupted; }
+    working = *document;
+    working.current_bytes = (unsigned char *)malloc(document->current_size ? document->current_size : 1u);
+    working.text_utf8 = (char *)malloc(document->text_length + 1u);
+    if (!working.current_bytes || !working.text_utf8) {
+        free(working.current_bytes); free(working.text_utf8);
+        result->status = CDX_STATUS_IO_ERROR;
+        return CDX_STATUS_IO_ERROR;
+    }
+    memcpy(working.current_bytes, document->current_bytes, document->current_size);
+    memcpy(working.text_utf8, document->text_utf8, document->text_length + 1u);
+    for (i = 0; i < edit_count; ++i) {
+        result->failed_edit_index = i;
+        if (edit_interrupted(&control)) {
+            status = control.interrupted;
+            result->edit_results[i].status = status;
+            break;
+        }
+        status = apply_document_edit(&working, edits[i].old_text, edits[i].new_text, edits[i].expected_count, 0, &result->edit_results[i], &control);
+        if (status == CDX_STATUS_OK && working.eol == CDX_EOL_CR) {
+            status = CDX_STATUS_MIXED_EOL;
+            result->edit_results[i].status = status;
+        }
+        if (status != CDX_STATUS_OK) break;
+        ++result->completed_edits;
+    }
+    if (status == CDX_STATUS_OK) {
+        result->failed_edit_index = SIZE_MAX;
+        if (!batch_preview(document, &working, result, &control)) status = control.interrupted;
+    }
+    if (status == CDX_STATUS_OK) {
+        result->bytes_after = working.current_size;
+        memcpy(result->preview_sha256, working.current_sha256, sizeof(result->preview_sha256));
+        if (!dry_run) {
+            free(document->current_bytes); free(document->text_utf8);
+            document->current_bytes = working.current_bytes; document->current_size = working.current_size;
+            document->text_utf8 = working.text_utf8; document->text_length = working.text_length;
+            document->eol = working.eol; document->dirty_in_memory = working.dirty_in_memory;
+            memcpy(document->current_sha256, working.current_sha256, sizeof(document->current_sha256));
+            working.current_bytes = NULL; working.text_utf8 = NULL;
+            result->dirty_in_memory = document->dirty_in_memory;
+        }
+    }
+    free(working.current_bytes); free(working.text_utf8);
+    result->status = status == CDX_STATUS_OK && dry_run ? CDX_STATUS_PREVIEW : status;
     return status;
 }
 

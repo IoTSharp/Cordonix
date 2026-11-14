@@ -1,5 +1,12 @@
 # Cordonix
 
+Version 0.6.0 delivers [ordered single-document edit batches](docs/single-document-edit-batches.md),
+explicit MCP tool profiles, compact execution results with original-output readback,
+and two-phase daily startup updates. `workspace_edit.edits` applies 1..32 sequential
+edits using one initial SHA, with whole-batch memory rollback and a bounded diff preview.
+Existing single-edit calls remain supported; disk writes still require an explicit commit.
+Current build/release/install evidence is recorded in [HANDOFF.md](HANDOFF.md).
+
 Verified release: [GitHub v0.5.0](https://github.com/IoTSharp/Cordonix/releases/tag/v0.5.0) / [Gitee v0.5.0](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.5.0), from clean source `00e07a0`. Windows/Linux CI, signed tagged publication and all 12 public asset pairs pass readback. This computer's 0.4.1-to-0.5.0 installation and fresh-launcher MCP adoption also pass; existing chat processes retain their previous runtime until reconnection. Receipts and boundaries are in [HANDOFF.md](HANDOFF.md).
 
 Version 0.5.0 queues overlapping MCP tool calls in a bounded FIFO, including directory listings and batch reads. See [request scheduling](docs/mcp-request-scheduling.md) for cancellation, queue limits and installed-client adoption. Existing 0.4.1 connections require sequential calls until they load the updated runtime.
@@ -56,7 +63,7 @@ runtime has its own contract; local source validation does not update an install
 
 Cordonix, abbreviated **cdx**, gives agents a direct path to local programs and source files. Program arguments remain data. Text keeps its declared encoding. Repeated reads and edits can stay in memory until an explicit commit.
 
-Install from a published Windows x64 ZIP or Linux x64 tar.gz using the [installation guide](docs/install-update.md) or the [copyable AI prompt](examples/cordonix-install-update-prompt.md). The installers verify SHA-256 and the actual executable version and use Gitee when GitHub is unavailable. Version 0.4.1 enables a separate background `cdx --checkupgrade` instance on the first launch each day, preserves explicit opt-out and records results. The updated launcher selects the native command in 0.4.1; older 0.3.1 binaries retain the updater-script compatibility path. Windows/Linux package gates exercise the native command. Existing installations need one migration to the new launcher. Published tags use `vMAJOR.MINOR.PATCH`; both [GitHub](https://github.com/IoTSharp/Cordonix/releases) and [Gitee](https://gitee.com/IoTSharp/Cordonix/releases) carry the same assets.
+Install from a published Windows x64 ZIP or Linux x64 tar.gz using the [installation guide](docs/install-update.md) or the [copyable AI prompt](examples/cordonix-install-update-prompt.md). The installers verify SHA-256 and the actual executable version and use Gitee when GitHub is unavailable. The daily first-launch worker now checks metadata and downloads a verified package into a pending area; the next stable-launch invocation installs it, removes the replaced version directory and reports the version change on stderr. Explicit opt-out persists, and the existing runtime remains active until the next invocation. Windows/Linux package gates exercise both phases and the native command. Existing installations need one migration to the new launcher. Published tags use `vMAJOR.MINOR.PATCH`; both [GitHub](https://github.com/IoTSharp/Cordonix/releases) and [Gitee](https://gitee.com/IoTSharp/Cordonix/releases) carry the same assets.
 
 The implementation is **pure C11 for Windows and Linux**. Its executable does not need Python or PowerShell at runtime. Windows builds use MSVC; the Linux backend uses GCC, libc/iconv and pthreads. Cordonix is an independent open-source project, not an OpenAI product.
 

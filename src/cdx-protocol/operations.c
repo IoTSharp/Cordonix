@@ -481,8 +481,71 @@ done:
     }
 }
 
-static void edit_document(workspace_slot *slot, const cdx_json *json, int arguments, cdx_json_output *output) {
+static void edit_document_batch(workspace_slot *slot, const cdx_json *json, int arguments,
+                                int edits_node, cdx_cancel_handle cancellation, cdx_json_output *output) {
+    cdx_document_edit edits[CDX_DOCUMENT_MAX_EDITS];
+    cdx_edit_batch_result *result;
+    size_t count = 0, i;
+    int valid = 1, node;
+    const char *hash = string_arg(json, arguments, "expected_sha256", NULL, &valid);
+    int dry_run = boolean_arg(json, arguments, "dry_run", 1, &valid);
+    unsigned timeout_ms = (unsigned)integer_arg(json, arguments, "timeout_ms", 15000, 60000, &valid);
+    if (json->nodes[edits_node].type != CDX_JSON_ARRAY || !timeout_ms ||
+        cdx_json_get(json, arguments, "old") >= 0 || cdx_json_get(json, arguments, "new") >= 0 ||
+        cdx_json_get(json, arguments, "expected_count") >= 0) valid = 0;
+    node = json->nodes[edits_node].first;
+    for (i = 0; valid && node >= 0 && i < CDX_DOCUMENT_MAX_EDITS; ++i) {
+        if (json->nodes[node].type != CDX_JSON_OBJECT) { valid = 0; break; }
+        edits[count].old_text = string_arg(json, node, "old", NULL, &valid);
+        edits[count].new_text = string_arg(json, node, "new", NULL, &valid);
+        edits[count].expected_count = (size_t)integer_arg(json, node, "expected_count", 1, 10000, &valid);
+        if (!edits[count].old_text || !*edits[count].old_text || !edits[count].expected_count) valid = 0;
+        ++count;
+        node = json->nodes[node].next;
+    }
+    if (!valid || !count || node >= 0) {
+        error_result(output, "validation_error", "Use 1..32 edits with nonempty old, string new and expected_count 1..10000; do not mix edits with old/new/expected_count; timeout_ms is 1..60000");
+        return;
+    }
+    result = (cdx_edit_batch_result *)malloc(sizeof(*result));
+    if (!result) { error_result(output, "io_error", "Could not allocate batch preview"); return; }
+    (void)cdx_document_edit_batch_utf8(&slot->document, hash, edits, count, dry_run, cancellation, timeout_ms, result);
+    cdx_json_raw(output, "{\"status\":"); cdx_json_quote(output, cdx_document_status_name(result->status), strlen(cdx_document_status_name(result->status)));
+    cdx_json_raw(output, ",\"edit_count\":"); cdx_json_uint(output, result->edit_count);
+    cdx_json_raw(output, ",\"completed_edits\":"); cdx_json_uint(output, result->completed_edits);
+    cdx_json_raw(output, ",\"failed_edit_index\":");
+    if (result->failed_edit_index == SIZE_MAX) cdx_json_raw(output, "null"); else cdx_json_uint(output, result->failed_edit_index);
+    cdx_json_raw(output, ",\"edits\":[");
+    for (i = 0; i < result->edit_count; ++i) {
+        const cdx_edit_result *item = &result->edit_results[i];
+        if (i) cdx_json_raw(output, ",");
+        cdx_json_raw(output, "{\"index\":"); cdx_json_uint(output, i);
+        cdx_json_raw(output, ",\"status\":");
+        if (i < result->completed_edits || i == result->failed_edit_index) cdx_json_quote(output, cdx_document_status_name(item->status), strlen(cdx_document_status_name(item->status)));
+        else cdx_json_raw(output, "\"not_run\"");
+        cdx_json_raw(output, ",\"expected_count\":"); cdx_json_uint(output, edits[i].expected_count);
+        cdx_json_raw(output, ",\"actual_count\":"); cdx_json_uint(output, item->actual_count);
+        cdx_json_raw(output, "}");
+    }
+    cdx_json_raw(output, "],\"bytes_before\":"); cdx_json_uint(output, result->bytes_before);
+    cdx_json_raw(output, ",\"bytes_after\":"); cdx_json_uint(output, result->bytes_after);
+    cdx_json_raw(output, ",\"written_to_disk\":false,\"dirty_in_memory\":"); cdx_json_raw(output, slot->document.dirty_in_memory ? "true" : "false");
+    cdx_json_raw(output, ",\"memory_sha256\":"); cdx_json_quote(output, slot->document.current_sha256, 64);
+    cdx_json_raw(output, ",\"preview_sha256\":"); cdx_json_quote(output, result->preview_sha256, strlen(result->preview_sha256));
+    cdx_json_raw(output, ",\"diff\":{\"prefix_bytes\":"); cdx_json_uint(output, result->prefix_bytes);
+    cdx_json_raw(output, ",\"removed_bytes\":"); cdx_json_uint(output, result->removed_bytes);
+    cdx_json_raw(output, ",\"added_bytes\":"); cdx_json_uint(output, result->added_bytes);
+    cdx_json_raw(output, ",\"before\":"); cdx_json_quote(output, result->before, result->before_length);
+    cdx_json_raw(output, ",\"after\":"); cdx_json_quote(output, result->after, result->after_length);
+    cdx_json_raw(output, ",\"truncated\":"); cdx_json_raw(output, result->truncated ? "true" : "false");
+    cdx_json_raw(output, "}}");
+    free(result);
+}
+
+static void edit_document(workspace_slot *slot, const cdx_json *json, int arguments, cdx_cancel_handle cancellation, cdx_json_output *output) {
     int valid = 1;
+    int edits_node = cdx_json_get(json, arguments, "edits");
+    if (edits_node >= 0) { edit_document_batch(slot, json, arguments, edits_node, cancellation, output); return; }
     const char *hash = string_arg(json, arguments, "expected_sha256", NULL, &valid);
     const char *old_text = string_arg(json, arguments, "old", NULL, &valid);
     const char *new_text = string_arg(json, arguments, "new", NULL, &valid);
@@ -1210,7 +1273,7 @@ void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx
     slot = valid ? find_document(id) : NULL;
     if (!slot) { error_result(output, "not_found", "No live document with this id; open it in this MCP session"); return; }
     if (!strcmp(operation, "workspace_read")) read_document(slot, request, arguments, cancellation, output);
-    else if (!strcmp(operation, "workspace_edit")) edit_document(slot, request, arguments, output);
+    else if (!strcmp(operation, "workspace_edit")) edit_document(slot, request, arguments, cancellation, output);
     else if (!strcmp(operation, "workspace_commit")) commit_document(slot, output);
     else if (!strcmp(operation, "workspace_convert_encoding")) convert_document(slot, request, arguments, output);
     else if (!strcmp(operation, "workspace_status")) document_result(output, id, &slot->document);

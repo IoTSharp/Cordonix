@@ -79,7 +79,7 @@ def package(binary, version, traversal=False, truncated=False):
         member.size = len(body)
         archive.addfile(member, io.BytesIO(body))
         if not traversal:
-            updater = installer.read_text(encoding="utf-8").replace("# Cordonix updater generation: 3", "# Cordonix updater generation: 4").encode("utf-8")
+            updater = installer.read_text(encoding="utf-8").replace("# Cordonix updater generation: 4", "# Cordonix updater generation: 5").encode("utf-8")
             member = tarfile.TarInfo("install/install.sh")
             member.mode = 0o644
             member.size = len(updater)
@@ -119,6 +119,8 @@ with tempfile.TemporaryDirectory(prefix="installer-linux-", dir=source / "build"
         def clear_attempt(directory=root):
             for name in ("last-update-check.json", "last-update-launch.json"):
                 (directory / name).unlink(missing_ok=True)
+            (directory / "pending-update.json").unlink(missing_ok=True)
+            shutil.rmtree(directory / ".update-pending", ignore_errors=True)
 
         def wait_upgrade(directory=root):
             audit_path = directory / "last-update-launch.json"
@@ -151,12 +153,12 @@ with tempfile.TemporaryDirectory(prefix="installer-linux-", dir=source / "build"
         check("GitHub HTTP failure falls back to Gitee and installs a verified runtime", receipt["source"] == "gitee" and receipt["installed_version"] == "0.0.1" and receipt["operation"] == "install")
         check("Unicode spaced install path produces a working stable entry", run([str(root / "current/cdx"), "--version"]).stdout.strip() == "Cordonix cdx 0.0.1")
         check("Default installation enables daily startup updates without requiring a timer", receipt["auto_update_enabled"] and receipt["auto_update"] == "daily_startup" and receipt["command"] == str(root / "launch.sh"))
-        check("A verified package refreshes the updater generation", "# Cordonix updater generation: 4" in (root / "updater/install.sh").read_text(encoding="utf-8"))
+        check("A verified package refreshes the updater generation", "# Cordonix updater generation: 5" in (root / "updater/install.sh").read_text(encoding="utf-8"))
 
         before = len(requests)
         receipt = invoke("--source", "gitee")
         check("Same version is a no-op without asset downloads", receipt["operation"] == "up_to_date" and requests[before:] == ["/gitee"])
-        check("An older installer cannot downgrade the updater generation", "# Cordonix updater generation: 4" in (root / "updater/install.sh").read_text(encoding="utf-8"))
+        check("An older installer cannot downgrade the updater generation", "# Cordonix updater generation: 5" in (root / "updater/install.sh").read_text(encoding="utf-8"))
         release2 = package(binaries["0.0.2"], "0.0.2")
         routes["/gitee"] = (200, json.dumps([release1, {"tag_name": "v9.0.0-rc1"}, release2]).encode("utf-8"))
         settings_path = root / "update-settings.json"
@@ -166,7 +168,27 @@ with tempfile.TemporaryDirectory(prefix="installer-linux-", dir=source / "build"
         clear_attempt()
         launched = launch()
         receipt = json.loads((root / "last-update-check.json").read_text(encoding="utf-8"))
-        check("Startup keeps running while a separate instance updates through Gitee", launched.returncode == 0 and launched.stdout.strip() == "Cordonix cdx 0.0.1" and not launched.stderr and receipt["operation"] == "update" and receipt["source"] == "gitee" and (root / "versions/0.0.1/cdx").exists())
+        check("The first startup keeps running while a separate instance downloads through Gitee", launched.returncode == 0 and launched.stdout.strip() == "Cordonix cdx 0.0.1" and not launched.stderr and receipt["operation"] == "downloaded" and receipt["source"] == "gitee" and receipt["downloaded_version"] == "0.0.2" and (root / "pending-update.json").exists() and (root / "versions/0.0.1/cdx").exists())
+        pending = json.loads((root / "pending-update.json").read_text(encoding="utf-8"))
+        downloaded = Path(pending["archive_path"])
+        downloaded_bytes = downloaded.read_bytes()
+        old_pointer = os.readlink(root / "current")
+        try:
+            downloaded.write_bytes(downloaded_bytes + b"\0")
+            launched = launch()
+            check("A changed pending archive preserves the pointer and pending evidence", launched.returncode == 0 and "pending update could not be installed" in launched.stderr and os.readlink(root / "current") == old_pointer and (root / "pending-update.json").exists())
+        finally:
+            downloaded.write_bytes(downloaded_bytes)
+        online_routes = {route: routes[route] for route in ("/github", "/gitee")}
+        before = len(requests)
+        try:
+            routes.update({route: (503, b"offline") for route in online_routes})
+            launched = launch()
+            check("A verified pending package installs offline without release requests", launched.returncode == 0 and launched.stdout.strip() == "Cordonix cdx 0.0.2" and len(requests) == before)
+        finally:
+            routes.update(online_routes)
+        receipt = json.loads((root / "last-update-check.json").read_text(encoding="utf-8"))
+        check("The next startup installs the verified download, deletes the old version and notifies the current agent", launched.returncode == 0 and launched.stdout.strip() == "Cordonix cdx 0.0.2" and "Cordonix update installed" in launched.stderr and receipt["operation"] == "update" and receipt["phase"] == "installed" and receipt["update_applied"] and receipt["old_version_deleted"] and not (root / "versions/0.0.1").exists() and not (root / "pending-update.json").exists())
         before = len(requests)
         launch()
         check("Repeated startups on the same day make no network requests", len(requests) == before)

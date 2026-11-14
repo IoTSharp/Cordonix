@@ -1,5 +1,78 @@
 # Handoff
 
+## 0.6.0 batch-edit delivery (2026-11-15, Asia/Shanghai)
+
+The user authorized one worthwhile roadmap phase with multiple implementation
+agents, commit/push, a formal release and upgrade of this computer. The selected
+phase is CDX-14G / CDX-12B, because ordered edits directly reuse the mature
+single-document encoding/hash/commit contract. CDX-14D/E/F remain follow-ups.
+Three concurrent workers own native implementation/tests, independent real stdio
+acceptance, and review/repair of the existing staged updater; the coordinator
+owns protocol/schema integration, package/doc wiring and delivery.
+
+`workspace_edit.edits` accepts 1..32 sequential literal edits and one initial SHA.
+The default is a read-only preview. Applying changes memory only; any failure,
+deadline or cancellation rolls the entire batch back to its previous clean/dirty
+state. Results retain per-step counts, the failed zero-based index, final candidate
+SHA and one UTF-8 changed span (8192 bytes per side, truncation explicit).
+Legacy single-edit calls and the 35/full versus 27/local-code tool counts remain
+compatible. Disk writes still require the existing conflict-checked commit.
+
+The original 12-file dirty updater/document change is included deliberately as
+the staged 2026-11-14 continuation below. Actual Windows fixtures reproduced
+and fixed a missing installed archive SHA and concurrent loser deletion of an
+owner's pending-apply logs. The apply worker now has a 180-second bound and
+identity/cleanup evidence. Installer suites pass Windows 32/32 and Linux 32/32,
+including offline apply and tampered pending archives. Package payload lists now
+include both the context-efficiency plan and batch-edit contract; exact expected
+counts are 67 payload, 69 SPDX and 70 archive entries.
+
+Independent review found and repaired resulting CR-only EOL acceptance in the
+new batch path. Real stdio acceptance also found missing outer MCP `isError`
+on anchor failure; deterministic edit failures now retain the proper envelope.
+Timed-out/cancelled edits are errors with complete memory rollback; process
+execution's uncertain-outcome semantics retain their existing behavior.
+
+Current receipts belong to ignored `build/stage-20261115/`. Initial failed
+fixtures remain there: native tests initially used forbidden relative paths;
+the first one-millisecond timeout fixture was faster than Windows clock
+resolution and was replaced with a bounded expensive actual match scan.
+No failed attempt is counted as acceptance. Final local, hosted, public and
+installed-runtime results will be appended after their respective checks.
+
+Final local gates: Windows `eng/test.cmd` PASS in 117.8 seconds, Linux
+`eng/test-linux.sh` PASS in 59.4 seconds with real rg enabled. Shared MCP is
+197/197 Windows and 198/198 Linux; native batch tests 43/43 on each platform;
+real batch MCP 45 checks / 87 RPC on each, including actual cancellation after
+the workspace edit was moved to the existing asynchronous worker. Receipts:
+`windows-final4.*`, `linux-final4.*`, and `build/edit-batch-{windows,linux}*/`.
+The existing context harness tests (12), profile checks (11), execution projection
+(12 groups / 27 calls) and fixed baseline also pass on the current Windows binary.
+
+MSVC C11 `/W4 /WX /analyze` on core/tests and operations/tools PASS; Windows
+ASan PASS 43/43; Linux ASan/UBSan PASS 43/43 with no diagnostics. Both portable
+package gates PASS with reproducible archives, all payload/SPDX hashes, relative
+document links and extracted executable checks. The first package failure found
+an old plan's relative link to an unpackaged test; that source link now points
+to the repository, preserving a self-contained documentation package.
+
+The six-edit efficiency fixture passes on both platforms with identical final
+text/SHA and unchanged disk: legacy uses 6 edit RPC / 1446 request bytes /
+1806 response bytes (3252 total); batch uses 1 / 404 / 1047 (1451 total).
+These are exact serialized UTF-8 bytes including preview/count/hash metadata,
+not token, billing, latency or general agent success claims. Measurement receipts
+are `acceptance/measurement-{windows,linux}/receipt.json` under this batch root.
+
+The installed baseline was verified live as clean 0.5.0 / `00e07a0` through
+the Codex package-local root. Existing clients' processes are preserved; a
+new stable-launcher process is required to adopt the released runtime.
+
+## Staged daily updater change (2026-11-14, Asia/Shanghai)
+
+The working tree now changes the daily startup update flow on Windows and Linux. The hidden first-launch worker checks release metadata and downloads a SHA-256-verified package into `.update-pending/` with `pending-update.json` marked `ready`; the next stable-launch invocation applies that package before starting the current runtime, removes the replaced version directory when the filesystem permits, writes `last-update-notice.json`, and reports the old/new versions on stderr. The current MCP process is not forcibly stopped; a fresh launcher invocation adopts the new version. Existing installations require one launcher migration. This source change is uncommitted and has not been installed, pushed or published.
+
+Local installer fixtures pass 28 Windows checks and 30 Linux checks, including first-launch download, next-launch installation, old-version cleanup and agent notification. The full Windows `eng\\test.cmd` gate passes (197 MCP checks, 26 adapter checks and 12 PowerShell checks); the Linux `eng/test-linux.sh` gate passes (198 MCP checks), with native Linux rg explicitly NOT_RUN in this WSL environment. The package test was run with version `0.0.2` and remains FAIL against the repository's stale fixed-count assertion: the produced archive has 69 entries/66 manifest files while the test requires 68/65. No package baseline was changed for this updater task.
+
 ## CDX-14A/B/C local implementation acceptance (2026-11-13, Asia/Shanghai)
 
 The three requested implementation agents ran concurrently with separate ownership:

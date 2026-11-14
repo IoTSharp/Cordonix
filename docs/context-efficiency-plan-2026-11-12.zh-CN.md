@@ -75,7 +75,7 @@ Windows full/summary 结果 wire 中位数为 955/1,232 bytes，P95 为 9,118/1,
 
 ## CDX-14C：可复现效率与行为基线
 
-沿用 [three-stage baseline](../tests/acceptance/three_stage_baseline.py) 的真实入口和证据习惯，
+沿用 [three-stage baseline](https://github.com/IoTSharp/Cordonix/blob/main/tests/acceptance/three_stage_baseline.py) 的真实入口和证据习惯，
 新增独立 acceptance 脚本，不复制生产算法。先与实现智能体约定 CLI/结果字段，使语料可以并行准备。
 
 - 固定工具清单和输出 fixture；默认三轮，最多五轮，每轮最多二十个案例，整体 deadline 可配置且有硬上限。
