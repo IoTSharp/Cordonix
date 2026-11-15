@@ -94,7 +94,8 @@ static int supported_tool(const char *name) {
         "resolve_path", "verify_encoding", "read_file", "workspace_read", "workspace_edit",
         "workspace_commit", "workspace_convert_encoding", "workspace_status", "workspace_search",
         "workspace_close", "sftp", "http", "serial", "network", "read_files", "screenshot", "vnc_screenshot",
-        "data_query", "find_files", "find_program", "hash_file", "copy_file", "move_file", "stat"
+        "data_query", "find_files", "find_program", "hash_file", "copy_file", "move_file", "stat",
+        "project_facts", "failure_loop", "diagnostic_view"
     };
     size_t i;
     if (!name) return 0;

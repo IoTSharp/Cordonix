@@ -7,6 +7,7 @@
 #include "cdx/process_query.h"
 #include "cdx/phone.h"
 #include "cdx/version.h"
+#include "cdx/context.h"
 #include "../cdx-core/file_ops_internal.h"
 #include <limits.h>
 #include <math.h>
@@ -1257,6 +1258,9 @@ void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx
     }
     if (!strcmp(operation, "query_processes")) { cdx_query_processes_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "phone")) { cdx_phone_call(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "project_facts")) { cdx_project_facts_call(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "failure_loop")) { cdx_failure_loop_call(request, arguments, cancellation, output); return; }
+    if (!strcmp(operation, "diagnostic_view")) { cdx_diagnostic_view_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "search_text") || !strcmp(operation, "git_status")) {
         cdx_adapter_call(operation, request, arguments, cancellation, output); return;
     }

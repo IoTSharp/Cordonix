@@ -1,5 +1,13 @@
 # Cordonix Changelog
 
+## Unreleased
+
+- Added deterministic model-free `project_facts`, `failure_loop` and `diagnostic_view`
+  MCP/CLI operations. They keep evidence, contradiction, replay-blocking and unparsed
+  diagnostics explicit without model calls or new dependencies.
+- Expanded the development MCP surface to 38 tools (30 in `local-code`) and added bounded
+  Windows/Linux focused tests for the new host-side context helpers.
+
 ## 0.6.0 - 2026-11-15
 
 - Published clean `ea8b86d` to GitHub and Gitee. Source/tag CI and all six release jobs pass; all 12 public asset pairs match and exact-tag provenance accepts four originals while rejecting four tampered copies. This computer upgraded from 0.5.0 with unchanged updater settings; a fresh stable-launcher MCP process verifies 0.6.0 and actual batch editing. Locked retired-directory cleanup and existing-client reconnection remain explicit in HANDOFF.

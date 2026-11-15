@@ -1,5 +1,20 @@
 # Cordonix Roadmap
 
+## CDX-14D/E/F implementation batch (2026-11-15)
+
+Three independent workers delivered bounded C11 host-side helpers and the coordinator
+wired them into the CLI/MCP surface. `project_facts` stores candidate/active/revoked
+facts with confirmation/contradiction evidence and deterministic failure fingerprints;
+`failure_loop` emits one reminder per turn, requires human review for unknown/timeouts,
+and never replays work; `diagnostic_view` parses search/build/test lines while retaining
+raw offsets and explicit partial/unknown/output-limit states. No model, hook or dependency
+was added. Dedicated tests pass 14/14, 10/10 and 10/10 on Windows and WSL GCC; the full
+Windows gate reaches the new tests and the Linux build is green. Public release and
+installed-client adoption remain NOT_RUN for this source batch.
+
+The current development MCP surface is 38 tools, with 30 in `local-code`; the released
+0.6.0 installation remains a separate 35-tool artifact until a later authorized release.
+
 ## 0.6.0 delivery batch (2026-11-15)
 
 Completed and published from clean `ea8b86d` as `v0.6.0` on GitHub and Gitee.
@@ -26,8 +41,10 @@ defines the interfaces to settle, non-overlapping ownership, compatibility and c
 CDX-14A/B/C now have local source acceptance below; they remain separate from
 released and installed capabilities.
 
-Current reference: clean source `22956e8` before this planning change; the connected installed
-runtime is 0.5.0 from `00e07a0`, exposing 35 tools. Its complete `tools/list` tools array is
+Current reference: released source `ea8b86d` with installed runtime 0.6.0. The development
+tree now exposes 38 tools and `local-code` exposes 30; the released installation remains
+35/27 until another release. The following 35/27 counts and byte measurements are the
+historical CDX-14A baseline from the pre-14D tree. Its complete `tools/list` tools array is
 62,487 UTF-8 bytes after compact JSON serialization. Selecting the 27 local-code tools gives
 38,227 bytes (38.8% less). This is a local schema projection measurement, not model token,
 provider cost or task-success evidence. Existing read batches, HTTP representation and data
@@ -38,9 +55,9 @@ query remain delivered capabilities rather than new work.
 | CDX-14A | Explicit MCP tool profiles | ✅ Local source PASS, 2026-11-13 | `--mcp --tool-profile full\|local-code`: default/full 35, local-code 27; every retained schema is identical. C helper 46/46 and real stdio 11/11 on Windows/Linux prove membership, unknown-profile error and unchanged direct-call validation. Discovery selection is not authorization. |
 | CDX-14B | Compact execution results with raw-output readback | ✅ Local source PASS, 2026-11-13 | `result_mode=full\|summary`, required summary `capture_log_path`, bounded Base64 tails and captured-byte SHA-256; native no-replace logs with stream offsets. Real stdio 12 groups/27 calls on each platform prove status/encoding/output-limit/timeout/cancel, fallback and one execution. GCC analyzer and Linux ASan/UBSan projection suite pass. |
 | CDX-14C | Reproducible context-efficiency measurements | ✅ Local fixed-corpus PASS, 2026-11-13 | Five rounds per platform: 152 checks, 50 execution outcomes, 90 total RPC, 0 retries/unknown; exact schema/result/wire bytes, raw hashes and median/P95 retained. Twelve harness tests cover transport UNKNOWN and tokenizer batching. Actual tokens/provider usage/billing/real agent task success remain NOT_MEASURED. |
-| CDX-14D | Model-free project facts and failure fingerprints | P1 / follow-up after CDX-14C | Keep host-side evidence separate from C11 execution. Bound candidate/active/revoked facts, confirmation and contradiction evidence, normalized error signatures and injected context. Reuse observed commands and project rules before introducing an automatic learner. |
-| CDX-14E | Host-side failure-loop reminders | P1 / follow-up after CDX-14C/14D | Start with repeated-failure rules and progress evidence; one redirect per turn, human-controlled stopping. A model judge is a later explicit choice with its cost included. Timeout/UNKNOWN does not authorize replay. |
-| CDX-14F | Grouped search context and deterministic build/test diagnostics | P1 / complete CDX-11B2 and CDX-12C incrementally | Choose from representative real rg/build logs after the first batch. Preserve paths, error coverage, partial/unknown parsing and original-log access; no invented compiler semantics, LSP dependency or silent loss of unparsed lines. |
+| CDX-14D | Model-free project facts and failure fingerprints | ✅ Local source PASS, 2026-11-15 | Fixed-capacity candidate/active/revoked facts, evidence counters, contradiction/revoke handling, normalized classifications and stable hashes; 14/14 focused checks per platform. Host state remains separate from C11 execution. |
+| CDX-14E | Host-side failure-loop reminders | ✅ Local source PASS, 2026-11-15 | Monotonic turns, one reminder per turn, progress reset, stop-required threshold, persistent unknown/timeout replay block; 10/10 focused checks per platform. Human-controlled stopping remains required. |
+| CDX-14F | Grouped search context and deterministic build/test diagnostics | ✅ Local source PASS, 2026-11-15 | Bounded parser retains paths, line/column, error codes, raw offsets and unparsed lines; explicit ok/partial/unknown/output-limit states; 10/10 focused checks per platform. Grouped continuation cursors remain deferred. |
 | CDX-14G | Batched single-document edits and diff preview | ✅ Released and installed in 0.6.0; evidence in HANDOFF | `workspace_edit.edits` 1..32 sequential edits, one initial SHA, all-or-none memory changes, default preview with bounded UTF-8 diff and candidate SHA; real CP936/BOM/EOL/conflict, timeout/cancellation fixtures. Ordinary UTF-8 edits still use apply_patch; no multi-file atomicity claim. |
 
 Three workers implement CDX-14A, CDX-14B and CDX-14C with disjoint owned files. The coordinator

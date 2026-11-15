@@ -21,6 +21,7 @@ LOCAL_CODE = frozenset((
     "resolve_path", "stat", "verify_encoding", "read_file", "read_files",
     "workspace_open", "workspace_read", "workspace_edit", "workspace_convert_encoding",
     "workspace_commit", "workspace_status", "workspace_search", "workspace_close",
+    "project_facts", "failure_loop", "diagnostic_view",
 ))
 
 
@@ -85,9 +86,9 @@ def main() -> int:
                 lists[label] = tools
                 members = tool_map(tools)
                 if profile is None:
-                    check(receipt, "default advertises the 35-tool surface", len(members) == 35)
+                    check(receipt, "default advertises the 38-tool surface", len(members) == 38)
                 if profile == "local-code":
-                    check(receipt, "local-code has exactly the 27 specified members", set(members) == LOCAL_CODE,
+                    check(receipt, "local-code has exactly the 30 specified members", set(members) == LOCAL_CODE,
                           {"missing": sorted(LOCAL_CODE - members.keys()), "extra": sorted(members.keys() - LOCAL_CODE)})
                     full = tool_map(lists["full"])
                     check(receipt, "every retained schema object equals full", all(tool == full.get(name) for name, tool in members.items()))

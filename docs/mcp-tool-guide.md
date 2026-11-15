@@ -28,8 +28,8 @@ connection under its lifecycle owner; do not terminate shared MCP services.
 ## Tool profiles and execution projections
 
 The development executable accepts `cdx --mcp [--tool-profile full|local-code]`.
-Omission and explicit `full` advertise the same 35 tools, in the same order with
-the same schemas. `local-code` advertises 27 tools: it omits `ssh`, `sftp`, `http`,
+In the current development tree, omission and explicit `full` advertise the same 38 tools, in the same order with
+the same schemas. `local-code` advertises 30 tools: it omits `ssh`, `sftp`, `http`,
 `network`, `serial`, `phone`, `screenshot` and `vnc_screenshot`. Every retained
 schema is identical to full. Selection is fixed for that process; start a new
 connection with another profile to change it. Unknown names exit with code 2 and

@@ -30,7 +30,8 @@ int cdx_tool_profile_advertises(cdx_tool_profile profile, const char *tool_name)
         "workspace_read", "workspace_edit", "workspace_commit",
         "workspace_convert_encoding", "workspace_status", "workspace_search",
         "workspace_close", "read_files", "data_query", "find_files",
-        "find_program", "hash_file", "copy_file", "move_file", "stat"
+        "find_program", "hash_file", "copy_file", "move_file", "stat",
+        "project_facts", "failure_loop", "diagnostic_view"
     };
     size_t i;
     if (profile == CDX_TOOL_PROFILE_FULL) return 1;

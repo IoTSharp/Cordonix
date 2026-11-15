@@ -1,5 +1,42 @@
 # Handoff
 
+## CDX-14D/E/F local implementation batch (2026-11-15, Asia/Shanghai)
+
+The user authorized the next roadmap batch with three genuinely parallel, non-overlapping
+workers. The coordinator owned shared protocol/schema/CLI/build wiring, documentation and
+final gates. The workers changed only their assigned files:
+
+- `project_facts`: fixed-capacity facts with candidate/active/revoked state, evidence
+  counters, contradiction/revoke handling, deterministic context rendering and normalized
+  failure fingerprints. Focused Windows/WSL tests pass 14/14.
+- `failure_loop`: ASCII fingerprint normalization, monotonic turn validation, repeated
+  failure reminders, progress reset, and persistent replay blocking after UNKNOWN/TIMED_OUT.
+  Focused Windows/WSL tests pass 10/10.
+- `diagnostic_views`: bounded search/build/test log parser retaining path/location/code,
+  raw-log offsets, unparsed lines and explicit `ok`/`partial`/`unknown`/`output_limit`.
+  Focused Windows/WSL tests pass 10/10.
+
+The three operations are exposed as `project_facts`, `failure_loop` and `diagnostic_view`.
+They use no model, host hook, shell or new dependency. The development surface is now
+38 tools (30 `local-code`); direct-call validation remains independent of advertisement.
+Windows `eng/build.cmd`, the three focused tests, and pilot/full new-tool CLI requests pass.
+The Windows full gate reached all new tests and the preceding shared checks before stopping
+on one transient ANCS deadline case (31/32); the bounded `eng/test-phone.cmd` rerun passed
+66/66 and 32/32. The later stdio checks were not inferred from that interrupted run.
+Linux `eng/build-linux.sh`, the three focused tests, and the batch stdio acceptance pass.
+The latest full Linux script is NOT_RUN/FAIL at its bounded `test_process_query` compilation
+after the larger source set exceeded the prior 30-second compile bound; no runtime failure
+was inferred. Public release, package, installation and already-open-client adoption remain
+NOT_RUN.
+
+Files added: `include/cdx/context.h`, `include/cdx/project_facts.h`,
+`include/cdx/failure_loop.h`, `include/cdx/diagnostic_views.h`,
+`src/cdx-protocol/context.c`, the three `src/cdx-core` implementations, and three focused
+tests under `tests/core`. Shared changes are limited to protocol dispatch/schema, CLI tool
+validation, explicit Windows/Linux source lists, focused test wiring, and profile/stdio
+count expectations. No task-owned process or temporary source file remains outside ignored
+`build/` outputs.
+
 ## 0.6.0 publication and this computer's upgrade (2026-11-15, Asia/Shanghai)
 
 Released clean `ea8b86d93f7a667042155150718d1d4c9a1f586c` as annotated

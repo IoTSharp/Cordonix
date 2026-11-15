@@ -20,6 +20,7 @@ int main(int argc, char **argv) {
         "read_file", "read_files", "workspace_open", "workspace_read",
         "workspace_edit", "workspace_convert_encoding", "workspace_commit",
         "workspace_status", "workspace_search", "workspace_close"
+        , "project_facts", "failure_loop", "diagnostic_view"
     };
     static const char *const other_tools[] = {
         "ssh", "sftp", "http", "network", "serial", "phone", "screenshot",
@@ -52,7 +53,7 @@ int main(int argc, char **argv) {
         check(label, cdx_tool_profile_advertises(CDX_TOOL_PROFILE_LOCAL_CODE, local_tools[i]) &&
             cdx_tool_profile_advertises(CDX_TOOL_PROFILE_FULL, local_tools[i]));
     }
-    check("all 27 local-code members checked", i == sizeof(local_tools) / sizeof(local_tools[0]));
+    check("all 30 local-code members checked", i == sizeof(local_tools) / sizeof(local_tools[0]));
     for (i = 0; i < sizeof(other_tools) / sizeof(other_tools[0]) && time(NULL) < deadline; ++i) {
         char label[120];
         (void)snprintf(label, sizeof(label), "local-code omits %s advertisement", other_tools[i]);

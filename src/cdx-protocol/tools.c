@@ -1,4 +1,5 @@
 #include "cdx/operations.h"
+#include "cdx/context.h"
 #include <string.h>
 
 static const char stat_tool_schema[] =
@@ -75,6 +76,9 @@ void cdx_tool_list_profile(cdx_json_output *output, cdx_tool_profile profile) {
     emit_schema(output, profile, cdx_discovery_tool_schema(), &first);
     emit_schema(output, profile, cdx_program_discovery_tool_schema(), &first);
     emit_schema(output, profile, stat_tool_schema, &first);
+    emit_schema(output, profile, cdx_project_facts_tool_schema(), &first);
+    emit_schema(output, profile, cdx_failure_loop_tool_schema(), &first);
+    emit_schema(output, profile, cdx_diagnostic_view_tool_schema(), &first);
     cdx_json_raw(output, "]}");
 }
 

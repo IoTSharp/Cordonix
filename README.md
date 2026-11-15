@@ -1,5 +1,7 @@
 # Cordonix
 
+The current development tree adds deterministic [project facts, failure-loop reminders and diagnostic views](HANDOFF.md#cdx-14def-local-implementation-batch-2026-11-15-asia-shanghai) to the released 0.6.0 surface. It advertises 38 tools (30 in `local-code`); the installed 0.6.0 release remains a separate 35-tool artifact until a release is authorized.
+
 Version 0.6.0 delivers [ordered single-document edit batches](docs/single-document-edit-batches.md),
 explicit MCP tool profiles, compact execution results with original-output readback,
 and two-phase daily startup updates. `workspace_edit.edits` applies 1..32 sequential
@@ -89,7 +91,7 @@ Cordonix is a development MVP. Windows has first-party Codex usage evidence; Lin
 |---|---|---|
 | Windows process core | 35 checks passed locally, including isolated child environments | Broader application and long-running workload coverage continues |
 | Encoding and memory document core | 36 core checks plus 25 integration/encoding edge checks passed locally | External tools read disk; they do not see uncommitted memory revisions |
-| CLI and MCP | 35 tools with default `full`, or 27 advertised with explicit `local-code`; full/summary execution projections and current integration checks are recorded in HANDOFF.md | Installed-client adoption, protocol migration and Codex UI rendering have separate gates |
+| CLI and MCP | 38 tools with default `full`, or 30 advertised with explicit `local-code`; full/summary execution projections and current integration checks are recorded in HANDOFF.md | Installed-client adoption, protocol migration and Codex UI rendering have separate gates |
 | Native SSH client | Windows loopback protocol 27/27; repeated on an AddressSanitizer client; static libssh2 with CNG | Deployed bastions NOT_RUN; Linux SSH NOT_SUPPORTED; current backend excludes Ed25519 |
 | New text files | 20 native checks on each platform plus eight shared MCP checks | Existing paths are never overwritten and parent directories must exist |
 | Linux | Earlier CI evidence includes 276 checks with full Git/rg adapters; the October 31 WSL rerun passed 102 MCP checks and 17/17 Git adapter checks while marking rg `NOT_RUN` because native rg is absent | Model-backed Linux Codex calls still need authentication. Other distributions and longer soak are separate |
