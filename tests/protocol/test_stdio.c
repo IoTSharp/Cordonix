@@ -325,6 +325,7 @@ static int string_is(const cdx_json *json, int object, const char *key, const ch
 }
 
 static void process_query_cases(wire_client *client);
+static void current_time_cases(wire_client *client);
 static void ssh_cases(wire_client *client);
 
 static int wire_tool_send(wire_client *client, const char *name, const char *arguments, unsigned id) {
@@ -2403,7 +2404,7 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
         int tool = node >= 0 ? response.nodes[node].first : -1;
         unsigned count = 0;
         unsigned tool_limit = pilot ? 1u : 64u;
-        int titles_valid = 1, schemas_valid = 1, execution_title = 0, stat_title = 0, discovery_title = 0;
+        int titles_valid = 1, schemas_valid = 1, execution_title = 0, stat_title = 0, discovery_title = 0, current_time_title = 0;
         for (; tool >= 0 && count < tool_limit && GetTickCount64() < deadline; tool = response.nodes[tool].next, ++count) {
             int title = cdx_json_get(&response, tool, "title");
             int description = cdx_json_get(&response, tool, "description");
@@ -2415,17 +2416,19 @@ static int wire_suite(const char *program, const char *fixture, int pilot) {
             if (string_is(&response, tool, "name", "execute_program")) execution_title = string_is(&response, tool, "title", "执行本地程序");
             if (string_is(&response, tool, "name", "stat")) stat_title = title >= 0;
             if (string_is(&response, tool, "name", "find_program")) discovery_title = title >= 0;
+            if (string_is(&response, tool, "name", "current_time")) current_time_title = string_is(&response, tool, "title", "读取当前时间");
         }
-        record(pilot ? "MCP first tool exposes a title" : "MCP thirty-eight tools expose human-readable titles",
-            titles_valid && (pilot ? count == 1 : count == 38 && tool < 0 && execution_title && stat_title && discovery_title));
+        record(pilot ? "MCP first tool exposes a title" : "MCP thirty-nine tools expose human-readable titles",
+            titles_valid && (pilot ? count == 1 : count == 39 && tool < 0 && execution_title && stat_title && discovery_title && current_time_title));
         record("MCP tool descriptions cover nested fields and declared required names", schemas_valid &&
-            (pilot ? count == 1 : count == 38 && tool < 0));
+            (pilot ? count == 1 : count == 39 && tool < 0));
     }
     cdx_json_free(&response);
     if (pilot) { create_file_cases(&client, 1); record("MCP EOF exits cleanly", wire_stop(&client)); return passed == total ? 0 : 1; }
     queue_core_cases();
     queue_cases(program, fixture);
     process_snapshot_cases(&client);
+    current_time_cases(&client);
     screenshot_cases(&client);
     phone_cases(&client);
     valid = wire_send(&client, malformed, sizeof(malformed) - 1) && wire_read(&client, &response);
@@ -2543,6 +2546,30 @@ static void ssh_cases(wire_client *client) {
     record("MCP native SSH Linux platform boundary is explicit", valid && string_is(&data, 0, "status", "not_supported") && string_is(&data, 0, "remote_outcome", "not_run"));
     cdx_json_free(&data);
 #endif
+}
+
+static void current_time_cases(wire_client *client) {
+    cdx_json data;
+    int valid;
+    int value;
+    memset(&data, 0, sizeof(data));
+    valid = tool_call(client, "current_time", "{}", 1900, &data);
+    value = valid ? cdx_json_get(&data, 0, "value") : -1;
+    record("MCP native current time replaces the PowerShell offset expression", valid &&
+        string_is(&data, 0, "status", "ok") && value >= 0 && data.nodes[value].type == CDX_JSON_STRING &&
+        strlen(data.nodes[value].string) == 33 && data.nodes[value].string[19] == '.' &&
+        data.nodes[value].string[27] == '+' && !strcmp(data.nodes[value].string + 28, "08:00") &&
+        string_is(&data, 0, "source", "native_realtime_clock"));
+    cdx_json_free(&data);
+    valid = tool_call(client, "current_time", "{\"offset_minutes\":-330}", 1901, &data);
+    value = valid ? cdx_json_get(&data, 0, "value") : -1;
+    record("MCP current time formats an explicit fixed offset", valid && string_is(&data, 0, "status", "ok") &&
+        value >= 0 && data.nodes[value].type == CDX_JSON_STRING && data.nodes[value].string[27] == '-' &&
+        !strcmp(data.nodes[value].string + 28, "05:30"));
+    cdx_json_free(&data);
+    valid = tool_call(client, "current_time", "{\"offset_minutes\":841.5}", 1902, &data);
+    record("MCP current time rejects fractional offsets", valid && string_is(&data, 0, "status", "validation_error"));
+    cdx_json_free(&data);
 }
 
 static void process_query_cases(wire_client *client) {

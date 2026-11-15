@@ -1,6 +1,6 @@
 # Cordonix
 
-The current development tree adds deterministic [project facts, failure-loop reminders and diagnostic views](HANDOFF.md#cdx-14def-local-implementation-batch-2026-11-15-asia-shanghai) to the released 0.6.0 surface. It advertises 38 tools (30 in `local-code`); the installed 0.6.0 release remains a separate 35-tool artifact until a release is authorized.
+The current development tree adds deterministic [project facts, failure-loop reminders and diagnostic views](HANDOFF.md#cdx-14def-local-implementation-batch-2026-11-15-asia-shanghai) and a native `current_time` operation to the released 0.6.0 surface. It advertises 39 tools (31 in `local-code`); the installed 0.6.0 release remains a separate 35-tool artifact until a release is authorized.
 
 Version 0.6.0 delivers [ordered single-document edit batches](docs/single-document-edit-batches.md),
 explicit MCP tool profiles, compact execution results with original-output readback,
@@ -30,7 +30,7 @@ The [three-stage roadmap](ROADMAP.md#active-three-stage-program-2026-11-05) and 
 
 Version 0.2.0 also includes native `create_directory` and bounded sequential `read_files` on Windows/Linux. HTTP adds optional `representation=both|text|base64`, retaining `both` by default and preserving raw Base64 when text decoding fails. See [batch read limits](docs/batch-read.md), [HTTP representation](docs/native-http.md) and the [MCP compatibility audit](docs/mcp-compatibility.md). Release publication and installed-client adoption have separate evidence in HANDOFF.md.
 
-The current MCP adapters also reject malformed or unknown `tools/call` requests with JSON-RPC `-32602`. Deterministic operation failures expose outer `isError: true` while keeping the original status JSON; partial, preview, no-match, unsupported-platform and unknown-outcome results remain text results. This compatibility slice and the 34-tool surface are covered by real Windows/Linux MCP fixtures, including asynchronous program-discovery cancellation. Current counts and separate installed-client gates are recorded in HANDOFF.md.
+The current MCP adapters also reject malformed or unknown `tools/call` requests with JSON-RPC `-32602`. Deterministic operation failures expose outer `isError: true` while keeping the original status JSON; partial, preview, no-match, unsupported-platform and unknown-outcome results remain text results. This compatibility slice and the 39-tool surface are covered by real Windows/Linux MCP fixtures, including asynchronous program-discovery cancellation. Current counts and separate installed-client gates are recorded in HANDOFF.md.
 
 Release 0.1.0 adds native SSH, HTTP, SFTP, TCP/Telnet/MQTT and serial access, automatic local proxy evaluation and per-call summaries: 24 tools total, retaining all 19 v0.0.5 tools and their published fields. Windows/Linux native and MCP gates, real protocol fixtures and portable packages pass; signed tagged publication and public readback are recorded in [HANDOFF.md](HANDOFF.md).
 
@@ -91,7 +91,7 @@ Cordonix is a development MVP. Windows has first-party Codex usage evidence; Lin
 |---|---|---|
 | Windows process core | 35 checks passed locally, including isolated child environments | Broader application and long-running workload coverage continues |
 | Encoding and memory document core | 36 core checks plus 25 integration/encoding edge checks passed locally | External tools read disk; they do not see uncommitted memory revisions |
-| CLI and MCP | 38 tools with default `full`, or 30 advertised with explicit `local-code`; full/summary execution projections and current integration checks are recorded in HANDOFF.md | Installed-client adoption, protocol migration and Codex UI rendering have separate gates |
+| CLI and MCP | 39 tools with default `full`, or 31 advertised with explicit `local-code`; full/summary execution projections and current integration checks are recorded in HANDOFF.md | Installed-client adoption, protocol migration and Codex UI rendering have separate gates |
 | Native SSH client | Windows loopback protocol 27/27; repeated on an AddressSanitizer client; static libssh2 with CNG | Deployed bastions NOT_RUN; Linux SSH NOT_SUPPORTED; current backend excludes Ed25519 |
 | New text files | 20 native checks on each platform plus eight shared MCP checks | Existing paths are never overwritten and parent directories must exist |
 | Linux | Earlier CI evidence includes 276 checks with full Git/rg adapters; the October 31 WSL rerun passed 102 MCP checks and 17/17 Git adapter checks while marking rg `NOT_RUN` because native rg is absent | Model-backed Linux Codex calls still need authentication. Other distributions and longer soak are separate |
@@ -139,6 +139,7 @@ The memory workspace belongs to one running session. MCP keeps that process aliv
 | Tool | Purpose |
 |---|---|
 | `tool_info` | Version, platform and document-load/commit counters |
+| `current_time` | Read the native realtime clock as ISO 8601 with a fixed UTC offset (default `+08:00`), without PowerShell or another shell |
 | `ssh` | Native C SSH direct, direct-tcpip jump and configurable interactive bastion execution; Windows CNG backend |
 | `http` | Native HTTP/HTTPS requests with WinHTTP, typed headers/body/proxy and bounded asynchronous cancellation |
 | `sftp` | Native libssh2 stat, bounded binary read and exclusive file creation over direct/jump SSH |

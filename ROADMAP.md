@@ -12,7 +12,7 @@ was added. Dedicated tests pass 14/14, 10/10 and 10/10 on Windows and WSL GCC; t
 Windows gate reaches the new tests and the Linux build is green. Public release and
 installed-client adoption remain NOT_RUN for this source batch.
 
-The current development MCP surface is 38 tools, with 30 in `local-code`; the released
+The current development MCP surface is 39 tools, with 31 in `local-code`; the released
 0.6.0 installation remains a separate 35-tool artifact until a later authorized release.
 
 ## 0.6.0 delivery batch (2026-11-15)
@@ -42,7 +42,7 @@ CDX-14A/B/C now have local source acceptance below; they remain separate from
 released and installed capabilities.
 
 Current reference: released source `ea8b86d` with installed runtime 0.6.0. The development
-tree now exposes 38 tools and `local-code` exposes 30; the released installation remains
+tree now exposes 39 tools and `local-code` exposes 31; the released installation remains
 35/27 until another release. The following 35/27 counts and byte measurements are the
 historical CDX-14A baseline from the pre-14D tree. Its complete `tools/list` tools array is
 62,487 UTF-8 bytes after compact JSON serialization. Selecting the 27 local-code tools gives

@@ -13,7 +13,7 @@ static void check(const char *name, int valid) {
 
 int main(int argc, char **argv) {
     static const char *const local_tools[] = {
-        "create_directory", "create_file", "tool_info", "execute_program",
+        "current_time", "create_directory", "create_file", "tool_info", "execute_program",
         "query_processes", "search_text", "find_files", "find_program",
         "git_status", "data_query", "hash_file", "copy_file", "move_file",
         "list_directory", "resolve_path", "stat", "verify_encoding",
@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
         check(label, cdx_tool_profile_advertises(CDX_TOOL_PROFILE_LOCAL_CODE, local_tools[i]) &&
             cdx_tool_profile_advertises(CDX_TOOL_PROFILE_FULL, local_tools[i]));
     }
-    check("all 30 local-code members checked", i == sizeof(local_tools) / sizeof(local_tools[0]));
+    check("all 31 local-code members checked", i == sizeof(local_tools) / sizeof(local_tools[0]));
     for (i = 0; i < sizeof(other_tools) / sizeof(other_tools[0]) && time(NULL) < deadline; ++i) {
         char label[120];
         (void)snprintf(label, sizeof(label), "local-code omits %s advertisement", other_tools[i]);

@@ -2,10 +2,11 @@
 
 ## Unreleased
 
+- Added the read-only native `current_time` operation. It returns seven-digit ISO 8601 fractional seconds at a requested fixed UTC offset (default `+08:00`) and UTC, replacing the PowerShell `DateTimeOffset.Now.ToOffset(...)` pattern without launching a shell or script. Windows and POSIX use their native realtime clocks.
 - Added deterministic model-free `project_facts`, `failure_loop` and `diagnostic_view`
   MCP/CLI operations. They keep evidence, contradiction, replay-blocking and unparsed
   diagnostics explicit without model calls or new dependencies.
-- Expanded the development MCP surface to 38 tools (30 in `local-code`) and added bounded
+- Expanded the development MCP surface to 39 tools (31 in `local-code`) and added bounded
   Windows/Linux focused tests for the new host-side context helpers.
 
 ## 0.6.0 - 2026-11-15

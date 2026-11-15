@@ -14,9 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifndef _WIN32
 #include <time.h>
-#endif
 
 #define CDX_WORKSPACE_SLOTS 16
 #define CDX_TEXT_PAGE 32768u
@@ -46,6 +44,89 @@ static void error_result(cdx_json_output *output, const char *status, const char
     cdx_json_raw(output, "{\"status\":"); cdx_json_quote(output, status, strlen(status));
     cdx_json_raw(output, ",\"message\":"); cdx_json_quote(output, message, strlen(message));
     cdx_json_raw(output, "}");
+}
+
+static int signed_integer_arg(const cdx_json *json, int arguments, const char *key,
+                              int fallback, int minimum, int maximum, int *valid) {
+    int node = cdx_json_get(json, arguments, key);
+    double value;
+    if (node < 0) return fallback;
+    value = json->nodes[node].number;
+    if (json->nodes[node].type != CDX_JSON_NUMBER || value < minimum || value > maximum || floor(value) != value) {
+        *valid = 0;
+        return fallback;
+    }
+    return (int)value;
+}
+
+static int current_time_utc(int64_t *seconds, unsigned *fraction_100ns) {
+#ifdef _WIN32
+    FILETIME now;
+    ULARGE_INTEGER ticks;
+    int64_t unix_100ns;
+    GetSystemTimePreciseAsFileTime(&now);
+    ticks.LowPart = now.dwLowDateTime;
+    ticks.HighPart = now.dwHighDateTime;
+    unix_100ns = (int64_t)(ticks.QuadPart - UINT64_C(116444736000000000));
+    *seconds = unix_100ns / INT64_C(10000000);
+    *fraction_100ns = (unsigned)(unix_100ns % INT64_C(10000000));
+    if (*fraction_100ns > 9999999u) {
+        --*seconds;
+        *fraction_100ns = (unsigned)(10000000u - *fraction_100ns);
+    }
+    return 1;
+#else
+    struct timespec now;
+    if (clock_gettime(CLOCK_REALTIME, &now) != 0) return 0;
+    *seconds = (int64_t)now.tv_sec;
+    *fraction_100ns = (unsigned)(now.tv_nsec / 100u);
+    return 1;
+#endif
+}
+
+static int format_iso8601(int64_t seconds, unsigned fraction_100ns, int offset_minutes,
+                          char *buffer, size_t capacity) {
+    time_t clock = (time_t)seconds;
+    struct tm parts;
+    int written;
+    if (offset_minutes < -840 || offset_minutes > 840) return 0;
+    clock += (time_t)offset_minutes * 60;
+#ifdef _WIN32
+    if (gmtime_s(&parts, &clock) != 0) return 0;
+#else
+    if (!gmtime_r(&clock, &parts)) return 0;
+#endif
+    written = snprintf(buffer, capacity, "%04d-%02d-%02dT%02d:%02d:%02d.%07u%c%02d:%02d",
+        parts.tm_year + 1900, parts.tm_mon + 1, parts.tm_mday, parts.tm_hour,
+        parts.tm_min, parts.tm_sec, fraction_100ns, offset_minutes < 0 ? '-' : '+',
+        abs(offset_minutes) / 60, abs(offset_minutes) % 60);
+    return written > 0 && (size_t)written < capacity;
+}
+
+static void current_time(const cdx_json *json, int arguments, cdx_json_output *output) {
+    int valid = 1;
+    int offset_minutes = signed_integer_arg(json, arguments, "offset_minutes", 480, -840, 840, &valid);
+    int64_t seconds;
+    unsigned fraction_100ns;
+    char value[64], utc[64];
+    if (!valid) {
+        error_result(output, "validation_error", "offset_minutes must be an integer from -840 through 840");
+        return;
+    }
+    if (!current_time_utc(&seconds, &fraction_100ns) ||
+        !format_iso8601(seconds, fraction_100ns, offset_minutes, value, sizeof(value)) ||
+        !format_iso8601(seconds, fraction_100ns, 0, utc, sizeof(utc))) {
+        error_result(output, "time_error", "The native realtime clock could not be formatted");
+        return;
+    }
+    cdx_json_raw(output, "{\"status\":\"ok\",\"value\":"); cdx_json_quote(output, value, strlen(value));
+    cdx_json_raw(output, ",\"utc\":"); cdx_json_quote(output, utc, strlen(utc));
+    {
+        char number[16];
+        (void)snprintf(number, sizeof(number), "%d", offset_minutes);
+        cdx_json_raw(output, ",\"offset_minutes\":"); cdx_json_raw(output, number);
+    }
+    cdx_json_raw(output, ",\"source\":\"native_realtime_clock\"}");
 }
 static void json_int64(cdx_json_output *output, long long value) {
     char number[32];
@@ -1242,6 +1323,7 @@ void cdx_call(const char *operation, const cdx_json *request, int arguments, cdx
         cdx_json_raw(output, ",\"update_command\":\"--checkupgrade\",\"counter_scope\":\"logical operations, not physical disk IO\",\"max_documents\":16,\"max_document_bytes\":8388608}"); return;
     }
     if (arguments < 0) { error_result(output, "validation_error", "arguments must be an object"); return; }
+    if (!strcmp(operation, "current_time")) { current_time(request, arguments, output); return; }
     if (!strcmp(operation, "execute_program")) { execute_program(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "ssh")) { cdx_ssh_call(request, arguments, cancellation, output); return; }
     if (!strcmp(operation, "sftp")) { cdx_sftp_call(request, arguments, cancellation, output); return; }

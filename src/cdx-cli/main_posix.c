@@ -89,7 +89,7 @@ static int string_node(const cdx_json *json, int node, const char *value) {
 
 static int supported_tool(const char *name) {
     static const char *const names[] = {
-        "create_directory", "ssh", "phone", "query_processes", "search_text", "git_status",
+        "current_time", "create_directory", "ssh", "phone", "query_processes", "search_text", "git_status",
         "create_file", "tool_info", "execute_program", "workspace_open", "list_directory",
         "resolve_path", "verify_encoding", "read_file", "workspace_read", "workspace_edit",
         "workspace_commit", "workspace_convert_encoding", "workspace_status", "workspace_search",

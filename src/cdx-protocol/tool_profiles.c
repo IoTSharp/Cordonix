@@ -24,7 +24,7 @@ const char *cdx_tool_profile_name(cdx_tool_profile profile) {
 
 int cdx_tool_profile_advertises(cdx_tool_profile profile, const char *tool_name) {
     static const char *const local_code[] = {
-        "create_directory", "query_processes", "search_text", "git_status",
+        "current_time", "create_directory", "query_processes", "search_text", "git_status",
         "create_file", "tool_info", "execute_program", "workspace_open",
         "list_directory", "resolve_path", "verify_encoding", "read_file",
         "workspace_read", "workspace_edit", "workspace_commit",

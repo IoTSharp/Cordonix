@@ -75,7 +75,7 @@ Git、ripgrep、编译器和 Codex 的 `apply_patch` 仍是配套工具。Cordon
 |---|---|---|
 | Windows 进程核心 | 本地 35 项检查通过，包含子进程环境隔离 | 更广泛应用和长时间负载仍需验证 |
 | 编码与内存文档核心 | 36 项核心检查与 25 项编码/接线边界检查通过 | 外部工具读取磁盘，看不到未提交的内存修改 |
-| CLI 与 MCP | 开发版 34 个工具，新增 `stat` 与 `find_program`；合并后的验证记录见 HANDOFF.md | Windows 进程查询和新增通信工具在 Linux 返回 not_supported；协议迁移、新客户端采用和界面显示另行验收 |
+| CLI 与 MCP | 开发版 39 个工具，`local-code` 提供 31 个；合并后的验证记录见 HANDOFF.md | Windows 进程查询和新增通信工具在 Linux 返回 not_supported；协议迁移、新客户端采用和界面显示另行验收 |
 | 原生 SSH 客户端 | Windows 实际回环 SSH 协议 27/27；ASan 客户端再次通过；libssh2 静态链接 CNG | 实际部署跳板验收 NOT_RUN；Linux SSH NOT_SUPPORTED；当前后端不支持 Ed25519 |
 | 新文本文件 | 两平台各 20 项原生检查，以及 8 项共享 MCP 检查 | 已有路径不覆盖，父目录必须存在 |
 | Linux | 既有 CI 证据包含 276 项完整检查（含 Git/rg 适配器）；10 月 31 日 WSL 重跑通过 102 项 MCP、17/17 项 Git 适配器，因本机没有原生 rg 将 rg 标记为 `NOT_RUN` | Linux Codex 模型调用仍需认证。ACL/xattr 不支持，多发行版和更长时段仍单独验收 |
@@ -123,6 +123,7 @@ workspace_open -> workspace_read / workspace_search
 | 工具 | 用途 |
 |---|---|
 | `tool_info` | 查询版本、平台及文档加载/提交计数 |
+| `current_time` | 通过原生实时钟返回带固定 UTC 偏移的 ISO 8601 当前时间，默认 `+08:00`，不启动 PowerShell 或其他 Shell |
 | `ssh` | 内置纯 C SSH 客户端：按 IP 直连、SSH 通道跳板、可配置的交互式跳板；当前为 Windows CNG 后端 |
 | `http` | WinHTTP 原生 HTTP/HTTPS 请求，支持头、正文、代理、有界输出和取消 |
 | `sftp` | 复用 libssh2：文件信息、有界二进制读取、独占创建上传，支持直连和跳板 |

@@ -1,5 +1,17 @@
 # Handoff
 
+## Native current-time operation (2026-11-16, Asia/Shanghai)
+
+The development tree now exposes read-only `current_time` through CLI/MCP. It reads
+the native realtime clock and returns seven-digit ISO 8601 fractional seconds at a
+fixed `offset_minutes` (default `480`, formatted `+08:00`) plus the same instant in
+UTC. It replaces the PowerShell `[DateTimeOffset]::Now.ToOffset(...)` expression
+without launching a shell or script. Windows uses `GetSystemTimePreciseAsFileTime`;
+POSIX uses `clock_gettime(CLOCK_REALTIME)`. The full surface is 39 tools and
+`local-code` is 31. Windows real stdio coverage includes default +08:00, explicit
+-05:30 and fractional-offset rejection; release, package and installed-client
+adoption remain separate gates.
+
 ## CDX-14D/E/F local implementation batch (2026-11-15, Asia/Shanghai)
 
 The user authorized the next roadmap batch with three genuinely parallel, non-overlapping
@@ -17,8 +29,9 @@ final gates. The workers changed only their assigned files:
   Focused Windows/WSL tests pass 10/10.
 
 The three operations are exposed as `project_facts`, `failure_loop` and `diagnostic_view`.
-They use no model, host hook, shell or new dependency. The development surface is now
-38 tools (30 `local-code`); direct-call validation remains independent of advertisement.
+They use no model, host hook, shell or new dependency. At that point the development
+surface was 38 tools (30 `local-code`); the later native `current_time` addition is
+recorded above. Direct-call validation remains independent of advertisement.
 Windows `eng/build.cmd`, the three focused tests, and pilot/full new-tool CLI requests pass.
 The Windows full gate reached all new tests and the preceding shared checks before stopping
 on one transient ANCS deadline case (31/32); the bounded `eng/test-phone.cmd` rerun passed

@@ -15,7 +15,7 @@ from context_efficiency_baseline import StdioClient, sha256
 
 
 LOCAL_CODE = frozenset((
-    "create_directory", "create_file", "tool_info", "execute_program",
+    "current_time", "create_directory", "create_file", "tool_info", "execute_program",
     "query_processes", "search_text", "find_files", "find_program", "git_status",
     "data_query", "hash_file", "copy_file", "move_file", "list_directory",
     "resolve_path", "stat", "verify_encoding", "read_file", "read_files",
@@ -86,9 +86,9 @@ def main() -> int:
                 lists[label] = tools
                 members = tool_map(tools)
                 if profile is None:
-                    check(receipt, "default advertises the 38-tool surface", len(members) == 38)
+                    check(receipt, "default advertises the 39-tool surface", len(members) == 39)
                 if profile == "local-code":
-                    check(receipt, "local-code has exactly the 30 specified members", set(members) == LOCAL_CODE,
+                    check(receipt, "local-code has exactly the 31 specified members", set(members) == LOCAL_CODE,
                           {"missing": sorted(LOCAL_CODE - members.keys()), "extra": sorted(members.keys() - LOCAL_CODE)})
                     full = tool_map(lists["full"])
                     check(receipt, "every retained schema object equals full", all(tool == full.get(name) for name, tool in members.items()))

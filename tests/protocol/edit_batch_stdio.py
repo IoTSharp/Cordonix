@@ -252,7 +252,7 @@ def main() -> int:
         tools = response["result"]["tools"]
         schema = next(tool["inputSchema"] for tool in tools if tool["name"] == "workspace_edit")
         props = schema["properties"]
-        check("38-tool surface retained and batch properties described", len(tools) == 38 and
+        check("39-tool surface retained and batch properties described", len(tools) == 39 and
               not schema_descriptions(schema) and "edits" in props and "timeout_ms" in props,
               schema_descriptions(schema))
         check("batch cardinality and safe preview default advertised", props["edits"]["minItems"] == 1 and
@@ -333,7 +333,7 @@ def main() -> int:
             bounded()
             response, record = client.tools_list("local-code")
             receipt["calls"].append(record)
-            check("local-code exposes 30 tools with identical workspace_edit schema", len(response["result"]["tools"]) == 30 and
+            check("local-code exposes 31 tools with identical workspace_edit schema", len(response["result"]["tools"]) == 31 and
                   next(tool["inputSchema"] for tool in response["result"]["tools"] if tool["name"] == "workspace_edit") == schema)
             path, doc = fixture("validation.txt", b"old old\n", "utf-8")
             base = {"document_id": doc["document_id"], "expected_sha256": doc["memory_sha256"], "dry_run": False}
