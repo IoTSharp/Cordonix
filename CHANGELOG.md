@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added root-level `ssh-wrapper.cmd` and `scp-wrapper.cmd` compatibility
+  launchers. They validate the selected OpenSSH/key paths, forward arguments
+  unchanged, apply a bounded 10-second connection timeout by default and
+  disable unattended authentication prompts while preserving the client exit
+  code; the wrappers are documented as external helpers separate from native
+  Cordonix SSH/SFTP.
 - Added the read-only native `current_time` operation. It returns seven-digit ISO 8601 fractional seconds at a requested fixed UTC offset (default `+08:00`) and UTC, replacing the PowerShell `DateTimeOffset.Now.ToOffset(...)` pattern without launching a shell or script. Windows and POSIX use their native realtime clocks.
 - Added deterministic model-free `project_facts`, `failure_loop` and `diagnostic_view`
   MCP/CLI operations. They keep evidence, contradiction, replay-blocking and unparsed

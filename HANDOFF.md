@@ -1,5 +1,20 @@
 # Handoff
 
+## SSH/SCP compatibility wrappers (2026-11-17, Asia/Shanghai)
+
+Added root-level `ssh-wrapper.cmd` and `scp-wrapper.cmd` to match the existing
+LaneApp deployment helper shape. Each wrapper selects the Windows OpenSSH
+client and private key from explicit environment overrides or the documented
+defaults, checks both paths, applies fixed 10-second connection and
+`BatchMode=yes` automation defaults, forwards `%*` unchanged, and preserves
+the child exit code. The wrappers are external compatibility launchers; they
+do not change the native Cordonix SSH/SFTP contract, runtime package, or
+libssh2 implementation.
+Focused validation used the installed OpenSSH client without opening a remote
+connection (`ssh-wrapper.cmd -G -p 2222 user@host`), exercised the SCP client
+override, and checked the missing-client and missing-key exit classifications;
+deployed host, real remote mutation, and transfer acceptance remain NOT_RUN.
+
 ## Native current-time operation (2026-11-16, Asia/Shanghai)
 
 The development tree now exposes read-only `current_time` through CLI/MCP. It reads

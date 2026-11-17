@@ -28,6 +28,11 @@ Windows 原生 `screenshot` 提供桌面、区域、指定窗口和前台窗口 
 
 0.1.0 增加原生 SSH、HTTP、SFTP、TCP/Telnet/MQTT、串口、本机代理自动评估与调用概要，共 24 个工具，保留 v0.0.5 的全部 19 个工具及已发布字段。Windows/Linux 原生与 MCP 门禁、真实协议交互及便携包验证均已通过；正式标签签名、双站发布和公开回读记录见 [HANDOFF.md](HANDOFF.md)。
 
+仓库根目录的 [`ssh-wrapper.cmd`](ssh-wrapper.cmd) 和
+[`scp-wrapper.cmd`](scp-wrapper.cmd) 是供部署脚本使用的可选 Windows
+OpenSSH 兼容入口，支持通过环境变量覆盖私钥路径，并与类型化的原生
+`ssh`/`sftp` 工具分开。具体参数和边界见 [SSH/SCP 兼容入口](docs/ssh-scp-wrappers.md)。
+
 0.0.5 增加 Windows 进程查询、实验性原生手机能力及 Microsoft Store/便携版 PowerShell 7 兼容修复。新版本发布与本地定时自动更新的结果单独记录在 HANDOFF.md；下方 v0.0.4 的完整验收是历史证据。
 
 2026-11-02，本机原有每小时任务已通过 Gitee 自然完成 0.0.4 → 0.0.5 升级。稳定启动器建立的新 MCP 连接提供全部 19 个工具，回读的源码 revision 与干净发行构建一致；已有连接继续使用原来的程序。

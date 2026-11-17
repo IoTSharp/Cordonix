@@ -34,6 +34,12 @@ The current MCP adapters also reject malformed or unknown `tools/call` requests 
 
 Release 0.1.0 adds native SSH, HTTP, SFTP, TCP/Telnet/MQTT and serial access, automatic local proxy evaluation and per-call summaries: 24 tools total, retaining all 19 v0.0.5 tools and their published fields. Windows/Linux native and MCP gates, real protocol fixtures and portable packages pass; signed tagged publication and public readback are recorded in [HANDOFF.md](HANDOFF.md).
 
+The repository-root [`ssh-wrapper.cmd`](ssh-wrapper.cmd) and
+[`scp-wrapper.cmd`](scp-wrapper.cmd) are optional Windows OpenSSH compatibility
+launchers for deployment scripts. They forward arguments with a configurable
+private-key path and remain separate from the typed native `ssh`/`sftp` tools;
+see [SSH/SCP wrappers](docs/ssh-scp-wrappers.md).
+
 Version 0.0.5 adds Windows process queries, experimental native phone access and Microsoft Store/portable PowerShell 7 compatibility. Its release and natural installed-update checks are recorded separately in HANDOFF.md; the completed v0.0.4 acceptance below is historical evidence.
 
 On 2026-11-02 this machine's existing hourly task naturally upgraded 0.0.4 to 0.0.5 through Gitee. A fresh MCP connection through the stable launcher exposes all 19 tools and the clean release revision; existing connections retain their earlier executable.

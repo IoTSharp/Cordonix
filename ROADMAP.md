@@ -269,6 +269,11 @@ The integrated communication layer passes Windows 361 and Linux Git-scope 305 ch
 
 CDX-09I implements a native C SSH client (Windows, static libssh2/WinCNG) with direct, direct-tcpip jump and configurable interactive-bastion routes. It has explicit host-key pinning, credential aliases, bounded cancellation/output and remote UNKNOWN semantics. Local loopback protocol, full regression, deployed-bastion compatibility and installed-client adoption are separate gates; see [native SSH](docs/native-ssh.md). Linux currently returns NOT_SUPPORTED.
 
+The repository also carries optional root-level OpenSSH compatibility wrappers
+for deployment scripts. They forward literal `ssh`/`scp` arguments and are
+separate from CDX-09I's typed native client; wrapper execution and deployed
+host compatibility remain caller-owned acceptance gates.
+
 CDX-09H adds native Windows `query_processes` with original command-line and creation-time observations, 19 native checks and shared MCP wiring. Linux process enumeration is explicitly NOT_SUPPORTED. The local skill migration consolidates the old adapter skill into Cordonix; published-release and fresh Codex-client adoption remain separate from local C/CLI/MCP validation.
 
 CDX-09B2 (child environments) passes Windows 35 / Linux 39 process checks and 11 shared MCP checks. CDX-09B3 (external adapters) passes Windows 26 / Linux Git 17 native checks; Linux full rg passes 29 checks locally and in required CI. Official Python SDK acceptance passes 12 workflows. Compiler reproducibility and SPDX schema have their own gates; they do not establish a signing identity.
