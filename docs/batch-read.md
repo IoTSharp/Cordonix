@@ -1,10 +1,10 @@
 # Bounded file batches
 
-`read_files` is an unreleased CLI/MCP operation on Windows and Linux. It combines 1–32 disk reads into one request, using the existing strict decoder and line/tail/raw reader. It does not read workspace memory. The [example](../examples/read-files.json) uses Windows paths; replace them with absolute paths on the target machine.
+`read_files` is a CLI/MCP operation on Windows and Linux. It combines 1–32 disk reads into one request, using the existing strict decoder and line/tail/raw reader. It does not read workspace memory. The [example](../examples/read-files.json) uses Windows paths; replace them with absolute paths on the target machine.
 
 ## Request and result
 
-Each `files` item accepts `path`, `encoding` (default `auto`), and the same mutually exclusive modes as `read_file`: line range, `tail_lines`, or `raw=true`. Per-item `max_bytes` defaults to 32768 and is bounded by 262144. All paths, encodings, modes and limits are checked before the first document load. Code-shaped paths remain invalid. Validation does not collapse filesystem traversal: a validated original path is opened, preserving missing ancestors and POSIX symlink/`..` behavior.
+Each `files` item accepts an absolute `path`, an optional caller-supplied `name`, `encoding` (default `auto`), and the same mutually exclusive modes as `read_file`: line range, `tail_lines`, or `raw=true`. The optional `name` is copied to that item's result so a caller can retain section headings from a scripted read loop. Per-item `max_bytes` defaults to 32768 and is bounded by 262144. All paths, names, encodings, modes and limits are checked before the first document load. Code-shaped paths remain invalid. Validation does not collapse filesystem traversal: a validated original path is opened, preserving missing ancestors and POSIX symlink/`..` behavior.
 
 | Batch field | Default | Range / meaning |
 |---|---|---|
@@ -12,7 +12,7 @@ Each `files` item accepts `path`, `encoding` (default `auto`), and the same mutu
 | `max_total_bytes` | 1048576 | 1–4194304; sum of retained UTF-8 text bytes |
 | `max_output_bytes` | 4194304 | 1024–4194304; JSON-quoted tool-result content, excluding the outer MCP envelope |
 
-The result includes `status`, `count`, `completed`, `failed`, `not_run`, `text_bytes`, both selected byte budgets, and ordered `results`. Each item contains `index`, the supplied `path`, `source="disk"`, `status`, and the original single-read result under `result`. `completed` counts attempted reads, including failures. `failed` counts attempted items whose status is not `ok`; `not_run` counts items that were not attempted. A read that does not fit a batch budget counts as attempted but returns an `output_limit` item instead of its text.
+The result includes `status`, `count`, `completed`, `failed`, `not_run`, `text_bytes`, both selected byte budgets, and ordered `results`. Each item contains `index`, the supplied `path`, `source="disk"`, `status`, and the original single-read result under `result`. Items with a supplied `name` also contain `name`. `completed` counts attempted reads, including failures. `failed` counts attempted items whose status is not `ok`; `not_run` counts items that were not attempted. A read that does not fit a batch budget counts as attempted but returns an `output_limit` item instead of its text.
 
 Missing files and decoding errors retain individual results and allow later files to run; the batch returns `partial`. A budget exhaustion, cancellation or deadline stops the batch with the corresponding `output_limit`, `cancelled` or `timed_out` status. Earlier results remain intact, and all remaining items retain `not_run`. A wholly invalid request returns `validation_error` before reading, including when the selected output budget cannot hold the minimum metadata for every item.
 

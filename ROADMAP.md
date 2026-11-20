@@ -1,5 +1,14 @@
 # Cordonix Roadmap
 
+## Named bounded batch reads (2026-11-20)
+
+The existing `read_files` contract now accepts an optional per-item `name` and
+returns it with the matching result. This covers multi-file source inspection
+loops that previously printed a heading before each `Get-Content` slice. The
+line mapping remains `start_line = Skip + 1` and `line_count = First`; shared
+deadlines, cancellation, output budgets and explicit `not_run` states remain
+unchanged.
+
 ## CDX-14D/E/F implementation batch (2026-11-15)
 
 Three independent workers delivered bounded C11 host-side helpers and the coordinator

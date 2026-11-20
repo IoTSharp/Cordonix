@@ -393,6 +393,8 @@ static void read_document(workspace_slot *slot, const cdx_json *json, int argume
 }
 typedef struct batch_file_request {
     const char *path;
+    const char *name;
+    int has_name;
     cdx_encoding encoding;
     text_read_options options;
     cdx_path_char *native_path;
@@ -410,9 +412,13 @@ static size_t mcp_text_escaped_length(const char *text, size_t length) {
     return result;
 }
 
-static void batch_item_result(cdx_json_output *item, size_t index, const char *path,
+static void batch_item_result(cdx_json_output *item, size_t index, const char *name, int has_name,
+                              const char *path,
                               const char *status, const cdx_json_output *result) {
     cdx_json_raw(item, "{\"index\":"); cdx_json_uint(item, index);
+    if (has_name) {
+        cdx_json_raw(item, ",\"name\":"); cdx_json_quote(item, name, strlen(name));
+    }
     cdx_json_raw(item, ",\"path\":"); cdx_json_quote(item, path, strlen(path));
     cdx_json_raw(item, ",\"source\":\"disk\",\"status\":"); cdx_json_quote(item, status, strlen(status));
     cdx_json_raw(item, ",\"result\":");
@@ -449,6 +455,8 @@ static void read_files(const cdx_json *json, int arguments, cdx_cancel_handle ca
         const char *name;
         if (count == CDX_BATCH_MAX_FILES || json->nodes[node].type != CDX_JSON_OBJECT) { valid = 0; break; }
         requests[count].path = string_arg(json, node, "path", NULL, &valid);
+        requests[count].has_name = cdx_json_get(json, node, "name") >= 0;
+        requests[count].name = requests[count].has_name ? string_arg(json, node, "name", "", &valid) : NULL;
         name = string_arg(json, node, "encoding", "auto", &valid);
         requests[count].encoding = encoding_arg(name, &valid);
         if (!parse_read_options(json, node, &requests[count].options)) valid = 0;
@@ -480,7 +488,8 @@ static void read_files(const cdx_json *json, int arguments, cdx_cancel_handle ca
             error_result(output, "validation_error", "A path exceeds the document reader's path limit; no files were read");
             goto done;
         }
-        batch_item_result(&requests[i].result, i, requests[i].path, "not_run", NULL);
+        batch_item_result(&requests[i].result, i, requests[i].name, requests[i].has_name,
+                          requests[i].path, "not_run", NULL);
         if (requests[i].result.failed) { error_result(output, "io_error", "Result allocation failed; no files were read"); goto done; }
         requests[i].escaped_bytes = mcp_text_escaped_length(requests[i].result.data, requests[i].result.size);
         escaped_bytes += requests[i].escaped_bytes + 1u;
@@ -515,7 +524,8 @@ static void read_files(const cdx_json *json, int arguments, cdx_cancel_handle ca
             output->failed = 1;
             goto done;
         }
-        batch_item_result(&item, i, requests[i].path, status, &result);
+        batch_item_result(&item, i, requests[i].name, requests[i].has_name,
+                          requests[i].path, status, &result);
         cdx_json_output_free(&result);
         candidate_bytes = item.failed ? SIZE_MAX : mcp_text_escaped_length(item.data, item.size);
         if (selected_bytes > max_total_bytes - text_bytes || candidate_bytes > max_output_bytes ||
@@ -523,7 +533,8 @@ static void read_files(const cdx_json *json, int arguments, cdx_cancel_handle ca
             cdx_json_output_free(&item);
             status = stopped = "output_limit";
             selected_bytes = 0;
-            batch_item_result(&item, i, requests[i].path, status, NULL);
+            batch_item_result(&item, i, requests[i].name, requests[i].has_name,
+                              requests[i].path, status, NULL);
             candidate_bytes = item.failed ? SIZE_MAX : mcp_text_escaped_length(item.data, item.size);
         }
         if (item.failed) {

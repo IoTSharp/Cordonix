@@ -171,7 +171,7 @@ The memory workspace belongs to one running session. MCP keeps that process aliv
 | `workspace_open` | Load a file using an explicit encoding or strict BOM/UTF-8 detection |
 | `workspace_read` | Read the memory revision by byte/line range, last N lines or complete decoded text |
 | `read_file` | Read a fresh disk snapshot by path and encoding, using a line range, tail or raw text |
-| `read_files` | Read 1–32 disk files under one deadline and explicit text/output budgets, preserving individual outcomes |
+| `read_files` | Read 1–32 disk files under one deadline and explicit text/output budgets, preserving individual outcomes and optional per-item names |
 | `workspace_edit` | Preview or apply an exact memory-only replacement with SHA/count preconditions |
 | `workspace_convert_encoding` | Preview or perform lossless UTF-8/UTF-16/CP936 conversion in memory |
 | `workspace_commit` | Validate the current disk revision and commit one document |
@@ -244,6 +244,10 @@ For `Get-Content -LiteralPath 'D:/project/file.cs' | Select-Object -Skip 1990 -F
 ```json
 {"path":"D:/project/file.cs","encoding":"utf-8","start_line":1991,"line_count":67}
 ```
+
+For several named slices, put those objects in one `read_files` request. Map
+`-Skip M -First N` to `start_line: M + 1, line_count: N`; the returned `results`
+stay in request order and copy each optional `name` into its item.
 
 This reads lines 1991 through 2057. The same mapping gives `start_line: 61, line_count: 30` for `-Skip 60 -First 30`, and `start_line: 291, line_count: 27` for `-Skip 290 -First 27`. Supply the literal file path in `path`; the tool accepts structured fields. For CLI use, wrap those arguments as `{"operation":"read_file","arguments":{...}}` in a JSON request file and pass it to `cdx --request`.
 

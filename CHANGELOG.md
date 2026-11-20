@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Extended `read_files` with an optional per-item `name` that is copied into the
+  ordered result. This preserves labels when replacing a bounded PowerShell
+  `Get-Content | Select-Object -Skip/-First` loop without starting a shell.
 - Added root-level `ssh-wrapper.cmd` and `scp-wrapper.cmd` compatibility
   launchers. They validate the selected OpenSSH/key paths, forward arguments
   unchanged, apply a bounded 10-second connection timeout by default and

@@ -145,7 +145,7 @@ workspace_open -> workspace_read / workspace_search
 | `workspace_open` | 按显式编码或严格 BOM/UTF-8 检测读入文件 |
 | `workspace_read` | 按字节/行范围、末尾 N 行或完整原文读取内存版本 |
 | `read_file` | 按路径和编码，一次读取磁盘的行范围、末尾 N 行或完整原文 |
-| `read_files` | 在共同截止时间及正文/输出预算内读取 1～32 个磁盘文件，保留逐项结果 |
+| `read_files` | 在共同截止时间及正文/输出预算内读取 1～32 个磁盘文件，保留逐项结果和可选名称 |
 | `data_query` | 对 JSON、JSONL、CSV 做投影、过滤、计数、分组与分页，保留数字精度及部分结果状态 |
 | `find_files` | 复用 rg，对完整的有界文件扫描排序、去重和分页 |
 | `stat` | 查询文件、目录或链接元数据，保留字段可用性、时间表示单位与缺失路径上下文 |
@@ -231,6 +231,10 @@ build\bin\cdx.exe --request examples\read-lines.json
 ```json
 {"path":"D:/project/file.cs","encoding":"utf-8","start_line":1991,"line_count":67}
 ```
+
+多个带标题的片段可放入同一个 `read_files` 请求。将 `-Skip M -First N`
+转换为 `start_line: M + 1, line_count: N`，返回的 `results` 保持请求顺序，
+每项提供的 `name` 会复制到对应结果中。
 
 这会读取第 1991～2057 行。`-Skip 60 -First 30` 对应 `start_line: 61, line_count: 30`；`-Skip 290 -First 27` 对应 `start_line: 291, line_count: 27`。`path` 只填写文件的字面路径，各参数分别传入。CLI 使用时，将参数放入 JSON 请求文件的 `{"operation":"read_file","arguments":{...}}`，再通过 `cdx --request` 调用。
 

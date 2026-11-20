@@ -1,5 +1,15 @@
 # Handoff
 
+## Named bounded batch reads (2026-11-20, Asia/Shanghai)
+
+`read_files` now accepts an optional per-item `name` and copies it to the
+corresponding ordered result. It can replace a scripted set of
+`Get-Content -LiteralPath ... | Select-Object -Skip M -First N` reads while
+preserving caller headings. Use `start_line = M + 1` and `line_count = N`, with
+absolute literal paths and `encoding: "utf-8"` for UTF-8 source files. Focused
+stdio coverage checks named and unnamed items. Build, full test, installed
+runtime adoption and the user's LaneApp readback remain separate gates.
+
 ## SSH/SCP compatibility wrappers (2026-11-17, Asia/Shanghai)
 
 Added root-level `ssh-wrapper.cmd` and `scp-wrapper.cmd` to match the existing

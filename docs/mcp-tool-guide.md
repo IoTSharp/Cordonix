@@ -122,7 +122,7 @@ build does not change an existing connection.
 | Compute a binary SHA-256 | `hash_file`: absolute `path` | Exact bytes, without text decoding. Regular files only; source links/reparse points are rejected. |
 | Copy a file to a new destination | `copy_file`: absolute `source`, `destination` | No overwrite; existing destination parent required. Inspect publication, cleanup and metadata flags. |
 | Relocate a file within one filesystem | `move_file`: absolute `source`, `destination` | Atomic rename without replacement. No cross-filesystem copy/delete fallback; inspect `source_removed`. |
-| Read several known text files | `read_files`: 1–32 `files` items, each with `path` | Ordered fresh disk reads with per-item encoding and line/tail/raw modes. Preserve `partial` and `not_run`; not an atomic multi-file snapshot. |
+| Read several known text files | `read_files`: 1–32 `files` items, each with `path` and optional `name` | Ordered fresh disk reads with per-item encoding and line/tail/raw modes. A supplied `name` is copied to the corresponding result. Preserve `partial` and `not_run`; not an atomic multi-file snapshot. |
 | Create a directory | `create_directory`: absolute `path` | `parents` and `exist_ok` default false. Inspect `created` and `directories_created`; parents already created remain after a later failure. |
 | Create a new text file | `create_file`: absolute `path`, string `content` | Parent must exist; no overwrite. Use `content` for the body. `encoding` defaults to `utf-8`; `auto` is not supported. |
 | Capture a Windows desktop, region or window | `screenshot`: `path` and the selected target's fields | Saves a new PNG. Linux returns `not_supported`. `content_verified=false` requires visual inspection. |

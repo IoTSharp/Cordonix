@@ -608,7 +608,7 @@ static void batch_read_cases(wire_client *client) {
     cdx_json_output_init(&args);
     cdx_json_raw(&args, "{\"files\":[{\"path\":");
     cdx_json_quote(&args, fixture->utf8_path, strlen(fixture->utf8_path));
-    cdx_json_raw(&args, ",\"start_line\":2,\"line_count\":1},{\"path\":");
+    cdx_json_raw(&args, ",\"name\":\"line slice\",\"start_line\":2,\"line_count\":1},{\"path\":");
     cdx_json_quote(&args, fixture->utf8_path, strlen(fixture->utf8_path));
     cdx_json_raw(&args, ",\"tail_lines\":1}]}");
     valid = tool_call(client, "read_files", args.data, id++, &data);
@@ -620,7 +620,8 @@ static void batch_read_cases(wire_client *client) {
         number_is(&data, "completed", 2) && number_is(&data, "not_run", 0) &&
         string_is(&data, 0, "status", "ok") && string_is(&data, nested, "text", "\xe4\xb8\xad\n") &&
         string_is(&data, cdx_json_get(&data, second, "result"), "text", "last") &&
-        string_is(&data, first, "source", "disk") && second >= 0 && data.nodes[second].next < 0);
+        string_is(&data, first, "source", "disk") && string_is(&data, first, "name", "line slice") &&
+        cdx_json_get(&data, second, "name") < 0 && second >= 0 && data.nodes[second].next < 0);
     cdx_json_free(&data); cdx_json_output_free(&args);
 
     cdx_json_output_init(&args);
