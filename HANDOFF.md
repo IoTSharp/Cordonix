@@ -1,5 +1,30 @@
 # Handoff
 
+## v0.6.2 release and local adoption (2026-11-20, Asia/Shanghai)
+
+Committed the named `read_files` contract as `a5dbf48`, fixed the portable
+package inventory regression as `00317be`, pushed `main`, and published tag
+`v0.6.2` at `00317be92b5f9d0ffc4a6a392e407529d3dd7b60`.
+
+The tagged Windows/Linux CI run `44675854749` passed. The release workflow
+`44675854688` passed its version, Windows, Linux, GitHub Release and Gitee source
+jobs. Its Gitee release job reported failure after a partial release remained
+from the earlier failed tag attempt, so the configured Gitee publisher was run
+against the existing `IoTSharp/Cordonix v0.6.2` release. It uploaded the missing
+Windows ZIP, checksum and Sigstore bundle, and public Gitee readback now reports
+all 12 formal assets, target commit `00317be`, and the expected tag. GitHub
+public readback reports the same 12 formal assets.
+
+The Windows installer updated `C:\Users\mysti\AppData\Local\Cordonix` from
+0.6.1 to 0.6.2 using GitHub, with SHA-256 verification and auto-update still
+enabled. `current.json` points to 0.6.2 and the stable `launch.ps1` returns
+`Cordonix cdx 0.6.2`. A fresh MCP probe of the installed binary reports 39 tools,
+`build_revision=00317be92b5f9d0ffc4a6a392e407529d3dd7b60`, `build_dirty=false`,
+and `read_files.files.items.properties.name`. The old 0.6.1 executable remains
+on disk because an existing process holds its file lock. Future sessions use
+the stable launcher and the 0.6.2 `current.json` pointer. Existing sessions keep
+their process lifecycle.
+
 ## Named bounded batch reads (2026-11-20, Asia/Shanghai)
 
 `read_files` now accepts an optional per-item `name` and copies it to the

@@ -1,6 +1,8 @@
 # Cordonix
 
-The current development tree adds deterministic [project facts, failure-loop reminders and diagnostic views](HANDOFF.md#cdx-14def-local-implementation-batch-2026-11-15-asia-shanghai) and a native `current_time` operation to the released 0.6.0 surface. It advertises 39 tools (31 in `local-code`); the installed 0.6.0 release remains a separate 35-tool artifact until a release is authorized.
+The released 0.6.2 tree includes deterministic [project facts, failure-loop reminders and diagnostic views](HANDOFF.md#cdx-14def-local-implementation-batch-2026-11-15-asia-shanghai), native `current_time`, named `read_files` sections and SSH/SCP compatibility launchers. It advertises 39 tools (31 in `local-code`).
+
+Version 0.6.2 is published from clean source `00317be` with Windows and Linux package gates passing. The stable local installation is also on 0.6.2 and its MCP configuration uses the stable launcher.
 
 Version 0.6.0 delivers [ordered single-document edit batches](docs/single-document-edit-batches.md),
 explicit MCP tool profiles, compact execution results with original-output readback,
@@ -9,7 +11,7 @@ edits using one initial SHA, with whole-batch memory rollback and a bounded diff
 Existing single-edit calls remain supported; disk writes still require an explicit commit.
 Current build/release/install evidence is recorded in [HANDOFF.md](HANDOFF.md).
 
-Verified release: [GitHub v0.6.0](https://github.com/IoTSharp/Cordonix/releases/tag/v0.6.0) / [Gitee v0.6.0](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.6.0), from clean source `ea8b86d`. Windows/Linux source/tag CI, signed publication and all 12 public asset pairs pass readback. This computer's 0.5.0-to-0.6.0 upgrade and fresh stable-launcher MCP batch editing also pass; existing chat processes adopt the runtime after reconnection. Receipts and boundaries are in [HANDOFF.md](HANDOFF.md).
+Verified release: [GitHub v0.6.2](https://github.com/IoTSharp/Cordonix/releases/tag/v0.6.2) / [Gitee v0.6.2](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.6.2), from clean source `00317be`. Windows/Linux source/tag CI and GitHub publication passed, all 12 GitHub assets match the release contract, and Gitee's 12 formal assets were repaired and publicly read back after the tagged workflow left a partial release. This computer's stable launcher now starts 0.6.2 and exposes the named batch-read schema. Receipts and boundaries are in [HANDOFF.md](HANDOFF.md).
 
 Version 0.5.0 queues overlapping MCP tool calls in a bounded FIFO, including directory listings and batch reads. See [request scheduling](docs/mcp-request-scheduling.md) for cancellation, queue limits and installed-client adoption. Existing 0.4.1 connections require sequential calls until they load the updated runtime.
 

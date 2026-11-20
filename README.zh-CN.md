@@ -1,12 +1,14 @@
 # Cordonix
 
-0.6.0 提供[单文档顺序批量编辑](docs/single-document-edit-batches.md)、显式 MCP 工具配置、
+0.6.2 提供[单文档顺序批量编辑](docs/single-document-edit-batches.md)、显式 MCP 工具配置、
 可回读原始输出的执行摘要，以及分两阶段完成的每日启动更新。
 `workspace_edit.edits` 用一次初始 SHA 校验执行 1..32 次顺序编辑，全部成功才更新内存；
 任一步失败则整批回滚，默认只返回有界差异预览。旧单次编辑调用继续兼容，写盘仍需显式提交。
 构建、发行与本机更新的当前证据见 [HANDOFF.md](HANDOFF.md)。
 
-已发布并验收：[GitHub v0.6.0](https://github.com/IoTSharp/Cordonix/releases/tag/v0.6.0) / [Gitee v0.6.0](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.6.0)，发行源码为干净的 `ea8b86d`。Windows/Linux 源码及标签 CI、正式发布、来源证明和两站 12 对公开附件均通过核验。本机已完成 0.5.0 → 0.6.0 升级，并通过原有稳定入口启动新 MCP 进程，实际验证批量编辑；已有聊天需重连后采用新版。完整回执见 [HANDOFF.md](HANDOFF.md)。
+0.6.2 还包含带名称的 `read_files` 批量片段结果，以及 SSH/SCP 兼容入口。当前 MCP 共 39 个工具，`local-code` 提供 31 个工具。本机稳定入口已切换到 0.6.2，后续连接会从该入口启动。
+
+已发布并验收：[GitHub v0.6.2](https://github.com/IoTSharp/Cordonix/releases/tag/v0.6.2) / [Gitee v0.6.2](https://gitee.com/IoTSharp/Cordonix/releases/tag/v0.6.2)，发行源码为干净的 `00317be`。Windows/Linux 源码及标签 CI、GitHub 正式发布和 12 个 GitHub 附件通过核验，Gitee 的 12 个正式附件在标签工作流留下部分发布后完成补传并公开回读。本机稳定入口和新 MCP 进程已验证 0.6.2 版本及带名称的批量读取 schema。完整回执见 [HANDOFF.md](HANDOFF.md)。
 
 0.5.0 修复 MCP 重叠请求导致列目录报错的问题：同一连接的工具调用进入有界 FIFO，顺序执行，支持排队取消和明确的未执行诊断。详见[请求调度](docs/mcp-request-scheduling.md)。现有 0.4.1 连接在加载新版运行时之前，仍需逐个等待调用完成。
 

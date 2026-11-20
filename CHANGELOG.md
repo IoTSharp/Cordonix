@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.2 - 2026-11-20
+
 - Extended `read_files` with an optional per-item `name` that is copied into the
   ordered result. This preserves labels when replacing a bounded PowerShell
   `Get-Content | Select-Object -Skip/-First` loop without starting a shell.
@@ -17,6 +19,8 @@
   diagnostics explicit without model calls or new dependencies.
 - Expanded the development MCP surface to 39 tools (31 in `local-code`) and added bounded
   Windows/Linux focused tests for the new host-side context helpers.
+- Fixed Windows and Linux package inventories and gate counts so the SSH/SCP compatibility
+  wrappers and their documentation are included in published archives.
 
 ## 0.6.0 - 2026-11-15
 

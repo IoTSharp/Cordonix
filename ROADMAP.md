@@ -1,5 +1,14 @@
 # Cordonix Roadmap
 
+## v0.6.2 release and local adoption (2026-11-20)
+
+The named `read_files` contract, SSH/SCP compatibility package inventory and
+their focused tests are published from `00317be` as `v0.6.2`. Windows and Linux
+tag CI passed, GitHub published the 12 formal assets, and the Gitee release was
+completed through the idempotent publisher after its tagged workflow retained a
+partial release. The local stable launcher now selects 0.6.2 with auto-update
+enabled. Existing processes retain their own executable until they exit.
+
 ## Named bounded batch reads (2026-11-20)
 
 The existing `read_files` contract now accepts an optional per-item `name` and
